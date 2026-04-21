@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BLE Web Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .status-dot {
+            height: 10px;
+            width: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .bg-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+
+    <div class="max-w-4xl mx-auto p-4 sm:p-8">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-extrabold text-gray-900 mb-2">Trình đọc dữ liệu BLE</h1>
+            <p class="text-gray-600">Sử dụng Web Bluetooth API để giao tiếp với điện thoại</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Cấu hình & Kết nối -->
+            <div class="md:col-span-1 space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <span class="mr-2">⚙️</span> Cấu hình
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div class="flex items-center mb-2">
+                            <input type="checkbox" id="acceptAllDevices" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
+                            <label for="acceptAllDevices" class="ml-2 text-sm font-medium text-gray-700">Chấp nhận tất cả thiết bị</label>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Service UUID</label>
+                            <input type="text" id="serviceUuid" value="heart_rate" 
+                                class="mt-1 block w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
+                            <p class="text-xs text-gray-500 mt-1 italic">Dùng để lọc hoặc liệt kê Service cần dùng</p>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Char UUID</label>
+                            <input type="text" id="charUuid" value="heart_rate_measurement" 
+                                class="mt-1 block w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+
+                        <button id="connectBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl transition duration-200 flex items-center justify-center">
+                            Kết nối thiết bị
+                        </button>
+                        
+                        <button id="disconnectBtn" class="hidden w-full bg-red-100 hover:bg-red-200 text-red-600 font-bold py-3 px-4 rounded-xl transition duration-200">
+                            Ngắt kết nối
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h2 class="text-lg font-semibold mb-2 flex items-center">
+                        <span class="mr-2">📊</span> Trạng thái
+                    </h2>
+                    <div id="statusContainer" class="flex items-center space-x-2">
+                        <span id="statusIcon" class="status-dot bg-gray-400"></span>
+                        <span id="statusText" class="text-sm font-medium text-gray-500">Chưa kết nối</span>
+                    </div>
+                    <div id="deviceName" class="text-xs text-gray-400 mt-2 italic"></div>
+                </div>
+            </div>
+
+            <!-- Dữ liệu hiển thị -->
+            <div class="md:col-span-2 space-y-6">
+                <div class="bg-gradient p-8 rounded-2xl shadow-lg text-white">
+                    <p class="text-blue-100 uppercase tracking-wider text-sm font-bold">Giá trị hiện tại</p>
+                    <div class="flex items-baseline mt-2">
+                        <span id="currentValue" class="text-6xl font-black">00</span>
+                        <span id="unit" class="ml-2 text-xl opacity-80">units</span>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-64 overflow-hidden flex flex-col">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-semibold italic text-gray-700">Nhật ký dữ liệu (Log)</h2>
+                        <button id="clearLog" class="text-xs text-blue-600 hover:underline">Xóa log</button>
+                    </div>
+                    <div id="terminal" class="flex-grow overflow-y-auto font-mono text-sm bg-gray-900 text-green-400 p-4 rounded-lg">
+                        > Chờ lệnh kết nối...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const statusIcon = document.getElementById('statusIcon');
+        const statusText = document.getElementById('statusText');
+        const terminal = document.getElementById('terminal');
+        const currentValueDisplay = document.getElementById('currentValue');
+        const deviceNameDisplay = document.getElementById('deviceName');
+        const clearLogBtn = document.getElementById('clearLog');
+        const acceptAllCheckbox = document.getElementById('acceptAllDevices');
+
+        let bleDevice = null;
+        let bleServer = null;
+
+        function log(message, type = 'info') {
+            const time = new Date().toLocaleTimeString([], { hour12: false });
+            const entry = document.createElement('div');
+            entry.className = type === 'error' ? 'text-red-400' : 'text-green-400';
+            entry.innerHTML = `<span class="text-gray-500">[${time}]</span> ${message}`;
+            terminal.appendChild(entry);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        async function onConnectClick() {
+            const serviceUuid = document.getElementById('serviceUuid').value.trim();
+            const charUuid = document.getElementById('charUuid').value.trim();
+            const acceptAll = acceptAllCheckbox.checked;
+
+            try {
+                log('Đang quét thiết bị...');
+                
+                let options = {};
+                if (acceptAll) {
+                    // Chế độ quét tất cả, nhưng phải khai báo service muốn dùng sau này
+                    options = { 
+                        acceptAllDevices: true,
+                        optionalServices: [serviceUuid]
+                    };
+                } else {
+                    // Chế độ lọc theo service (khuyên dùng để bảo mật)
+                    options = {
+                        filters: [{ services: [serviceUuid] }],
+                        optionalServices: [serviceUuid]
+                    };
+                }
+                
+                bleDevice = await navigator.bluetooth.requestDevice(options);
+                
+                log(`Đã chọn: ${bleDevice.name || 'Thiết bị không tên'}`);
+                deviceNameDisplay.textContent = `Thiết bị: ${bleDevice.name || 'Không tên'} (${bleDevice.id})`;
+
+                bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+                log('Đang kết nối tới GATT Server...');
+                statusIcon.classList.replace('bg-gray-400', 'bg-yellow-400');
+                statusText.textContent = 'Đang kết nối...';
+
+                bleServer = await bleDevice.gatt.connect();
+                log('Đã kết nối Server. Đang lấy Service...');
+
+                const service = await bleServer.getPrimaryService(serviceUuid);
+                log('Đã lấy Service. Đang lấy Characteristic...');
+
+                const characteristic = await service.getCharacteristic(charUuid);
+                log('Đã lấy Characteristic thành công.');
+
+                if (characteristic.properties.notify) {
+                    await characteristic.startNotifications();
+                    characteristic.addEventListener('characteristicvaluechanged', handleDataChange);
+                    log('Đang chờ nhận dữ liệu (Notify ON)...');
+                } else if (characteristic.properties.read) {
+                    log('Tính năng Notify không hỗ trợ, đang thử Read...');
+                    const value = await characteristic.readValue();
+                    updateDisplay(value);
+                }
+
+                statusIcon.classList.replace('bg-yellow-400', 'bg-green-500');
+                statusText.textContent = 'Đã kết nối';
+                connectBtn.classList.add('hidden');
+                disconnectBtn.classList.remove('hidden');
+
+            } catch (error) {
+                log('Lỗi: ' + error, 'error');
+                statusIcon.className = 'status-dot bg-red-500';
+                statusText.textContent = 'Lỗi kết nối';
+            }
+        }
+
+        function handleDataChange(event) {
+            const value = event.target.value;
+            updateDisplay(value);
+        }
+
+        function updateDisplay(dataView) {
+            try {
+                const value = dataView.getUint8(0);
+                currentValueDisplay.textContent = value.toString().padStart(2, '0');
+                log(`Nhận dữ liệu: ${value}`);
+            } catch (e) {
+                log('Lỗi phân giải dữ liệu raw', 'error');
+            }
+        }
+
+        function onDisconnected() {
+            log('Đã ngắt kết nối với thiết bị.', 'error');
+            statusIcon.className = 'status-dot bg-gray-400';
+            statusText.textContent = 'Chưa kết nối';
+            deviceNameDisplay.textContent = '';
+            connectBtn.classList.remove('hidden');
+            disconnectBtn.classList.add('hidden');
+            currentValueDisplay.textContent = '00';
+        }
+
+        async function onDisconnectClick() {
+            if (bleDevice && bleDevice.gatt.connected) {
+                bleDevice.gatt.disconnect();
+            }
+        }
+
+        connectBtn.addEventListener('click', onConnectClick);
+        disconnectBtn.addEventListener('click', onDisconnectClick);
+        clearLogBtn.addEventListener('click', () => terminal.innerHTML = '');
+
+    </script>
+</body>
+</html>
