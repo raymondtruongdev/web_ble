@@ -316,8 +316,12 @@
           disconnectBtn.classList.add("hidden");
           rssiCard.classList.add("hidden");
           deviceCard.classList.add("hidden");
+
+          // Clear services and details UI
+          servicesList.innerHTML = '<p class="text-slate-400 italic">Sẵn sàng liệt kê GATT Services...</p>';
           detailsPlaceholder.classList.remove("hidden");
           detailsContent.classList.add("hidden");
+          characteristicsList.innerHTML = "";
         }
       }
 
