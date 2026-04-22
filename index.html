@@ -200,7 +200,15 @@
             <h4 class="font-black text-slate-700 char-name truncate">Đặc tính</h4>
             <p class="text-[10px] font-mono text-slate-400 char-uuid truncate uppercase"></p>
           </div>
-          <div class="flex gap-2 shrink-0">
+          <div class="flex gap-2 shrink-0 flex-wrap items-center">
+            <input
+                class="write-input hidden border border-slate-200 px-3 py-1.5 rounded-lg text-xs w-40"
+                placeholder="Nhập text..."
+            />
+            <button
+              class="send-btn hidden bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-black hover:bg-green-700 transition-all">
+              SEND
+            </button>
             <button
               class="read-btn hidden bg-white border border-slate-200 text-slate-600 px-5 py-2 rounded-xl text-xs font-black hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all"
             >
@@ -273,6 +281,8 @@
             "battery_service",
             "device_information",
             "0000ffe0-0000-1000-8000-00805f9b34fb", // UART
+            "current_time",
+            "00001234-0000-1000-8000-00805f9b34fb", // Custom Service
           ];
 
           bleDevice = await navigator.bluetooth.requestDevice({
@@ -373,6 +383,8 @@
 
             const readBtn = card.querySelector(".read-btn");
             const notifyBtn = card.querySelector(".notify-btn");
+            const sendBtn = card.querySelector(".send-btn");
+            const writeInput = card.querySelector(".write-input");
             const hexDisplay = card.querySelector(".char-hex");
             const decodedDisplay = card.querySelector(".char-decoded");
 
@@ -385,6 +397,20 @@
               readBtn.onclick = async () => {
                 const val = await char.readValue();
                 decodeAndDisplay(val, char.uuid, hexDisplay, decodedDisplay);
+              };
+            }
+
+            if (char.properties.write || char.properties.writeWithoutResponse) {
+              writeInput.classList.remove("hidden");
+              sendBtn.classList.remove("hidden");
+
+              sendBtn.onclick = async () => {
+                const text = writeInput.value.trim();
+                if (!text) {
+                  log("Chưa nhập dữ liệu để gửi", "error");
+                  return;
+                }
+                await sendToCharacteristic(char, text);
               };
             }
 
@@ -479,6 +505,25 @@
           ffe1: "UART RX/TX",
         };
         return names[short] || (uuid.length < 10 ? uuid : `ID: ${short.toUpperCase()}`);
+      }
+
+      async function sendToCharacteristic(char, text) {
+        try {
+          const encoder = new TextEncoder();
+          const data = encoder.encode(text);
+
+          if (char.properties.write) {
+            await char.writeValue(data);
+          } else if (char.properties.writeWithoutResponse) {
+            await char.writeValueWithoutResponse(data);
+          } else {
+            throw new Error("Characteristic không hỗ trợ write");
+          }
+
+          log(`Đã gửi: "${text}" → ${char.uuid}`, "success");
+        } catch (err) {
+          log("Send lỗi: " + err.message, "error");
+        }
       }
 
       function onDisconnected() {
