@@ -240,7 +240,9 @@
       </div>
     </template>
 
-    <script>
+    <script type="module">
+    import { OPTIONAL_SERVICES } from "./ble-services.js";
+
       let bleDevice = null;
       let bleServer = null;
 
@@ -276,18 +278,18 @@
           connectBtn.classList.add("scanning-active");
 
           // Tập trung các dịch vụ quan trọng để tránh Unsupported
-          const optionalServices = [
-            "heart_rate",
-            "battery_service",
-            "device_information",
-            "0000ffe0-0000-1000-8000-00805f9b34fb", // UART
-            "current_time",
-            "00001234-0000-1000-8000-00805f9b34fb", // Custom Service
-          ];
+          // const optionalServices = [
+          //   "heart_rate",
+          //   "battery_service",
+          //   "device_information",
+          //   "0000ffe0-0000-1000-8000-00805f9b34fb", // UART
+          //   "current_time",
+          //   "00001234-0000-1000-8000-00805f9b34fb", // Custom Service
+          // ];
 
           bleDevice = await navigator.bluetooth.requestDevice({
             acceptAllDevices: true,
-            optionalServices: optionalServices,
+            optionalServices: OPTIONAL_SERVICES,
           });
 
           deviceNameDisplay.textContent = bleDevice.name || "Unknown Device";
