@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BLE Explorer Pro - Device & RSSI</title>
+  <title>BLE Explorer</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     .status-dot {
@@ -74,30 +74,43 @@
 
 <body class="bg-slate-50 min-h-screen font-sans text-slate-900">
   <div class="max-w-6xl mx-auto p-4 sm:p-8">
-    <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-3xl font-black text-slate-900 tracking-tight">BLE Explorer Pro</h1>
-        <p class="text-slate-500">Phân tích tín hiệu và dịch vụ Bluetooth LE</p>
-      </div>
-      <div class="flex items-center gap-3">
-        <div id="statusBadge"
-          class="px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm flex items-center gap-2">
-          <span id="statusIcon" class="status-dot bg-slate-300"></span>
-          <span id="statusText" class="text-sm font-bold text-slate-600">Sẵn sàng</span>
+    <header class="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
+      <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+
+        <!-- Logo + Title -->
+        <div class="flex items-center gap-3">
+          <a href="https://t2dtech.io.vn/" target="_blank" class="flex items-center gap-3">
+            <img src="./res/h2t_logo.png" class="w-20 h-20 rounded-lg shadow object-contain"
+              onerror="this.src='https://via.placeholder.com/40?text=LOGO'" />
+            <div>
+              <h1 class="font-bold text-lg">BLE Analyzer</h1>
+            </div>
+          </a>
         </div>
-        <button id="connectBtn"
-          class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center gap-2">
-          <span id="btnIcon">📡</span> <span id="btnText">Quét thiết bị</span>
-        </button>
-        <button id="disconnectBtn"
-          class="hidden bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-red-200 transition-all">
-          Ngắt kết nối
-        </button>
+        <div class="flex items-center gap-3">
+          <div id="statusBadge"
+            class="px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm flex items-center gap-2">
+            <span id="statusIcon" class="status-dot bg-slate-300"></span>
+            <span id="statusText" class="text-sm font-bold text-slate-600">Sẵn sàng</span>
+          </div>
+          <button id="connectBtn"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center gap-2">
+            <span id="btnIcon">📡</span> <span id="btnText">Scan</span>
+          </button>
+          <button id="setServicesBtn"  class="bg-white border border-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-gray-200 transition-all active:scale-95 flex items-center gap-2          hover:bg-slate-100">
+            <span id="btnIcon">📄</span> <span id="btnText">Service List</span>
+          </button>
+          <button id="disconnectBtn"
+            class="hidden bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-red-200 transition-all">
+            Ngắt kết nối
+          </button>
+        </div>
       </div>
     </header>
 
+
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-      <div class="lg:col-span-4 space-y-6">
+      <div class="lg:col-span-4 space-y-2">
         <div id="deviceCard"
           class="hidden bg-slate-900 rounded-3xl p-6 shadow-xl relative overflow-hidden transition-all duration-500 border border-slate-800">
           <div class="absolute -right-4 -top-4 text-white opacity-5 text-8xl font-black italic">BLE</div>
@@ -114,13 +127,23 @@
                 <div id="deviceNameDisplay" class="text-2xl font-black text-white truncate">--</div>
               </div>
             </div>
+
             <div class="bg-slate-800/50 backdrop-blur rounded-2xl p-4 border border-slate-700/50">
-              <span class="text-[10px] text-slate-500 font-bold uppercase block mb-1 tracking-wider">Device ID</span>
-              <div id="deviceIdDisplay"
-                class="text-base font-mono font-bold text-blue-400 tracking-widest uppercase truncate">
+              <span class="text-[10px] text-slate-500 font-bold uppercase block mb-2 tracking-wider">
+                Device ID
+              </span>
+
+              <!-- MAC giả -->
+              <div id="deviceMacDisplay" class="text-blue-400 text-base font-mono font-bold tracking-wide">
+                --
+              </div>
+
+              <!-- ID gốc -->
+              <div id="deviceRawIdDisplay" class="text-[10px] text-slate-500 font-mono truncate mt-1">
                 --
               </div>
             </div>
+
           </div>
         </div>
 
@@ -156,7 +179,7 @@
         </div>
       </div>
 
-      <div class="lg:col-span-8 space-y-6">
+      <div class="lg:col-span-8 space-y-6 mt-2">
         <div id="detailsPanel"
           class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 min-h-[600px] flex flex-col">
           <div id="detailsPlaceholder" class="flex-grow flex flex-col items-center justify-center text-slate-300">
@@ -275,7 +298,8 @@
 
     const deviceCard = document.getElementById("deviceCard");
     const deviceNameDisplay = document.getElementById("deviceNameDisplay");
-    const deviceIdDisplay = document.getElementById("deviceIdDisplay");
+    const deviceMacDisplay = document.getElementById("deviceMacDisplay");
+    const deviceRawIdDisplay = document.getElementById("deviceRawIdDisplay");
     const rssiCard = document.getElementById("rssiCard");
     const rssiValue = document.getElementById("rssiValue");
     const rssiBar = document.getElementById("rssiBar");
@@ -286,6 +310,19 @@
       const colors = { error: "text-red-400", success: "text-green-400", info: "text-blue-300" };
       terminal.innerHTML += `<div class="${colors[type] || colors.info} mb-1"><span class="text-slate-600">[${time}]</span> ${msg}</div>`;
       terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function toMacAddressLike(id) {
+      // convert string → hex continuous
+      const hex = Array.from(id)
+        .map(c => c.charCodeAt(0).toString(16).padStart(2, "0"))
+        .join("");
+
+      // lấy 12 ký tự đầu (6 byte)
+      const mac = hex.substring(0, 12);
+
+      // format XX:XX:XX:XX:XX:XX
+      return mac.match(/.{1,2}/g).join(":").toUpperCase();
     }
 
     async function onConnect() {
@@ -309,7 +346,12 @@
         });
 
         deviceNameDisplay.textContent = bleDevice.name || "Unknown Device";
-        deviceIdDisplay.textContent = bleDevice.id;
+
+        const rawId = bleDevice.id;
+        const macLike = toMacAddressLike(rawId);
+
+        deviceMacDisplay.textContent = macLike;
+        deviceRawIdDisplay.textContent = rawId;
 
         log(`Đã chọn: ${bleDevice.name}`);
         bleDevice.addEventListener("gattserverdisconnected", onDisconnected);
