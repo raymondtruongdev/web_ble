@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BLE Deep Dive: Service & Characteristic</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
+
+    <style>
+      .title-box {
+        background: linear-gradient(135deg, #065f46 0%, #10b981 100%);
+        padding: 2.5rem 1rem;
+        text-align: center;
+        color: white;
+        border-radius: 0 0 1.5rem 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.1);
+      }
+      .title-text {
+        font-size: 1.875rem; /* text-3xl */
+        font-weight: 800;
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.025em;
+      }
+      .section-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 0.75rem;
+      }
+      .icon-badge-secondary {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.75rem;
+        margin-right: 1rem;
+        box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);
+        flex-shrink: 0;
+      }
+      .section-title {
+        font-size: 1.5rem; /* text-2xl */
+        font-weight: 700;
+        color: #064e3b;
+        letter-spacing: -0.015em;
+      }
+      .card-info {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 1rem;
+        border-left: 6px solid #10b981;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      }
+      .heading-3 {
+        font-size: 1.25rem; /* text-xl */
+        font-weight: 700;
+        margin-bottom: 1rem;
+        color: #065f46;
+      }
+      .code-block {
+        background: #0f172a;
+        border-radius: 1rem;
+        overflow: hidden;
+        font-size: 0.875rem; /* text-sm */
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+      .list-item {
+        display: flex;
+        gap: 0.5rem;
+        align-items: flex-start;
+      }
+      .highlight-box {
+        background: #f0fdf4;
+        border: 1px solid #dcfce7;
+        padding: 1rem;
+        border-radius: 0.75rem;
+        color: #166534;
+        font-size: 0.9375rem;
+        font-style: italic;
+      }
+    </style>
+  </head>
+
+  <body class="bg-slate-50 text-slate-900 selection:bg-emerald-100">
+    <header class="title-box">
+      <h1 class="title-text">Tương tác dữ liệu BLE</h1>
+      <p class="text-emerald-50 text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
+        Làm chủ các thao tác Read, Write và cơ chế Stream dữ liệu thời gian thực.
+      </p>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 py-4">
+      <!-- Section 1: Read Operations -->
+      <section class="mb-12">
+        <div class="section-header group">
+          <div class="icon-badge-secondary">
+            <span class="font-bold text-xl">1</span>
+          </div>
+          <h2 class="section-title">Đọc dữ liệu (Read)</h2>
+        </div>
+
+        <article class="grid lg:grid-cols-2 gap-6 mb-4">
+          <div class="card-info">
+            <div class="heading-3">Truy vấn trạng thái</div>
+            <p class="text-slate-700 mb-4">
+              Phương thức <code>readValue()</code> lấy giá trị hiện tại của một Characteristic dưới dạng <strong>DataView</strong>.
+            </p>
+            <ul class="space-y-3 text-slate-700 text-sm md:text-base">
+              <li class="list-item">
+                <span class="text-emerald-600 font-bold">✔</span>
+                <span>Thích hợp cho dữ liệu tĩnh: Tên, Pin, Version.</span>
+              </li>
+              <li class="list-item">
+                <span class="text-emerald-600 font-bold">✔</span>
+                <span>Cần lưu ý định dạng Byte (Endianness).</span>
+              </li>
+            </ul>
+          </div>
+
+          <figure class="code-block">
+            <div class="bg-slate-800 px-3 py-1.5 text-slate-400 text-[10px] font-mono uppercase tracking-widest">Read_Example.js</div>
+            <pre class="p-4"><code class="language-javascript">// Đọc Model Number
+const service = await server.getPrimaryService('device_information');
+const char = await service.getCharacteristic('model_number_string');
+
+const value = await char.readValue();
+const decoder = new TextDecoder('utf-8');
+console.log('Model:', decoder.decode(value));</code></pre>
+          </figure>
+        </article>
+      </section>
+
+      <!-- Section 2: Write Operations -->
+      <section class="mb-12">
+        <div class="section-header group">
+          <div class="icon-badge-secondary">
+            <span class="font-bold text-xl">2</span>
+          </div>
+          <h2 class="section-title">Gửi lệnh (Write)</h2>
+        </div>
+
+        <article class="grid lg:grid-cols-2 gap-6">
+          <div class="flex flex-col gap-4">
+            <div class="card-info border-l-orange-500">
+              <div class="heading-3">Điều khiển thiết bị</div>
+              <p class="text-slate-700">
+                Gửi dữ liệu xuống phần cứng có xác nhận hoặc không xác nhận.
+              </p>
+            </div>
+            <div class="highlight-box">
+              <strong>Mẹo:</strong> <code>writeValueWithResponse</code> đảm bảo gói tin không bị mất.
+            </div>
+          </div>
+          <figure class="code-block">
+            <div class="bg-slate-800 px-3 py-1.5 text-slate-400 text-[10px] font-mono uppercase tracking-widest">Write_Command.js</div>
+            <pre class="p-4"><code class="language-javascript">// Gửi RGB [255, 0, 0]
+const rgbData = new Uint8Array([0xFF, 0x00, 0x00]);
+
+// Gửi có phản hồi
+await characteristic.writeValueWithResponse(rgbData);</code></pre>
+          </figure>
+        </article>
+      </section>
+
+      <!-- Section 3: Notifications & Stream -->
+      <section class="mb-12">
+        <div class="section-header group">
+          <div class="icon-badge-secondary">
+            <span class="font-bold text-xl">3</span>
+          </div>
+          <h2 class="section-title">Dòng dữ liệu (Stream)</h2>
+        </div>
+        
+        <article class="grid lg:grid-cols-2 gap-6">
+          <div class="card-info border-l-blue-500">
+            <div class="heading-3">Cơ chế Notify</div>
+            <p class="text-slate-700 mb-4">
+              Nhận thông báo tự động khi cảm biến có giá trị mới thay vì thăm dò liên tục.
+            </p>
+            <div class="p-3 bg-blue-50 rounded-lg border border-blue-100 text-blue-900 text-sm">
+              1. <code>startNotifications()</code> <br>
+              2. Listen <code>characteristicvaluechanged</code>
+            </div>
+          </div>
+          <div class="code-block">
+            <div class="bg-slate-800 px-3 py-1.5 text-slate-400 text-[10px] font-mono uppercase tracking-widest">Stream.js</div>
+            <pre class="p-4"><code class="language-javascript">await characteristic.startNotifications();
+
+characteristic.addEventListener('characteristicvaluechanged', (e) => {
+  const value = e.target.value;
+  const heartRate = value.getUint8(1);
+  updateUI(heartRate);
+});</code></pre>
+          </div>
+        </article>
+      </section>
+
+      <!-- Section 4: Data Parsing -->
+      <section class="mb-12">
+        <div class="section-header group">
+          <div class="icon-badge-secondary">
+            <span class="font-bold text-xl">4</span>
+          </div>
+          <h2 class="section-title">Xử lý gói tin</h2>
+        </div>
+
+        <div class="grid lg:grid-cols-2 gap-6 items-start">
+          <div class="space-y-4">
+            <p class="text-lg text-slate-600 leading-relaxed">
+              Trích xuất các bit dữ liệu từ gói tin phức hợp để tiết kiệm năng lượng.
+            </p>
+            <div class="card-info border-l-purple-600">
+              <div class="heading-3">Kỹ thuật Parsing</div>
+              <p class="text-slate-700 text-sm">Sử dụng <code>DataView</code> (getUint16, getFloat32) với <code>littleEndian = true</code>.</p>
+            </div>
+          </div>
+          <div class="code-block">
+            <div class="bg-slate-800 px-3 py-1.5 text-slate-400 text-[10px] font-mono uppercase tracking-widest">Parser.js</div>
+            <pre class="p-4"><code class="language-javascript">function handleData(event) {
+  const view = event.target.value;
+  const status = view.getUint8(0);
+  const temp = view.getInt16(1, true) / 100;
+  console.log(status, temp);
+}</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Summary Table -->
+      <section class="pb-10">
+        <h2 class="section-title mb-6 text-center underline decoration-emerald-500 underline-offset-4">Tóm tắt</h2>
+
+        <div class="overflow-x-auto shadow-md rounded-xl border border-slate-200">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="bg-emerald-600 text-white">
+                <th class="p-4 font-bold uppercase">Thao tác</th>
+                <th class="p-4 font-bold uppercase">JavaScript</th>
+                <th class="p-4 font-bold uppercase">Năng lượng</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white">
+              <tr class="border-b">
+                <td class="p-4 font-bold text-slate-800">Đọc</td>
+                <td class="p-4 font-mono text-emerald-600">readValue()</td>
+                <td class="p-4 text-slate-600">Trung bình</td>
+              </tr>
+              <tr class="border-b">
+                <td class="p-4 font-bold text-slate-800">Ghi</td>
+                <td class="p-4 font-mono text-emerald-600">writeValue...</td>
+                <td class="p-4 text-slate-600">Cao</td>
+              </tr>
+              <tr>
+                <td class="p-4 font-bold text-slate-800">Stream</td>
+                <td class="p-4 font-mono text-emerald-600">startNotifications()</td>
+                <td class="p-4 text-slate-600">Thấp</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', (event) => {
+        hljs.highlightAll();
+      });
+    </script>
+  </body>
+</html>

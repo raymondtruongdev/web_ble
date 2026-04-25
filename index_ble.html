@@ -8,8 +8,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     .status-dot {
-      height: 20px;
-      width: 20px;
+      height: 10px;
+      width: 10px;
       border-radius: 50%;
       display: inline-block;
     }
@@ -70,217 +70,47 @@
       animation: pulse-ring 1.5s cubic-bezier(0.21, 0.61, 0.35, 1) infinite;
     }
   </style>
-  <style type="text/tailwindcss">
-    @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
-
-      @layer base {
-        body {
-          font-family: "Inter", sans-serif;
-        }
-      }
-
-      @layer components {
-        .nav-button-primary {
-          @apply w-full flex items-center justify-between px-3 py-2 
-              text-gray-700 uppercase tracking-[0.12em] text-[14px] font-bold
-              bg-indigo-50 hover:bg-indigo-100 
-              rounded-lg transition-all duration-200 
-              hover:text-indigo-700 shadow-sm;
-        }
-
-        .sidebar-scroll::-webkit-scrollbar {
-          width: 4px;
-        }
-
-        .sidebar-scroll::-webkit-scrollbar-thumb {
-          background: #e2e8f0;
-          border-radius: 10px;
-        }
-
-        .menu-item-active {
-          background-color: #2563eb !important;
-          color: white !important;
-          box-shadow: 0 4px 6px -1px rgba(191, 219, 254, 1) !important;
-        }
-
-        .menu-item-active:hover {
-          background-color: #1d4ed8 !important;
-          color: white !important;
-        }
-
-        .sub-menu-item {
-          @apply w-full text-left px-3 py-1.5 text-[14px] text-[#475569] 
-              hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 font-medium;
-        }
-
-        .color-footer-bg {
-          background-color: #1b5085;
-        }
-      }
-
-      #content-container {
-        overflow: hidden !important;
-      }
-
-      #content-frame {
-        width: 100%;
-        height: 100%; /* calc(100vh - 100px); */
-        border: none;
-      }
-
-      @keyframes fadeIn {
-        from {
-          opacity: 0;
-          transform: translateY(10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      .animate-fadeIn {
-        animation: fadeIn 0.4s ease-out forwards;
-      }
-    </style>
 </head>
 
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900">
+  <div class="max-w-6xl mx-auto p-4 sm:p-8">
+    <header class="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
+      <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
 
-<body class="bg-slate-50  text-slate-900 min-h-screen flex flex-col">
-
-  <nav class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between z-30 shadow-sm shrink-0">
-    <!-- Logo & Title -->
-    <div class="flex items-center gap-3">
-      <a href="https://t2dtech.io.vn/" target="_blank" class="flex items-center gap-3">
-        <img src="./res/h2t_logo.png" class="w-20 h-20 rounded-lg shadow object-contain"
-          onerror="this.src='https://via.placeholder.com/40?text=LOGO'" />
-        <span class="text-xl font-black tracking-tighter text-slate-800 uppercase">BLE Analyzer</span>
-      </a>
-    </div>
-    <!-- Navigation Links -->
-    <div class="hidden md:flex gap-6 text-sm font-medium text-slate-500">
-      <a href="https://t2dtech.io.vn/" class="hover:text-blue-600 transition">Our website</a>
-      <button onclick="" class="hover:text-blue-600 transition">Contact Us</button>
-      <a href="mailto:t2dtech.vn@gmail.com" class="hover:text-blue-600 transition">Email</a>
-    </div>
-
-    <button class="md:hidden p-2 text-slate-600" onclick="toggleSidebar()">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
-      </svg>
-    </button>
-  </nav>
-
-  <div class="flex flex-1 overflow-hidden">
-    <!-- Sidebar -->
-    <aside id="sidebar"
-      class="fixed inset-y-0 left-0 z-40 w-72 bg-white border-r border-slate-200 transform -translate-x-full md:translate-x-0 md:static md:inset-0 transition-transform duration-300 ease-in-out flex flex-col shrink-0">
-      <nav class="flex-1 overflow-y-auto sidebar-scroll p-4 space-y-3">
-
-
-        <!-- Control Panel -->
-        <div id="control-panel" class="flex-col  space-y-3 px-4 pb-2 pt-2 ">
-          <!-- Status Badge -->
+        <!-- Logo + Title -->
+        <div class="flex items-center gap-3">
+          <a href="https://t2dtech.io.vn/" target="_blank" class="flex items-center gap-3">
+            <img src="./res/h2t_logo.png" class="w-20 h-20 rounded-lg shadow object-contain"
+              onerror="this.src='https://via.placeholder.com/40?text=LOGO'" />
+            <div>
+              <h1 class="font-bold text-lg">BLE Analyzer</h1>
+            </div>
+          </a>
+        </div>
+        <div class="flex items-center gap-3">
           <div id="statusBadge"
             class="px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm flex items-center gap-2">
             <span id="statusIcon" class="status-dot bg-slate-300"></span>
-            <span id="statusText" class="text-sm font-bold text-slate-600">OFFLINE</span>
+            <span id="statusText" class="text-sm font-bold text-slate-600">Sẵn sàng</span>
           </div>
-          <!-- Connection Button -->
           <button id="connectBtn"
-            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 gap-5 w-full flex items-center justify-center  ">
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center gap-2">
             <span id="btnIcon">📡</span> <span id="btnText">Scan</span>
           </button>
-          <!-- Disconnect Button -->
+          <button id="setServicesBtn"  class="bg-white border border-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-gray-200 transition-all active:scale-95 flex items-center gap-2          hover:bg-slate-100">
+            <span id="btnIcon">📄</span> <span id="btnText">Service List</span>
+          </button>
           <button id="disconnectBtn"
-            class="hidden bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-red-200 transition-all active:scale-95 gap-5 w-full flex items-center justify-center  ">
+            class="hidden bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-red-200 transition-all">
             Ngắt kết nối
           </button>
-
         </div>
-
-        <div id="connection-panel"
-          class="flex-col  items-center justify-center ounded-3xl rounded-xl border border-slate-200 ">
-          <button id="connectionPanelBtn" onclick="toggleFolder('connection-button-list')" class="nav-button-primary ">
-            <span class="flex items-center">
-              <span class="icon mr-2 text-lg">🟢</span>
-              CONNECTION PANEL
-            </span>
-            <svg id="icon-connection-button-list" class="w-4 h-4 transition-transform rotate-180" fill="none"
-              stroke="currentColor" viewBox="0 0 24 24">
-              <path d="M19 9l-7 7-7-7"></path>
-            </svg>
-          </button>
-
-          <div id="connection-button-list" class="space-y-3 px-4 pb-2 pt-2">
-
-            <button id="showPage1Btn" onclick="loadExternalContent(
-                          './components/pages/Bluetooth Low Energy.html',this,false)" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-yellow-200 transition-all active:scale-95 gap-5
-               w-full flex items-center justify-center  ">
-
-              <span id="btnIcon">📄</span> <span id="btnText">Cơ bản về BLE</span>
-            </button>
-
-            <button id="showPage2Btn" onclick="loadExternalContent(
-                          './components/pages/Tuong tac du lieu BLE.html',this,false)" class="bg-pink-600 hover:bg-pink-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-yellow-200 transition-all active:scale-95 gap-5
-               w-full flex items-center justify-center  ">
-
-              <span id="btnIcon">📄</span> <span id="btnText">Tương tác BLE</span>
-            </button>
+      </div>
+    </header>
 
 
-            <button id="setServicesBtn" onclick="loadExternalContent('', this,false)" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-green-200 transition-all active:scale-95 gap-5
-               w-full flex items-center justify-center  ">
-
-              <span id="btnIcon">📄</span> <span id="btnText">Service List</span>
-            </button>
-
-
-
-          </div>
-        </div>
-
-        <div class="lg:col-span-8 space-y-6 mt-2">
-          <div id="detailsPanel"
-            class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 min-h-[600px] flex flex-col">
-            <div id="detailsPlaceholder" class="flex-grow flex flex-col items-center justify-center text-slate-300">
-              <div
-                class="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center text-5xl mb-6 shadow-inner">
-                📶
-              </div>
-              <p class="text-xl font-bold text-slate-400">None characteristic is selected</p>
-            </div>
-
-            <div id="detailsContent" class="hidden space-y-6">
-              <div class="flex justify-between items-start border-b border-slate-100 pb-6">
-                <div>
-                  <h2 id="activeServiceName" class="text-2xl font-black text-slate-800">Dịch vụ</h2>
-                  <p id="activeServiceUuid" class="text-sm font-mono text-slate-400 break-all mt-1 uppercase"></p>
-                </div>
-                <div
-                  class="bg-blue-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">
-                  Active
-                </div>
-              </div>
-              <div id="characteristicsList" class="grid grid-cols-1 gap-4"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Available Services -->
-        <h2 class="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-[0.15em]">
-          Available Services in Device
-        </h2>
-
-        <div id="servicesListPanel" class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-          <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
-            <span class="text-blue-500">●</span> Danh sách dịch vụ
-          </h2>
-          <div id="servicesList" class="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar text-sm">
-            <p class="text-slate-400 italic">Sẵn sàng liệt kê GATT Services...</p>
-          </div>
-        </div>
-
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div class="lg:col-span-4 space-y-2">
         <div id="deviceCard"
           class="hidden bg-slate-900 rounded-3xl p-6 shadow-xl relative overflow-hidden transition-all duration-500 border border-slate-800">
           <div class="absolute -right-4 -top-4 text-white opacity-5 text-8xl font-black italic">BLE</div>
@@ -316,6 +146,7 @@
 
           </div>
         </div>
+
         <div id="rssiCard" class="hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
           <h2 class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Cường độ tín hiệu</h2>
           <div class="flex items-end gap-4 mb-2">
@@ -330,66 +161,16 @@
           </p>
         </div>
 
-
-
-
-
-
-      </nav>
-    </aside>
-
-    <!-- Content Area -->
-    <main id="content-area" class=" w-full h-screen flex flex-col bg-white space-y-3">
-      <div id="content-container"
-        class="flex-1 w-full overflow-y-auto overflow-x-hidden bg-white relative flex flex-col">
-
-        <div id="overlay" onclick="toggleSidebar()" class="hidden fixed inset-0 bg-slate-900/40 z-30 md:hidden">
-        </div>
-        <div id="main-content" class="flex-1 overflow-hidden relative pt-4">
-          <!-- Project Detail View -->
-          <div id="project-viewer"
-            class="hidden animate-fadeIn max-w-4xl mx-auto px-8 py-12 absolute inset-0 overflow-hidden">
-            <div class="bg-indigo-500 h-1.5 w-24 mb-8 rounded-full"></div>
-            <p id="project-desc" class="text-slate-600 mb-10 text-lg leading-relaxed font-medium">
-              Mô tả dự án sẽ hiển thị tại đây.
-            </p>
-            <div
-              class="p-20 border-2 border-dashed border-slate-200 rounded-[2rem] text-center text-slate-400 bg-slate-50/50">
-              <p class="text-sm font-bold uppercase tracking-widest">Nội dung chi tiết đang được cập nhật</p>
-            </div>
-          </div>
-          <div id="ble-page" class="w-full h-full flex flex-col overflow-hidden">
-            <div class="flex-1 relative bg-white">
-              <div id="iframe-loader" class="absolute inset-0 flex items-center justify-center bg-white z-10 hidden">
-                <div class="flex flex-col items-center gap-4">
-                  <div class="w-12 h-12 border-4 border-indigo-50 border-t-indigo-600 rounded-full animate-spin"></div>
-                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Đang đồng bộ dữ
-                    liệu</span>
-                </div>
-              </div>
-              <iframe id="content-frame" src="" class="w-full h-full" onload="hideLoader()"></iframe>
-            </div>
-          </div>
-          <!-- Iframe Viewer Container: Chặn cuộn ở cấp viewer để ép iframe tự cuộn -->
-          <div id="iframe-viewer" class="w-full h-full flex flex-col overflow-hidden">
-
-
-            <div class="flex-1 relative bg-white">
-              <div id="iframe-loader" class="absolute inset-0 flex items-center justify-center bg-white z-10 hidden">
-                <div class="flex flex-col items-center gap-4">
-                  <div class="w-12 h-12 border-4 border-indigo-50 border-t-indigo-600 rounded-full animate-spin">
-                  </div>
-                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Đang đồng
-                    bộ dữ liệu</span>
-                </div>
-              </div>
-              <iframe id="content-frame" src="" class="w-full h-full" onload="hideLoader()"></iframe>
-            </div>
+        <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+          <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+            <span class="text-blue-500">●</span> Danh sách dịch vụ
+          </h2>
+          <div id="servicesList" class="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar text-sm">
+            <p class="text-slate-400 italic">Sẵn sàng liệt kê GATT Services...</p>
           </div>
         </div>
-      </div>
-      <div id="debug-viewer">
-        <div class="w-full h-full flex flex-col overflow-hidden bg-slate-900 p-6 rounded-3xl shadow-xl text-white">
+
+        <div class="bg-slate-900 p-6 rounded-3xl shadow-xl text-white">
           <h3 class="text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mb-4">Debug Console</h3>
           <div id="terminal"
             class="font-mono text-[11px] leading-relaxed h-24 overflow-y-auto custom-scrollbar text-blue-300 opacity-80">
@@ -397,7 +178,33 @@
           </div>
         </div>
       </div>
-    </main>
+
+      <div class="lg:col-span-8 space-y-6 mt-2">
+        <div id="detailsPanel"
+          class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 min-h-[600px] flex flex-col">
+          <div id="detailsPlaceholder" class="flex-grow flex flex-col items-center justify-center text-slate-300">
+            <div class="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center text-5xl mb-6 shadow-inner">
+              📶
+            </div>
+            <p class="text-xl font-bold text-slate-400">Chưa có dịch vụ nào</p>
+          </div>
+
+          <div id="detailsContent" class="hidden space-y-6">
+            <div class="flex justify-between items-start border-b border-slate-100 pb-6">
+              <div>
+                <h2 id="activeServiceName" class="text-2xl font-black text-slate-800">Dịch vụ</h2>
+                <p id="activeServiceUuid" class="text-sm font-mono text-slate-400 break-all mt-1 uppercase"></p>
+              </div>
+              <div
+                class="bg-blue-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">
+                Active
+              </div>
+            </div>
+            <div id="characteristicsList" class="grid grid-cols-1 gap-4"></div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <template id="charTemplate">
@@ -473,93 +280,6 @@
       </div>
     </div>
   </template>
-
-
-
-  <script>
-    const projectViewer = document.getElementById("project-viewer");
-    const blePageViewer = document.getElementById("ble-page");
-    const iframeViewer = document.getElementById("iframe-viewer");
-    const contentFrame = document.getElementById("content-frame");
-    const iframeLoader = document.getElementById("iframe-loader");
-
-
-    const UPDATE_SOON_URL = "./utils/updatesoon.html";
-
-    // Hàm điều hướng đặc biệt từ Navbar
-    function navToProject() {
-      // 1. Mở folder project-list nếu đang đóng
-      const folder = document.getElementById("project-list");
-      if (folder && folder.classList.contains("hidden")) {
-        toggleFolder("project-list");
-      }
-
-      // 2. Load dự án đầu tiên (AI Vision) và highlight nó
-      const firstProjectBtn = document.getElementById("btn-ai-vision");
-      loadProject("Dự án AI Vision", "Hệ thống nhận diện khuôn mặt thời gian thực.", firstProjectBtn);
-    }
-
-    function highlightMenuItem(element) {
-      if (!element) return;
-      const allButtons = document.querySelectorAll(".menu-btn");
-      allButtons.forEach((btn) => btn.classList.remove("menu-item-active"));
-      element.classList.add("menu-item-active");
-    }
-
-    function toggleFolder(id) {
-      const el = document.getElementById(id);
-      const icon = document.getElementById("icon-" + id);
-      if (el) el.classList.toggle("hidden");
-      if (icon) icon.classList.toggle("rotate-180");
-    }
-
-    function showLoader() {
-      iframeLoader.classList.remove("hidden");
-    }
-    function hideLoader() {
-      iframeLoader.classList.add("hidden");
-    }
-
-    function hideAllViewers() {
-      projectViewer.classList.add("hidden");
-      iframeViewer.classList.add("hidden");
-    }
-
-    function loadExternalContent(url, element, change_state = true) {
-      hideAllViewers();
-      iframeViewer.classList.remove("hidden");
-      if (change_state) {
-        highlightMenuItem(element);
-      }
-      if (!url || url === "#" || url === "") {
-        contentFrame.src = UPDATE_SOON_URL;
-      } else {
-        showLoader();
-        contentFrame.src = url;
-      }
-
-      if (window.innerWidth < 768) {
-        const sidebar = document.getElementById("sidebar");
-        if (!sidebar.classList.contains("-translate-x-full")) toggleSidebar();
-      }
-    }
-
-
-    function toggleSidebar() {
-      document.getElementById("sidebar").classList.toggle("-translate-x-full");
-      document.getElementById("overlay").classList.toggle("hidden");
-    }
-
-
-    // window.onload = function () {
-    //   const btnIntro = document.getElementById("btn-intro");
-    //   loadExternalContent("", btnIntro);
-
-    //   // blePageViewer.classList.remove("hidden");
-    // };
-
-
-  </script>
 
   <script>
     let bleDevice = null;
@@ -653,15 +373,15 @@
     function updateUI(isConnected) {
       connectBtn.classList.remove("scanning-active");
       if (isConnected) {
-        document.getElementById("statusText").textContent = "ONLINE";
         document.getElementById("statusIcon").className = "status-dot bg-green-500";
+        document.getElementById("statusText").textContent = "ONLINE";
         connectBtn.classList.add("hidden");
         disconnectBtn.classList.remove("hidden");
         rssiCard.classList.remove("hidden");
         deviceCard.classList.remove("hidden");
       } else {
-        document.getElementById("statusText").textContent = "OFFLINE";
         document.getElementById("statusIcon").className = "status-dot bg-slate-300";
+        document.getElementById("statusText").textContent = "Sẵn sàng";
         connectBtn.classList.remove("hidden");
         disconnectBtn.classList.add("hidden");
         rssiCard.classList.add("hidden");
@@ -873,38 +593,6 @@
 
     connectBtn.onclick = onConnect;
     disconnectBtn.onclick = () => bleDevice?.gatt.disconnect();
-  </script>
-
-  <script>
-    window.onload = function () {
-      const btnIntro = document.getElementById("btn-intro");
-      loadExternalContent("", btnIntro);
-
-      // blePageViewer.classList.remove("hidden");
-
-      // const el = document.getElementById('connection-button-list');
-      // el.classList.toggle("hidden");
-
-      // // đổi icon
-      // const icon = btn.querySelector(".icon");
-      // // icon.textContent = icon.textContent === "🟢" ? "❌" : "🟢";
-
-
-      const btn = document.getElementById("connectionPanelBtn");
-      const icon = btn.querySelector(".icon");
-
-      icon.textContent = "❌"; // set icon mặc định
-
-      // For debug UI
-      const deviceCard = document.getElementById("deviceCard");
-      deviceCard.classList.remove("hidden");
-
-      const rssiCard = document.getElementById("rssiCard");
-      rssiCard.classList.remove("hidden");
-
-
-    };
-
   </script>
 </body>
 
