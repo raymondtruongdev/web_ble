@@ -1,3 +1,9 @@
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
 .status-dot {
   height: 20px;
   width: 20px;
@@ -18,6 +24,131 @@
 }
 
 @keyframes pulse-ring {
-  0% { transform: scale(0.3); opacity: 1; }
-  100% { transform: scale(1.2); opacity: 0; }
+  0% {
+    transform: scale(0.3);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+}
+
+/* =============== MENU LINK STYLE ============== */
+.menu-link {
+  position: relative;
+  display: inline-block;
+  font-weight: 600;
+  color: #334155;
+  /* slate-700 */
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.menu-link:hover {
+  color: #2563eb;
+  /* blue-600 */
+}
+
+.menu-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 0;
+  height: 2px;
+  background: #2563eb;
+  /* blue-600 */
+  transition: width 0.3s ease;
+}
+
+.menu-link:hover::after {
+  width: 100%;
+}
+
+
+/* ===============  CUSTOM SCROLLBAR ============== */
+
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #90caf9;
+  border-radius: 999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 12px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f8fafc; /* nền nhẹ */
+  border-radius: 999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    #90caf9,
+    #42a5f5
+  ); /* Material Blue gradient */
+  border-radius: 999px;
+  border: 2px solid #f8fafc;
+  transition: all 0.3s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    #64b5f6,
+    #1e88e5
+  );
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* =============== TERMINAL VIEWER ============== */
+.terminal-fixed {
+  height: 250px;
+  min-height: 150px;
+  max-height: 150px;
+}
+/* =============== TAB STYLE BUTTON ============== */
+/* TAB ACTIVE (Đang được chọn) */
+.tab-active {
+  background: #1976d2; /* Material Blue 700 */
+  color: #ffffff;
+  border-color: #1976d2;
+  box-shadow: 0 4px 12px rgba(25, 118, 210, 0.25);
+  transform: translateY(-1px);
+}
+
+/* TAB INACTIVE (Trạng thái chờ) */
+.tab-inactive {
+  background: #ffffff;
+  color: #546e7a; /* Blue Grey */
+  border-color: #e3f2fd; /* Blue 50 */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.25s ease;
+}
+
+/* HOVER */
+.tab-inactive:hover {
+  background: #e3f2fd; /* Blue 50 */
+  color: #1565c0; /* Blue 800 */
+  border-color: #90caf9; /* Blue 200 */
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(25, 118, 210, 0.12);
+}
+
+/* CLICK EFFECT */
+.tab-btn:active {
+  transform: scale(0.97);
+}
+
+/* OPTIONAL: Ripple-like smooth feel */
+.tab-btn {
+  transition: all 0.25s ease;
+  border-radius: 12px;
 }
