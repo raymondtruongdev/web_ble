@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BLE Analyzer</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="./css/styles.css" />
+
+  <style>
+    /* Custom Scrollbar */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 20px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
+    }
+
+    /* TAB */
+    /* TAB CONTAINER - Thêm bọc ngoài nếu cần để căn chỉnh */
+    .tab-container {
+      display: flex;
+      gap: 10px;
+      padding: 10px;
+    }
+
+    /* TAB BUTTON CHUNG */
+    .tab-btn {
+      padding: 10px 20px;
+      border-radius: 12px;
+      /* Bo góc mềm mại hơn */
+      font-weight: 600;
+      font-size: 14px;
+      border: 2px solid transparent;
+      /* Tránh bị nhảy khung khi thêm border */
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      outline: none;
+    }
+
+    /* TAB ACTIVE (Trạng thái đang chọn) */
+    .tab-active {
+      background: #ef4444;
+      color: white;
+      border-color: #ef4444;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+      /* Tạo hiệu ứng nổi */
+    }
+
+    /* TAB INACTIVE (Trạng thái chờ) */
+    .tab-inactive {
+      background: #f8fafc;
+      /* Màu nền xám cực nhẹ để trông tinh tế hơn trắng tinh */
+      color: #64748b;
+      /* Màu chữ trung tính, giảm độ gắt */
+      border-color: #e2e8f0;
+    }
+
+    /* HIỆU ỨNG KHI RÊ CHUỘT (Hover) */
+    .tab-inactive:hover {
+      background: #fee2e2;
+      /* Màu đỏ cực nhạt */
+      color: #ef4444;
+      border-color: #fca5a5;
+      transform: translateY(-1px);
+      /* Nhích nhẹ lên trên */
+    }
+
+    .tab-btn:active {
+      transform: scale(0.96);
+      /* Hiệu ứng nhấn nút */
+    }
+
+    /* TERMINAL fixed */
+    .terminal-fixed {
+      height: 150px;
+      min-height: 150px;
+      max-height: 150px;
+    }
+
+    html,
+    body {
+      height: 100%;
+      overflow: hidden;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900 h-screen flex flex-col">
+
+  <!-- NAV -->
+  <nav class="bg-white border-b px-6 py-3 flex justify-between items-center shadow-sm shrink-0">
+    <div class="flex items-center gap-3">
+      <img src="./res/h2t_logo.png" class="w-12 h-12 rounded-lg shadow object-contain"
+        onerror="this.src='https://via.placeholder.com/40'" />
+      <span class="text-xl font-black">Bluetooth Low Energy (BLE)</span>
+    </div>
+  </nav>
+
+  <!-- MAIN LAYOUT -->
+  <div class="flex flex-1 min-h-0 overflow-hidden">
+
+    <!-- SIDEBAR -->
+    <aside class="w-72 bg-white border-r p-4 space-y-4 flex flex-col overflow-hidden shrink-0">
+
+      <!-- STATUS -->
+      <div id="statusBadge" class="px-4 py-2 rounded-full border flex items-center gap-2">
+        <span id="statusIcon" class="status-dot bg-slate-300"></span>
+
+        <span id="statusText" class="text-sm font-bold text-slate-600">
+          OFFLINE
+        </span>
+      </div>
+
+      <!-- CONNECT -->
+      <button id="connectBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl w-full">
+        📡 Scan
+      </button>
+
+      <!-- DISCONNECT -->
+      <button id="disconnectBtn"
+        class="hidden bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl w-full">
+        Ngắt kết nối
+      </button>
+
+      <!-- DEVICE -->
+      <div id="deviceCard" class=" bg-slate-900 text-white p-6 rounded-2xl mb-6">
+        <h2 class="text-sm text-slate-400 uppercase mb-1">
+          Thiết bị
+        </h2>
+
+        <div id="deviceNameDisplay" class="text-xl font-bold">
+          --
+        </div>
+      </div>
+
+      <!-- SERVICES -->
+      <div class="flex flex-col flex-1 min-h-0">
+        <h2 class="text-xs font-bold text-slate-400 uppercase mb-2">
+          Services
+        </h2>
+
+        <div id="servicesList" class="flex-1 min-h-0 space-y-2 text-sm overflow-y-auto custom-scrollbar">
+          <p class="text-slate-400 italic">
+            Chưa có dữ liệu...
+          </p>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- RIGHT CONTENT -->
+    <main class="flex-1 flex flex-col p-6 overflow-hidden min-h-0">
+
+      <!-- TAB -->
+      <!-- <div class="flex gap-3 mb-4 shrink-0"> -->
+      <div class="tab-container">
+        <button id="tabService" class="tab-btn tab-active">
+          Service List
+        </button>
+
+        <button id="tabTransfer" class="tab-btn tab-inactive">
+          Transfer File
+        </button>
+      </div>
+
+      <!-- CONTENT AREA -->
+      <div class="flex-1 min-h-0 overflow-hidden">
+
+        <!-- SERVICE TAB -->
+        <div id="contentService" class="h-full min-h-0 overflow-y-auto custom-scrollbar">
+
+          <!-- DETAILS -->
+          <div id="detailsPanel" class="bg-white p-6 rounded-2xl border min-h-full">
+            <div id="detailsPlaceholder" class="text-center text-slate-400">
+              Chọn service để xem chi tiết
+            </div>
+
+            <div id="detailsContent" class="hidden">
+              <h2 id="activeServiceUuid" class="font-mono text-xs text-slate-400 mb-2"></h2>
+
+              <div id="characteristicsList" class="space-y-3"></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- TRANSFER TAB -->
+        <div id="contentTransfer" class="hidden h-full min-h-0 ">
+        </div>
+
+      </div>
+
+      <!-- TERMINAL -->
+      <div id="terminal"
+        class="terminal-fixed mt-6 bg-slate-900 text-blue-300 p-4 rounded-xl overflow-y-auto custom-scrollbar font-mono text-xs shrink-0">
+        > BLE ready...
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="bg-white border-t px-6 py-3 text-sm text-slate-500 text-center shrink-0">
+    © 2026 BLE Communication — Developed by H2T
+  </footer>
+
+  <!-- TEMPLATE -->
+  <template id="charTemplate">
+    <div class="border p-4 rounded-xl">
+      <div class="font-bold text-sm char-name">
+        Characteristic
+      </div>
+
+      <div class="text-xs text-slate-400 char-uuid"></div>
+
+      <div class="mt-2 text-lg text-indigo-600 char-decoded">
+        --
+      </div>
+
+      <div class="text-xs text-slate-500 char-hex">
+        --
+      </div>
+    </div>
+  </template>
+
+  <!-- JS -->
+  <script type="module" src="./js/app.js"></script>
+
+</body>
+
+</html>
