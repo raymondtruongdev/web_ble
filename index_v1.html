@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BLE Explorer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .status-dot {
+      height: 10px;
+      width: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .bg-glass {
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(10px);
+    }
+
+    .service-card:hover {
+      transform: translateY(-2px);
+      transition: all 0.2s;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
+    }
+
+    .rssi-bar {
+      transition: width 0.5s ease;
+    }
+
+    @keyframes pulse-ring {
+      0% {
+        transform: scale(0.3);
+        opacity: 1;
+      }
+
+      80%,
+      100% {
+        transform: scale(1.2);
+        opacity: 0;
+      }
+    }
+
+    .scanning-active {
+      position: relative;
+    }
+
+    .scanning-active::after {
+      content: "";
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      border: 2px solid #3b82f6;
+      border-radius: inherit;
+      animation: pulse-ring 1.5s cubic-bezier(0.21, 0.61, 0.35, 1) infinite;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900">
+  <div class="max-w-6xl mx-auto p-4 sm:p-8">
+    <header class="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
+      <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+
+        <!-- Logo + Title -->
+        <div class="flex items-center gap-3">
+          <a href="https://t2dtech.io.vn/" target="_blank" class="flex items-center gap-3">
+            <img src="./res/h2t_logo.png" class="w-20 h-20 rounded-lg shadow object-contain"
+              onerror="this.src='https://via.placeholder.com/40?text=LOGO'" />
+            <div>
+              <h1 class="font-bold text-lg">BLE Analyzer</h1>
+            </div>
+          </a>
+        </div>
+        <div class="flex items-center gap-3">
+          <div id="statusBadge"
+            class="px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm flex items-center gap-2">
+            <span id="statusIcon" class="status-dot bg-slate-300"></span>
+            <span id="statusText" class="text-sm font-bold text-slate-600">Sẵn sàng</span>
+          </div>
+          <button id="connectBtn"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center gap-2">
+            <span id="btnIcon">📡</span> <span id="btnText">Scan</span>
+          </button>
+          <button id="setServicesBtn"
+            class="bg-white border border-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-gray-200 transition-all active:scale-95 flex items-center gap-2          hover:bg-slate-100">
+            <span id="btnIcon">📄</span> <span id="btnText">Service List</span>
+          </button>
+          <button id="disconnectBtn"
+            class="hidden bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-red-200 transition-all">
+            Ngắt kết nối
+          </button>
+        </div>
+      </div>
+    </header>
+
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div class="lg:col-span-4 space-y-2">
+        <div id="deviceCard"
+          class="hidden bg-slate-900 rounded-3xl p-6 shadow-xl relative overflow-hidden transition-all duration-500 border border-slate-800">
+          <div class="absolute -right-4 -top-4 text-white opacity-5 text-8xl font-black italic">BLE</div>
+          <div class="relative z-10">
+            <div class="flex items-center gap-4 mb-6">
+              <div
+                class="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center text-3xl shadow-lg">
+                📱
+              </div>
+              <div class="overflow-hidden">
+                <h2 class="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em] mb-1">
+                  Thiết bị đang chạy
+                </h2>
+                <div id="deviceNameDisplay" class="text-2xl font-black text-white truncate">--</div>
+              </div>
+            </div>
+
+            <div class="bg-slate-800/50 backdrop-blur rounded-2xl p-4 border border-slate-700/50">
+              <span class="text-[10px] text-slate-500 font-bold uppercase block mb-2 tracking-wider">
+                Device ID
+              </span>
+
+              <!-- MAC giả -->
+              <div id="deviceMacDisplay" class="text-blue-400 text-base font-mono font-bold tracking-wide">
+                --
+              </div>
+
+              <!-- ID gốc -->
+              <div id="deviceRawIdDisplay" class="text-[10px] text-slate-500 font-mono truncate mt-1">
+                --
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div id="rssiCard" class="hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+          <h2 class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Cường độ tín hiệu</h2>
+          <div class="flex items-end gap-4 mb-2">
+            <div id="rssiValue" class="text-4xl font-black text-slate-800">-00</div>
+            <div class="text-slate-400 mb-1 font-bold">dBm</div>
+          </div>
+          <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+            <div id="rssiBar" class="rssi-bar h-full bg-blue-500 w-0"></div>
+          </div>
+          <p id="rssiStatus" class="text-[11px] mt-2 text-slate-500 font-medium tracking-wide italic">
+            Đang đồng bộ...
+          </p>
+        </div>
+
+        <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+          <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+            <span class="text-blue-500">●</span> Danh sách dịch vụ
+          </h2>
+          <div id="servicesList" class="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar text-sm">
+            <p class="text-slate-400 italic">Sẵn sàng liệt kê GATT Services...</p>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 p-6 rounded-3xl shadow-xl text-white">
+          <h3 class="text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mb-4">Debug Console</h3>
+          <div id="terminal"
+            class="font-mono text-[11px] leading-relaxed h-24 overflow-y-auto custom-scrollbar text-blue-300 opacity-80">
+            > Hệ thống BLE khởi động hoàn tất.
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-8 space-y-6 mt-2">
+        <div id="detailsPanel"
+          class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 min-h-[600px] flex flex-col">
+          <div id="detailsPlaceholder" class="flex-grow flex flex-col items-center justify-center text-slate-300">
+            <div class="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center text-5xl mb-6 shadow-inner">
+              📶
+            </div>
+            <p class="text-xl font-bold text-slate-400">Chưa có dịch vụ nào</p>
+          </div>
+
+          <div id="detailsContent" class="hidden space-y-6">
+            <div class="flex justify-between items-start border-b border-slate-100 pb-6">
+              <div>
+                <h2 id="activeServiceName" class="text-2xl font-black text-slate-800">Dịch vụ</h2>
+                <p id="activeServiceUuid" class="text-sm font-mono text-slate-400 break-all mt-1 uppercase"></p>
+              </div>
+              <div
+                class="bg-blue-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">
+                Active
+              </div>
+            </div>
+            <div id="characteristicsList" class="grid grid-cols-1 gap-4"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <template id="charTemplate">
+    <div class="char-card border border-blue-200 bg-white rounded-2xl p-5 shadow-md transition-all hover:shadow-lg">
+
+      <!-- Header -->
+      <div class="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
+
+        <!-- Info -->
+        <div class="max-w-full overflow-hidden">
+          <div class="flex items-center gap-2">
+            <h4 class="font-black text-slate-700 char-name truncate">Đặc tính</h4>
+
+            <!-- Badge trạng thái -->
+            <span
+              class="notify-badge hidden bg-indigo-100 text-indigo-600 text-[8px] font-black px-1.5 py-0.5 rounded uppercase">
+              Live
+            </span>
+          </div>
+
+          <p class="text-[10px] font-mono text-slate-400 char-uuid truncate uppercase"></p>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-2 shrink-0 flex-wrap items-center">
+
+          <input
+            class="write-input hidden border border-slate-200 px-3 py-1.5 rounded-lg text-xs w-32 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            placeholder="Giá trị..." />
+
+          <button
+            class="send-btn hidden bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-black hover:bg-green-700 transition-all">
+            SEND
+          </button>
+
+          <button
+            class="read-btn hidden bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-xs font-black hover:bg-blue-600 hover:text-white transition-all">
+            ĐỌC
+          </button>
+
+          <button
+            class="notify-btn hidden bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-black shadow-md shadow-indigo-100 hover:bg-indigo-700 transition-all">
+            THEO DÕI
+          </button>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="bg-slate-50 rounded-xl p-5 border border-slate-100 shadow-inner">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          <!-- VALUE -->
+          <div>
+            <span class="text-[10px] text-slate-400 font-black uppercase block mb-1.5 tracking-widest">
+              Dữ liệu Giải mã (VALUE)
+            </span>
+            <div class="char-decoded text-3xl font-black text-indigo-600 tracking-tighter">
+              --
+            </div>
+          </div>
+
+          <!-- HEX -->
+          <div class="border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6">
+            <span class="text-[10px] text-slate-400 font-black uppercase block mb-1.5 tracking-widest">
+              Dữ liệu thô (HEX)
+            </span>
+            <div class="char-hex text-sm font-mono font-bold text-slate-500 break-all uppercase">
+              --
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    let bleDevice = null;
+    let bleServer = null;
+
+    const connectBtn = document.getElementById("connectBtn");
+    const disconnectBtn = document.getElementById("disconnectBtn");
+    const btnText = document.getElementById("btnText");
+    const servicesList = document.getElementById("servicesList");
+    const terminal = document.getElementById("terminal");
+    const detailsPlaceholder = document.getElementById("detailsPlaceholder");
+    const detailsContent = document.getElementById("detailsContent");
+    const activeServiceName = document.getElementById("activeServiceName");
+    const activeServiceUuid = document.getElementById("activeServiceUuid");
+    const characteristicsList = document.getElementById("characteristicsList");
+
+    const deviceCard = document.getElementById("deviceCard");
+    const deviceNameDisplay = document.getElementById("deviceNameDisplay");
+    const deviceMacDisplay = document.getElementById("deviceMacDisplay");
+    const deviceRawIdDisplay = document.getElementById("deviceRawIdDisplay");
+    const rssiCard = document.getElementById("rssiCard");
+    const rssiValue = document.getElementById("rssiValue");
+    const rssiBar = document.getElementById("rssiBar");
+    const rssiStatus = document.getElementById("rssiStatus");
+
+    function log(msg, type = "info") {
+      const time = new Date().toLocaleTimeString([], { hour12: false });
+      const colors = { error: "text-red-400", success: "text-green-400", info: "text-blue-300" };
+      terminal.innerHTML += `<div class="${colors[type] || colors.info} mb-1"><span class="text-slate-600">[${time}]</span> ${msg}</div>`;
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function toMacAddressLike(id) {
+      // convert string → hex continuous
+      const hex = Array.from(id)
+        .map(c => c.charCodeAt(0).toString(16).padStart(2, "0"))
+        .join("");
+
+      // lấy 12 ký tự đầu (6 byte)
+      const mac = hex.substring(0, 12);
+
+      // format XX:XX:XX:XX:XX:XX
+      return mac.match(/.{1,2}/g).join(":").toUpperCase();
+    }
+
+    async function onConnect() {
+      try {
+        log("Đang quét thiết bị...");
+        connectBtn.classList.add("scanning-active");
+
+        // Tập trung các dịch vụ quan trọng để tránh Unsupported
+        const optionalServices = [
+          "heart_rate",
+          "battery_service",
+          "device_information",
+          "0000ffe0-0000-1000-8000-00805f9b34fb", // UART
+          "current_time",
+          "00001234-0000-1000-8000-00805f9b34fb", // Custom Service
+        ];
+
+        bleDevice = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: optionalServices,
+        });
+
+        deviceNameDisplay.textContent = bleDevice.name || "Unknown Device";
+
+        const rawId = bleDevice.id;
+        const macLike = toMacAddressLike(rawId);
+
+        deviceMacDisplay.textContent = macLike;
+        deviceRawIdDisplay.textContent = rawId;
+
+        log(`Đã chọn: ${bleDevice.name}`);
+        bleDevice.addEventListener("gattserverdisconnected", onDisconnected);
+
+        log("Đang kết nối GATT Server...");
+        bleServer = await bleDevice.gatt.connect();
+        log("Kết nối thành công.", "success");
+
+        updateUI(true);
+        updateRSSIUI(-50); // Default
+
+        setTimeout(() => discoverServices(), 1000);
+      } catch (err) {
+        log("Lỗi: " + err.message, "error");
+        updateUI(false);
+      }
+    }
+
+    function updateUI(isConnected) {
+      connectBtn.classList.remove("scanning-active");
+      if (isConnected) {
+        document.getElementById("statusIcon").className = "status-dot bg-green-500";
+        document.getElementById("statusText").textContent = "ONLINE";
+        connectBtn.classList.add("hidden");
+        disconnectBtn.classList.remove("hidden");
+        rssiCard.classList.remove("hidden");
+        deviceCard.classList.remove("hidden");
+      } else {
+        document.getElementById("statusIcon").className = "status-dot bg-slate-300";
+        document.getElementById("statusText").textContent = "Sẵn sàng";
+        connectBtn.classList.remove("hidden");
+        disconnectBtn.classList.add("hidden");
+        rssiCard.classList.add("hidden");
+        deviceCard.classList.add("hidden");
+
+        // Clear services and details UI
+        servicesList.innerHTML = '<p class="text-slate-400 italic">Sẵn sàng liệt kê GATT Services...</p>';
+        detailsPlaceholder.classList.remove("hidden");
+        detailsContent.classList.add("hidden");
+        characteristicsList.innerHTML = "";
+      }
+    }
+
+    function updateRSSIUI(rssi) {
+      rssiValue.textContent = rssi;
+      let percentage = Math.min(Math.max((rssi + 100) * 1.4, 0), 100);
+      rssiBar.style.width = percentage + "%";
+      rssiBar.className = rssi > -60 ? "rssi-bar h-full bg-green-500" : "rssi-bar h-full bg-yellow-500";
+      rssiStatus.textContent = rssi > -60 ? "Tín hiệu tốt" : "Tín hiệu trung bình";
+    }
+
+    async function discoverServices() {
+      servicesList.innerHTML = '<div class="text-blue-500 text-[10px] font-bold animate-pulse">Đang tìm...</div>';
+      try {
+        const services = await bleServer.getPrimaryServices();
+        servicesList.innerHTML = "";
+        for (const service of services) {
+          const card = document.createElement("div");
+          card.className =
+            "service-card p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:bg-blue-50 transition-all shadow-sm";
+          card.innerHTML = `
+                        <div class="font-black text-slate-700 text-xs uppercase">${getFriendlyName(service.uuid)}</div>
+                        <div class="text-[9px] font-mono text-slate-400 truncate uppercase">${service.uuid}</div>
+                    `;
+          card.onclick = () => showServiceDetails(service);
+          servicesList.appendChild(card);
+        }
+      } catch (err) {
+        log("Lỗi Services: " + err.message, "error");
+      }
+    }
+
+    async function showServiceDetails(service) {
+      detailsPlaceholder.classList.add("hidden");
+      detailsContent.classList.remove("hidden");
+      activeServiceName.textContent = getFriendlyName(service.uuid);
+      activeServiceUuid.textContent = service.uuid;
+      characteristicsList.innerHTML =
+        '<div class="p-8 text-center text-slate-300 animate-pulse font-black text-xs">Đang tải...</div>';
+
+      try {
+        const characteristics = await service.getCharacteristics();
+        characteristicsList.innerHTML = "";
+        for (const char of characteristics) {
+          const template = document.getElementById("charTemplate").content.cloneNode(true);
+          const card = template.querySelector(".char-card");
+          card.querySelector(".char-name").textContent = getFriendlyName(char.uuid);
+          card.querySelector(".char-uuid").textContent = char.uuid;
+
+          const readBtn = card.querySelector(".read-btn");
+          const notifyBtn = card.querySelector(".notify-btn");
+          const sendBtn = card.querySelector(".send-btn");
+          const writeInput = card.querySelector(".write-input");
+          const hexDisplay = card.querySelector(".char-hex");
+          const decodedDisplay = card.querySelector(".char-decoded");
+
+          const updateHandler = (event) => {
+            decodeAndDisplay(event.target.value, char.uuid, hexDisplay, decodedDisplay);
+          };
+
+          if (char.properties.read) {
+            readBtn.classList.remove("hidden");
+            readBtn.onclick = async () => {
+              const val = await char.readValue();
+              decodeAndDisplay(val, char.uuid, hexDisplay, decodedDisplay);
+            };
+          }
+
+          if (char.properties.write || char.properties.writeWithoutResponse) {
+            writeInput.classList.remove("hidden");
+            sendBtn.classList.remove("hidden");
+
+            sendBtn.onclick = async () => {
+              const text = writeInput.value.trim();
+              if (!text) {
+                log("Chưa nhập dữ liệu để gửi", "error");
+                return;
+              }
+              await sendToCharacteristic(char, text);
+            };
+          }
+
+          if (char.properties.notify) {
+            notifyBtn.classList.remove("hidden");
+            let isNotifying = false;
+            notifyBtn.onclick = async () => {
+              if (!isNotifying) {
+                await char.startNotifications();
+                char.addEventListener("characteristicvaluechanged", updateHandler);
+                notifyBtn.textContent = "DỪNG";
+                notifyBtn.classList.add("bg-indigo-600", "text-white");
+                isNotifying = true;
+              } else {
+                await char.stopNotifications();
+                char.removeEventListener("characteristicvaluechanged", updateHandler);
+                notifyBtn.textContent = "THEO DÕI";
+                notifyBtn.classList.remove("bg-indigo-600", "text-white");
+                isNotifying = false;
+              }
+            };
+          }
+          characteristicsList.appendChild(card);
+        }
+      } catch (err) {
+        log("Lỗi: " + err.message, "error");
+      }
+    }
+
+    /**
+     * Hàm giải mã dữ liệu tùy theo UUID đặc tính
+     */
+    function decodeAndDisplay(dataView, uuid, hexEl, decodedEl) {
+      // 1. Hiển thị HEX thô
+      let hex = "";
+      for (let i = 0; i < dataView.byteLength; i++) {
+        hex += dataView.getUint8(i).toString(16).padStart(2, "0").toUpperCase() + " ";
+      }
+      hexEl.textContent = hex.trim();
+
+      const shortUuid = uuid.substring(4, 8).toLowerCase();
+
+      // 2. Giải mã theo chuẩn Bluetooth SIG
+      try {
+        if (shortUuid === "2a37") {
+          // Heart Rate Measurement
+          let flags = dataView.getUint8(0);
+          let rate;
+          if ((flags & 0x01) === 0) {
+            // UINT8
+            rate = dataView.getUint8(1);
+          } else {
+            // UINT16
+            rate = dataView.getUint16(1, true);
+          }
+          decodedEl.innerHTML = `${rate} <span class="text-sm text-slate-400">BPM</span>`;
+        } else if (shortUuid === "2a19") {
+          // Battery Level
+          let level = dataView.getUint8(0);
+          decodedEl.innerHTML = `${level}<span class="text-sm text-slate-400">%</span>`;
+        } else {
+          // Cố gắng giải mã ra text nếu là các đặc tính thông tin
+          const decoder = new TextDecoder("utf-8");
+          const str = decoder.decode(dataView);
+          const cleanStr = str.replace(/[^\x20-\x7E]/g, "");
+
+          if (cleanStr.length > 0) {
+            decodedEl.textContent = cleanStr;
+          } else {
+            // Nếu không phải text, hiển thị số byte đầu tiên (nếu có)
+            decodedEl.textContent = dataView.byteLength > 0 ? dataView.getUint8(0) : "--";
+          }
+        }
+      } catch (e) {
+        decodedEl.textContent = "Binary";
+      }
+
+      decodedEl.animate([{ opacity: 0.5 }, { opacity: 1 }], { duration: 200 });
+    }
+
+    function getFriendlyName(uuid) {
+      const short = uuid.substring(4, 8).toLowerCase();
+      const names = {
+        "180d": "Dịch vụ Nhịp tim",
+        "2a37": "Dữ liệu Nhịp tim (BPM)",
+        "2a38": "Vị trí cảm biến",
+        "180f": "Dịch vụ Pin",
+        "2a19": "Mức Pin",
+        "180a": "Thông tin thiết bị",
+        "2a29": "Nhà sản xuất",
+        "2a24": "Model Number",
+        ffe1: "UART RX/TX",
+      };
+      return names[short] || (uuid.length < 10 ? uuid : `ID: ${short.toUpperCase()}`);
+    }
+
+    async function sendToCharacteristic(char, text) {
+      try {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(text);
+
+        if (char.properties.write) {
+          await char.writeValue(data);
+        } else if (char.properties.writeWithoutResponse) {
+          await char.writeValueWithoutResponse(data);
+        } else {
+          throw new Error("Characteristic không hỗ trợ write");
+        }
+
+        log(`Đã gửi: "${text}" → ${char.uuid}`, "success");
+      } catch (err) {
+        log("Send lỗi: " + err.message, "error");
+      }
+    }
+
+    function onDisconnected() {
+      log("Đã ngắt kết nối.", "error");
+      updateUI(false);
+    }
+
+    connectBtn.onclick = onConnect;
+    disconnectBtn.onclick = () => bleDevice?.gatt.disconnect();
+  </script>
+</body>
+
+</html>
