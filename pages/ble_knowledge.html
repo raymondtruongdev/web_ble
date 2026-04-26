@@ -1,0 +1,260 @@
+
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bluetooth Low Energy & Web Bluetooth API</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
+
+    <style>
+      .title-box {
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+        padding: 2.5rem 1rem; /* Reduced from 5rem */
+        text-align: center;
+        color: white;
+        border-radius: 0 0 1.5rem 1.5rem; /* Reduced from 3rem */
+        margin-bottom: 2rem; /* Reduced from 4rem */
+        box-shadow: 0 4px 15px -5px rgba(37, 99, 235, 0.2);
+      }
+      .title-text {
+        font-size: 1.875rem; /* Reduced from 3rem (text-3xl) */
+        font-weight: 800;
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.025em;
+      }
+      .section-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.5rem; /* Reduced from 2.5rem */
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 0.75rem;
+      }
+      .icon-badge-primary {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        color: white;
+        width: 48px; /* Reduced from 70px */
+        height: 48px; /* Reduced from 70px */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.75rem; /* Reduced from 1.25rem */
+        margin-right: 1rem;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+        flex-shrink: 0;
+      }
+      .section-title {
+        font-size: 1.5rem; /* Reduced from 2.5rem (text-2xl) */
+        font-weight: 700;
+        color: #0f172a;
+        letter-spacing: -0.015em;
+        line-height: 1.2;
+      }
+      .card-info {
+        background: white;
+        padding: 1.5rem; /* Reduced from 2rem */
+        border-radius: 1rem;
+        border-left: 6px solid #2563eb; /* Reduced from 8px */
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      }
+      .heading-3 {
+        font-size: 1.25rem; /* Reduced from 1.6rem (text-xl) */
+        font-weight: 700;
+        margin-bottom: 1rem;
+        color: #1e293b;
+      }
+      .code-block {
+        background: #0f172a;
+        border-radius: 1rem;
+        overflow: hidden;
+        font-size: 0.875rem; /* Reduced from 0.95rem (text-sm) */
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      }
+      .list-item {
+        display: flex;
+        gap: 0.5rem;
+        align-items: flex-start;
+      }
+      .table-header {
+        font-size: 1.5rem; /* Reduced from 2.25rem */
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        color: #0f172a;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+    </style>
+  </head>
+
+  <body class="bg-slate-50 text-slate-900 selection:bg-blue-100">
+    <header class="title-box">
+      <h1 class="title-text">Bluetooth Low Energy (BLE)</h1>
+      <p class="text-blue-100 text-sm md:text-base max-w-2xl mx-auto leading-relaxed">
+        Khám phá sức mạnh của Web Bluetooth API: Kết nối các thiết bị phần cứng trực tiếp từ trình duyệt web của bạn.
+      </p>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 py-4">
+      <!-- Section 1: GATT Architecture -->
+      <section class="mb-12">
+        <div class="section-header group">
+          <div class="icon-badge-primary">
+            <span class="font-bold text-xl">1</span>
+          </div>
+          <h2 class="section-title">Kiến trúc GATT</h2>
+        </div>
+
+        <article class="grid lg:grid-cols-2 gap-6 mb-4">
+          <div class="card-info">
+            <div class="heading-3">Cấu trúc phân tầng dữ liệu</div>
+            <ul class="space-y-3 text-sm md:text-base text-slate-700">
+              <li class="list-item">
+                <span class="text-blue-600 font-bold">→</span>
+                <span><strong>Profile:</strong> Tập hợp Services (VD: Heart Rate Monitor).</span>
+              </li>
+              <li class="list-item">
+                <span class="text-blue-600 font-bold">→</span>
+                <span><strong>Service:</strong> Nhóm dữ liệu logic (VD: Pin, Cảm biến).</span>
+              </li>
+              <li class="list-item">
+                <span class="text-blue-600 font-bold">→</span>
+                <span><strong>Characteristic:</strong> Đơn vị nhỏ nhất, chứa giá trị và quyền.</span>
+              </li>
+            </ul>
+          </div>
+
+          <figure class="code-block">
+            <div class="bg-slate-800 px-3 py-1.5 text-slate-400 text-[10px] font-mono uppercase tracking-widest">GATT_Structure.js</div>
+            <pre class="p-4"><code class="language-javascript">// Cấu trúc định danh UUID mẫu
+const SERVICES = {
+  HEART_RATE: 'heart_rate',
+  BATTERY: 0x180F,
+  CUSTOM: '12345678-1234-5678-1234-56789abcdef0'
+};</code></pre>
+          </figure>
+        </article>
+      </section>
+
+      <!-- Section 2: Scanning & Connection -->
+      <section class="mb-12">
+        <div class="section-header group">
+          <div class="icon-badge-primary">
+            <span class="font-bold text-xl">2</span>
+          </div>
+          <h2 class="section-title">Quét & Kết nối</h2>
+        </div>
+
+        <article class="grid lg:grid-cols-2 gap-6">
+          <aside class="bg-amber-50 border-l-4 border-amber-500 p-5 rounded-r-xl shadow-sm">
+            <div class="flex items-center text-amber-800 mb-2 font-bold uppercase text-[10px] tracking-widest">
+              <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+              Yêu cầu bảo mật
+            </div>
+            <p class="text-sm md:text-base text-amber-900 leading-relaxed italic">
+              Web Bluetooth yêu cầu kết nối bảo mật <strong>HTTPS</strong> và tương tác trực tiếp từ người dùng (User Gesture) để kích hoạt hộp thoại.
+            </p>
+          </aside>
+          <figure class="code-block">
+            <div class="bg-slate-800 px-3 py-1.5 text-slate-400 text-[10px] font-mono uppercase tracking-widest">Connection.js</div>
+            <pre class="p-4"><code class="language-javascript">async function connectBLE() {
+  const device = await navigator.bluetooth.requestDevice({
+    filters: [{ services: ['heart_rate'] }],
+    optionalServices: ['battery_service']
+  });
+  const server = await device.gatt.connect();
+}</code></pre>
+          </figure>
+        </article>
+      </section>
+
+      <!-- Section 3: Read/Write Data -->
+      <section class="mb-12">
+        <div class="section-header group">
+          <div class="icon-badge-primary">
+            <span class="font-bold text-xl">3</span>
+          </div>
+          <h2 class="section-title">Truy xuất Dữ liệu</h2>
+        </div>
+        <div class="grid lg:grid-cols-2 gap-6">
+          <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-center">
+            <h3 class="font-bold text-slate-500 uppercase text-[10px] tracking-wider mb-2">Thao tác Characteristic</h3>
+            <p class="text-sm text-slate-600 mb-4 font-medium">
+              Sử dụng <code>DataView</code> để xử lý các mảng byte nhị phân qua Bluetooth.
+            </p>
+            <div class="space-y-3">
+              <div class="flex items-center p-3 bg-emerald-50 rounded-lg border border-emerald-100">
+                <span class="bg-emerald-500 text-white p-1.5 rounded-md mr-3">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                </span>
+                <span class="text-slate-800 text-sm"><strong>Read:</strong> Đọc giá trị tức thời.</span>
+              </div>
+              <div class="flex items-center p-3 bg-blue-50 rounded-lg border border-blue-100">
+                <span class="bg-blue-500 text-white p-1.5 rounded-md mr-3">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </span>
+                <span class="text-slate-800 text-sm"><strong>Notify:</strong> Cập nhật tự động.</span>
+              </div>
+            </div>
+          </div>
+          <div class="code-block">
+            <div class="bg-slate-800 px-3 py-1.5 text-slate-400 text-[10px] font-mono uppercase tracking-widest">ReadValue.js</div>
+            <pre class="p-4"><code class="language-javascript">const service = await server.getPrimaryService('battery_service');
+const char = await service.getCharacteristic('battery_level');
+const value = await char.readValue();
+console.log(`Pin còn: ${value.getUint8(0)}%`);</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Comparison Table -->
+      <section class="pb-10">
+        <h2 class="table-header">
+          <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+          Các phương thức truyền tin
+        </h2>
+
+        <article class="overflow-x-auto shadow-md rounded-xl border border-slate-200">
+          <table class="w-full text-left border-collapse text-xs md:text-sm">
+            <thead>
+              <tr class="bg-slate-100">
+                <th class="p-4 border-b font-bold text-slate-600 uppercase tracking-wider">Phương thức</th>
+                <th class="p-4 border-b font-bold text-slate-600 uppercase tracking-wider">Đặc điểm</th>
+                <th class="p-4 border-b font-bold text-slate-600 uppercase tracking-wider text-center">Ứng dụng</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white">
+              <tr class="hover:bg-blue-50 transition-colors">
+                <td class="p-4 border-b font-mono text-blue-600 font-bold">Read</td>
+                <td class="p-4 border-b text-slate-700">Yêu cầu từ Client</td>
+                <td class="p-4 border-b text-slate-600">Thông tin thiết bị, pin.</td>
+              </tr>
+              <tr class="hover:bg-blue-50 transition-colors">
+                <td class="p-4 border-b font-mono font-bold text-cyan-600">Write</td>
+                <td class="p-4 border-b text-slate-700">Gửi lệnh từ Client</td>
+                <td class="p-4 border-b text-slate-600">Bật/tắt LED, cấu hình.</td>
+              </tr>
+              <tr class="hover:bg-blue-50 transition-colors">
+                <td class="p-4 font-mono font-bold text-orange-600">Notify</td>
+                <td class="p-4 text-slate-700">Tự động đẩy dữ liệu</td>
+                <td class="p-4 text-slate-600">Theo dõi nhịp tim.</td>
+              </tr>
+            </tbody>
+          </table>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', (event) => {
+        hljs.highlightAll();
+      });
+    </script>
+  </body>
+</html>

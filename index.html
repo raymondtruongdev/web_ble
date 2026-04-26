@@ -223,6 +223,15 @@
       background: rgba(59, 130, 246, 0.1);
       border: 1px solid rgba(59, 130, 246, 0.2);
     }
+
+    /* Style cho iframe viewer */
+    #content-view-frame {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: none;
+      /* Ẩn mặc định */
+    }
   </style>
 </head>
 
@@ -316,10 +325,16 @@
     </aside>
 
     <main class="content-area" id="main-editor-area">
-      <div class="code-editor p-4 font-mono text-[13px]">
-        <div class="mb-4 text-blue-300">// H2Tech BLE IDE - Nhấn SCAN để bắt đầu giải mã BPM.</div>
-        <div id="editor-lines"></div>
+      <!-- Content Viewer tự động load từ configPath hoặc hiện editor -->
+      <div id="content-view" class="flex-grow flex flex-col overflow-hidden">
+        <iframe id="content-view-frame" src=""></iframe>
+
+        <div id="code_page" class="code-editor p-4 font-mono text-[13px]">
+          <div class="mb-4 text-blue-300">// H2Tech BLE IDE - Nhấn SCAN để bắt đầu giải mã BPM.</div>
+          <div id="editor-lines"></div>
+        </div>
       </div>
+
 
       <div id="terminal-view">
         <div id="resizer-v"></div>
@@ -348,7 +363,43 @@
   </footer>
 
   <script>
-    lucide.createIcons();
+    // --- BIẾN CONFIG ĐƯỜNG DẪN ---
+    const configPath = "./pages/ble_knowledge.html";
+
+    // Hàm riêng để khởi tạo nội dung trang (iframe và editor)
+    function initAppContent() {
+      const iframe = document.getElementById('content-view-frame');
+      const codePage = document.getElementById('code_page');
+
+      if (configPath) {
+        iframe.src = configPath;
+
+        iframe.onload = function () {
+          // Luôn hiện iframe nếu có configPath
+          iframe.style.display = 'block';
+          codePage.style.display = 'none';
+        };
+
+        iframe.onerror = function () {
+          iframe.style.display = 'none';
+          codePage.style.display = 'block';
+        };
+      }
+
+      const editorLines = document.getElementById('editor-lines');
+      if (editorLines) {
+        editorLines.innerHTML = ""; 
+        for (let i = 1; i <= 30; i++) {
+          editorLines.innerHTML += `<div class="flex leading-6 group hover:bg-[#161b22]"><span class="line-number">${i}</span><span class="text-gray-300">const heartRateDecoder = (data) => data[1];</span></div>`;
+        }
+      }
+    }
+
+    // Khởi tạo ứng dụng khi load trang
+    window.onload = function () {
+      lucide.createIcons();
+      initAppContent();
+    };
 
     const logs = document.getElementById('logs');
     const input = document.getElementById('terminal-input');
@@ -406,15 +457,24 @@
       }
       let extra = "";
       const shortUuid = uuid.substring(4, 8).toLowerCase();
+      let bpmValue = null;
+
       if (shortUuid === "2a37") {
         let flags = value.getUint8(0);
-        let heartRate = (flags & 0x01) ? value.getUint16(1, true) : value.getUint8(1);
-        extra = ` [BPM: ${heartRate}]`;
+        bpmValue = (flags & 0x01) ? value.getUint16(1, true) : value.getUint8(1);
+        extra = ` [BPM: ${bpmValue}]`;
+        
+        // Gửi dữ liệu vào iframe page.html
+        const iframe = document.getElementById('content-view-frame');
+        if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({ type: 'BPM_DATA', value: bpmValue }, '*');
+        }
       }
+      
       const decoder = new TextDecoder('utf-8');
       let textVal = "";
       try { textVal = decoder.decode(value).replace(/[\x00-\x1F\x7F-\x9F]/g, "."); } catch (e) { textVal = "(binary)"; }
-      return { hex: hexArr.join(' '), string: textVal, interpreted: extra };
+      return { hex: hexArr.join(' '), string: textVal, interpreted: extra, bpm: bpmValue };
     }
 
     async function onConnect() {
@@ -588,16 +648,18 @@
         else if (cmd === 'writehex' && parts[1] && parts[2]) handleTerminalWrite(parts[1], parts.slice(2).join(''), true);
         else if (cmd === 'notify' && parts[1]) handleTerminalNotify(parts[1], true);
         else if (val.toLowerCase() === 'stop notify') stopAllNotifications();
-        else if (cmd === 'clear') logs.innerHTML = "";
-        else if (cmd === 'help') appendLog('info', 'Lệnh: scan, read [uuid], write [uuid] [text], writehex [uuid] [hex], notify [uuid], clear');
+        else if (cmd === 'clear') {
+          logs.innerHTML = "";
+        }
+        else if (cmd === 'time') {
+          const now = new Date();
+          appendLog('info', `Giờ hiện tại: ${now.toLocaleTimeString()}`);
+        }
+        else if (cmd === 'help') appendLog('info', 'Lệnh: scan, read [uuid], write [uuid] [text], writehex [uuid] [hex], notify [uuid], clear, time');
         else appendLog('error', 'Lệnh không hợp lệ.');
       }
     });
 
-    const editorLines = document.getElementById('editor-lines');
-    for (let i = 1; i <= 30; i++) {
-      editorLines.innerHTML += `<div class="flex leading-6 group hover:bg-[#161b22]"><span class="line-number">${i}</span><span class="text-gray-300">const heartRateDecoder = (data) => data[1];</span></div>`;
-    }
     connectBtn.onclick = onConnect;
     disconnectBtn.onclick = () => bleDevice?.gatt.disconnect();
   </script>
