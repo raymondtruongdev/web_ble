@@ -330,7 +330,7 @@
         <iframe id="content-view-frame" src=""></iframe>
 
         <div id="code_page" class="code-editor p-4 font-mono text-[13px]">
-          <div class="mb-4 text-blue-300">// H2Tech BLE IDE - Nhấn SCAN để bắt đầu giải mã BPM.</div>
+          <div class="mb-4 text-blue-300">// T2DTECH BLE IDE - Nhấn SCAN để bắt đầu giải mã BPM.</div>
           <div id="editor-lines"></div>
         </div>
       </div>
@@ -341,11 +341,11 @@
         <div
           class="flex items-center px-4 py-1.5 bg-[#161b22] border-b border-[#30363d] text-[10px] font-bold text-gray-500 space-x-6 select-none uppercase">
           <span class="text-blue-400 border-b border-blue-400 pb-0.5 cursor-pointer">Terminal</span>
-          <span class="hover:text-white cursor-pointer">Output</span>
+          
         </div>
         <div id="logs" class="terminal-logs"></div>
         <div class="terminal-input-container font-mono text-[13px]">
-          <span class="text-blue-400 mr-2 shrink-0">h2tech@dev:~$</span>
+          <span class="text-blue-400 mr-2 shrink-0">t2dtech@dev:~$</span>
           <input type="text" id="terminal-input" class="bg-transparent border-none outline-none text-white w-full"
             autofocus autocomplete="off" spellcheck="false" placeholder="Gõ 'help' để xem lệnh...">
         </div>
@@ -364,7 +364,7 @@
 
   <script>
     // --- BIẾN CONFIG ĐƯỜNG DẪN ---
-    const configPath = "./pages/ble_knowledge.html";
+    const configPath = "./pages/heart_rate_chart.html";
 
     // Hàm riêng để khởi tạo nội dung trang (iframe và editor)
     function initAppContent() {

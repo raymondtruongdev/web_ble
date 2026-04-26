@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Heart Rate Chart Pro</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            margin: 0;
+            padding: 16px;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .chart-container {
+            flex-grow: 1;
+            position: relative;
+            background: rgba(22, 27, 34, 0.5);
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 10px;
+            cursor: grab;
+        }
+        .chart-container:active {
+            cursor: grabbing;
+        }
+        .control-btn {
+            background: #21262d;
+            border: 1px solid #30363d;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .control-btn:hover {
+            background: #30363d;
+            border-color: #8b949e;
+        }
+        .control-btn.active {
+            background: rgba(56, 139, 253, 0.15);
+            border-color: #58a6ff;
+            color: #58a6ff;
+        }
+        .control-btn-danger:hover {
+            background: rgba(248, 81, 73, 0.15);
+            border-color: #f85149;
+            color: #f85149;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header & Stats -->
+    <div class="flex justify-between items-end mb-4">
+        <div>
+            <div class="flex items-center gap-2">
+                <i data-lucide="activity" class="text-red-500 w-5 h-5"></i>
+                <h2 class="text-lg font-bold text-white uppercase tracking-tight">Heart Rate Monitor</h2>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">Real-time BLE Telemetry System</p>
+        </div>
+        
+        <div class="flex gap-4">
+            <div class="bg-[#161b22] px-4 py-1 rounded-lg border border-[#30363d] text-right">
+                <div class="text-[10px] uppercase text-gray-500 font-bold">Status</div>
+                <div id="connectionStatus" class="text-xs font-semibold text-green-500 flex items-center gap-1 justify-end">
+                    <span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> Receiving
+                </div>
+            </div>
+            <div class="bg-[#161b22] px-6 py-1 rounded-lg border border-[#30363d] text-center min-w-[100px]">
+                <div class="text-[10px] uppercase text-gray-500 font-bold">Live BPM</div>
+                <div id="bpmValue" class="text-3xl font-black text-red-500 leading-none mt-1">--</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="flex items-center gap-2 mb-3">
+        <button id="zoomIn" class="control-btn" title="Zoom In Y-Axis">
+            <i data-lucide="zoom-in" class="w-4 h-4"></i> Zoom In
+        </button>
+        <button id="zoomOut" class="control-btn" title="Zoom Out Y-Axis">
+            <i data-lucide="zoom-out" class="w-4 h-4"></i> Zoom Out
+        </button>
+        <div class="h-4 w-px bg-gray-700 mx-1"></div>
+        <button id="autoScale" class="control-btn active" title="Toggle Auto-Scale">
+            <i data-lucide="maximize-2" class="w-4 h-4"></i> Auto Scale
+        </button>
+        <button id="resetView" class="control-btn" title="Reset to Default View">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i> Reset
+        </button>
+        <div class="h-4 w-px bg-gray-700 mx-1"></div>
+        <button id="clearData" class="control-btn control-btn-danger" title="Clear all data points">
+            <i data-lucide="trash-2" class="w-4 h-4"></i> Clear Data
+        </button>
+        <div class="ml-auto text-[10px] text-gray-500 italic" id="limitDisplay">Showing last 10 points</div>
+    </div>
+
+    <!-- Chart -->
+    <div class="chart-container" id="chartContainer">
+        <canvas id="heartRateChart"></canvas>
+    </div>
+
+    <script>
+        // Khởi tạo icon
+        lucide.createIcons();
+
+        const ctx = document.getElementById('heartRateChart').getContext('2d');
+        const bpmDisplay = document.getElementById('bpmValue');
+        const chartContainer = document.getElementById('chartContainer');
+        const limitDisplayText = document.getElementById('limitDisplay');
+        
+        let isAutoScale = true;
+        let yMin = 40;
+        let yMax = 160;
+        let DISPLAY_LIMIT = 10;
+
+        // Lưu trữ toàn bộ data nhận được để có thể resize số điểm hiển thị
+        let allLabels = [];
+        let allData = [];
+
+        // Biến phục vụ tính năng Drag
+        let isDraggingY = false;
+        let isDraggingX = false;
+        let isDraggingYScale = false; // Drag trên trục Y để zoom
+        let lastY = 0;
+        let lastX = 0;
+
+        // Cấu hình Chart.js
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], 
+                datasets: [{
+                    label: 'Heart Rate',
+                    data: [],
+                    borderColor: '#f85149',
+                    backgroundColor: (context) => {
+                        const bg = context.chart.ctx.createLinearGradient(0, 0, 0, 400);
+                        bg.addColorStop(0, 'rgba(248, 81, 73, 0.3)');
+                        bg.addColorStop(1, 'rgba(248, 81, 73, 0)');
+                        return bg;
+                    },
+                    borderWidth: 3,
+                    tension: 0.35,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#f85149',
+                    pointBorderColor: '#0d1117',
+                    pointBorderWidth: 2,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: { left: 5, right: 5, top: 10, bottom: 0 } },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(48, 54, 61, 0.5)', drawBorder: false },
+                        ticks: { color: '#8b949e', font: { size: 10 }, maxRotation: 0 }
+                    },
+                    y: {
+                        min: yMin,
+                        max: yMax,
+                        grid: { color: 'rgba(48, 54, 61, 0.8)', drawBorder: false },
+                        ticks: { 
+                            color: '#8b949e', 
+                            font: { family: 'monospace' },
+                            stepSize: 20
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#161b22',
+                        titleColor: '#58a6ff',
+                        bodyColor: '#fff',
+                        borderColor: '#30363d',
+                        borderWidth: 1,
+                        displayColors: false,
+                        callbacks: {
+                            label: (context) => `Heart Rate: ${context.parsed.y} BPM`
+                        }
+                    }
+                },
+                animation: { duration: 300 }
+            }
+        });
+
+        // Tính năng Zoom bằng con lăn chuột (Mouse Wheel)
+        chartContainer.onwheel = (e) => {
+            e.preventDefault();
+            
+            if (isAutoScale) {
+                disableAutoScale();
+            }
+
+            const zoomSpeed = 0.05;
+            const range = yMax - yMin;
+            const direction = e.deltaY > 0 ? 1 : -1;
+
+            const change = range * zoomSpeed * direction;
+            yMin -= change;
+            yMax += change;
+
+            updateScale();
+        };
+
+        function disableAutoScale() {
+            isAutoScale = false;
+            document.getElementById('autoScale').classList.remove('active');
+            const scale = chart.scales.y;
+            yMin = scale.min;
+            yMax = scale.max;
+        }
+
+        // Tính năng Drag (Trục Y trên Chart, Trục X trên Labels, Trục Y Labels để zoom)
+        chartContainer.onmousedown = (e) => {
+            const chartArea = chart.chartArea;
+            
+            // 1. Kiểm tra click vào vùng trục Y (bên trái hoặc bên phải vùng vẽ tùy cấu hình, mặc định trái)
+            // Trong Chart.js mặc định trục Y nằm bên trái trước chartArea.left
+            if (e.offsetX < chartArea.left) {
+                isDraggingYScale = true;
+                lastY = e.clientY;
+                if (isAutoScale) disableAutoScale();
+            } 
+            // 2. Kiểm tra click vào vùng trục X (labels thời gian phía dưới)
+            else if (e.offsetY > chartArea.bottom) {
+                isDraggingX = true;
+                lastX = e.clientX;
+            } 
+            // 3. Click vào vùng nội dung biểu đồ để di chuyển (Pan)
+            else {
+                isDraggingY = true;
+                lastY = e.clientY;
+                if (isAutoScale) disableAutoScale();
+            }
+        };
+
+        window.onmousemove = (e) => {
+            // Zoom trục Y khi kéo trên label trục Y (giống TradingView)
+            if (isDraggingYScale) {
+                const deltaY = e.clientY - lastY;
+                lastY = e.clientY;
+                
+                const sensitivity = 0.005;
+                const range = yMax - yMin;
+                // Kéo lên (deltaY < 0) -> Zoom In (range giảm)
+                // Kéo xuống (deltaY > 0) -> Zoom Out (range tăng)
+                const factor = 1 + (deltaY * sensitivity);
+                
+                const mid = (yMax + yMin) / 2;
+                const newHalfRange = (range * factor) / 2;
+                
+                yMin = mid - newHalfRange;
+                yMax = mid + newHalfRange;
+                updateScale();
+            }
+
+            // Pan trục Y (Di chuyển khung nhìn lên xuống)
+            if (isDraggingY) {
+                const deltaY = e.clientY - lastY;
+                lastY = e.clientY;
+                const scale = chart.scales.y;
+                const range = yMax - yMin;
+                const unitPerPixel = range / scale.height;
+                const moveUnits = deltaY * unitPerPixel;
+                yMin += moveUnits;
+                yMax += moveUnits;
+                updateScale();
+            }
+
+            // Zoom trục X (Phóng to/thu nhỏ số điểm hiển thị khi kéo trên nhãn thời gian)
+            if (isDraggingX) {
+                const deltaX = e.clientX - lastX;
+                if (Math.abs(deltaX) > 2) {
+                    const sensitivity = 0.2;
+                    const change = Math.round(deltaX * sensitivity);
+                    DISPLAY_LIMIT = Math.max(3, Math.min(200, DISPLAY_LIMIT + change));
+                    lastX = e.clientX;
+                    updateChartData();
+                }
+            }
+        };
+
+        window.onmouseup = () => {
+            isDraggingY = false;
+            isDraggingX = false;
+            isDraggingYScale = false;
+        };
+
+        // Xử lý các nút điều khiển
+        document.getElementById('zoomIn').onclick = () => {
+            if (isAutoScale) disableAutoScale();
+            const range = yMax - yMin;
+            yMin += range * 0.1;
+            yMax -= range * 0.1;
+            updateScale();
+        };
+
+        document.getElementById('zoomOut').onclick = () => {
+            if (isAutoScale) disableAutoScale();
+            const range = yMax - yMin;
+            yMin -= range * 0.1;
+            yMax += range * 0.1;
+            updateScale();
+        };
+
+        document.getElementById('autoScale').onclick = function() {
+            isAutoScale = !isAutoScale;
+            this.classList.toggle('active', isAutoScale);
+            if (isAutoScale) {
+                chart.options.scales.y.min = undefined;
+                chart.options.scales.y.max = undefined;
+                chart.update();
+            } else {
+                const scale = chart.scales.y;
+                yMin = scale.min;
+                yMax = scale.max;
+                updateScale();
+            }
+        };
+
+        document.getElementById('resetView').onclick = () => {
+            yMin = 40;
+            yMax = 160;
+            DISPLAY_LIMIT = 10;
+            isAutoScale = true;
+            document.getElementById('autoScale').classList.add('active');
+            chart.options.scales.y.min = yMin;
+            chart.options.scales.y.max = yMax;
+            updateChartData();
+        };
+
+        document.getElementById('clearData').onclick = () => {
+            allLabels = [];
+            allData = [];
+            bpmDisplay.textContent = "--";
+            updateChartData();
+        };
+
+        function updateScale() {
+            chart.options.scales.y.min = yMin;
+            chart.options.scales.y.max = yMax;
+            chart.update('none');
+        }
+
+        function updateChartData() {
+            const startIdx = Math.max(0, allLabels.length - DISPLAY_LIMIT);
+            chart.data.labels = allLabels.slice(startIdx);
+            chart.data.datasets[0].data = allData.slice(startIdx);
+            limitDisplayText.textContent = `Showing last ${DISPLAY_LIMIT} points`;
+            chart.update('none');
+        }
+
+        // Lắng nghe dữ liệu từ file index.html
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'BPM_DATA') {
+                const bpm = event.data.value;
+                const now = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                
+                bpmDisplay.textContent = bpm;
+                
+                allLabels.push(now);
+                allData.push(bpm);
+
+                if (allLabels.length > 1000) {
+                    allLabels.shift();
+                    allData.shift();
+                }
+                
+                updateChartData();
+                
+                if (isAutoScale) {
+                    chart.options.scales.y.min = undefined;
+                    chart.options.scales.y.max = undefined;
+                } else {
+                    chart.options.scales.y.min = yMin;
+                    chart.options.scales.y.max = yMax;
+                }
+                
+                chart.update('none'); 
+            }
+        });
+    </script>
+</body>
+</html>
