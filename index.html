@@ -627,93 +627,104 @@
         });
       },
 
+      /**
+       * Hàm bổ trợ để giảm trùng lặp (Helper)
+       * @param {string} uuidArg - UUID người dùng nhập
+       * @param {Function} callback - Logic xử lý chính nếu tìm thấy Characteristic
+       */
+      async _runCharCommand(uuidArg, callback) {
+        if (!uuidArg) return UI.log('error', 'Thiếu UUID.');
+
+        const char = BLE.activeCharacteristics.find(c => c.uuid.includes(uuidArg.toLowerCase()));
+        if (!char) return UI.log('error', `Không tìm thấy Characteristic phù hợp với: ${uuidArg}`);
+
+        try {
+          await callback(char);
+        } catch (e) {
+          UI.log('error', `Lỗi thực thi: ${e.message}`);
+        }
+      },
+
       async execute(rawInput) {
         UI.log('default', `> ${rawInput}`);
-        const parts = rawInput.split(' ');
-        const cmd = parts[0].toLowerCase();
-        const args = parts.slice(1);
+        const [cmdName, ...args] = rawInput.split(/\s+/);
+        const cmd = cmdName.toLowerCase();
 
         if (this.commands[cmd]) {
           await this.commands[cmd](...args);
         } else {
-          UI.log('error', 'Lệnh không hợp lệ.');
+          UI.log('error', `Lệnh '${cmd}' không hợp lệ. Gõ 'help' để xem danh sách.`);
         }
       },
 
       commands: {
-        help: () => UI.log('info', 'Lệnh: scan, read [uuid], write [uuid] [text], writehex [uuid] [hex], notify [uuid], clear, time'),
+        help: () => UI.log('info', 'Lệnh: scan, read [uuid], write [uuid] [text], writehex [uuid] [hex], notify [uuid], clear, time, stop notify'),
 
         scan: () => BLE.scan(),
 
-        clear: () => UI.elements.logs.innerHTML = "",
+        clear: () => { UI.elements.logs.innerHTML = ""; },
 
         time: () => UI.log('info', `Giờ hiện tại: ${new Date().toLocaleTimeString()}`),
 
         read: async (uuidArg) => {
-          if (!uuidArg) return UI.log('error', 'Thiếu UUID.');
-          const char = BLE.activeCharacteristics.find(c => c.uuid.includes(uuidArg.toLowerCase()));
-          if (!char) return UI.log('error', 'Không tìm thấy Characteristic.');
-          try {
+          await Terminal._runCharCommand(uuidArg, async (char) => {
             const val = await char.readValue();
             const result = Utils.decodeBleValue(val, char.uuid);
             UI.log('success', `READ ${uuidArg}: ${result.hex}${result.interpreted}`);
-          } catch (e) { UI.log('error', e.message); }
+          });
         },
 
         write: async (uuidArg, ...textParts) => {
           const text = textParts.join(' ');
-          if (!uuidArg || !text) return UI.log('error', 'Cú pháp: write [uuid] [text]');
-          const char = BLE.activeCharacteristics.find(c => c.uuid.includes(uuidArg.toLowerCase()));
-          if (!char) return UI.log('error', 'Không tìm thấy Characteristic.');
-          try {
+          if (!text) return UI.log('error', 'Cú pháp: write [uuid] [nội dung văn bản]');
+
+          await Terminal._runCharCommand(uuidArg, async (char) => {
             const buffer = new TextEncoder().encode(text);
-            if (char.properties.write) await char.writeValueWithResponse(buffer);
-            else await char.writeValueWithoutResponse(buffer);
+            const writeMethod = char.properties.write ? 'writeValueWithResponse' : 'writeValueWithoutResponse';
+            await char[writeMethod](buffer);
             UI.log('success', `WRITE STR -> ${uuidArg}: ${text}`);
-          } catch (e) { UI.log('error', 'Write Error: ' + e.message); }
+          });
         },
 
         writehex: async (uuidArg, hex) => {
-          if (!uuidArg || !hex) return UI.log('error', 'Cú pháp: writehex [uuid] [hex]');
-          const char = BLE.activeCharacteristics.find(c => c.uuid.includes(uuidArg.toLowerCase()));
-          if (!char) return UI.log('error', 'Không tìm thấy Characteristic.');
-          try {
+          if (!hex) return UI.log('error', 'Cú pháp: writehex [uuid] [chuỗi hex]');
+
+          await Terminal._runCharCommand(uuidArg, async (char) => {
             const cleanHex = hex.replace(/\s+/g, "");
-            if (cleanHex.length % 2 !== 0) throw new Error("Độ dài Hex lẻ.");
+            if (cleanHex.length % 2 !== 0) throw new Error("Độ dài chuỗi Hex phải là số chẵn.");
             const buffer = new Uint8Array(cleanHex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-            if (char.properties.write) await char.writeValueWithResponse(buffer);
-            else await char.writeValueWithoutResponse(buffer);
+
+            const writeMethod = char.properties.write ? 'writeValueWithResponse' : 'writeValueWithoutResponse';
+            await char[writeMethod](buffer);
             UI.log('success', `WRITE HEX -> ${uuidArg}: ${cleanHex}`);
-          } catch (e) { UI.log('error', 'Write Error: ' + e.message); }
+          });
         },
 
         notify: async (uuidArg) => {
-          if (!uuidArg) return UI.log('error', 'Thiếu UUID.');
-          const char = BLE.activeCharacteristics.find(c => c.uuid.includes(uuidArg.toLowerCase()));
-          if (!char) return UI.log('error', 'Không tìm thấy.');
-          try {
-            if (BLE.notificationListeners.has(char)) return UI.log('warning', 'Đã bật rồi.');
+          await Terminal._runCharCommand(uuidArg, async (char) => {
+            if (BLE.notificationListeners.has(char)) return UI.log('warning', 'Thông báo đã được bật trước đó.');
+
             await char.startNotifications();
             const listener = (event) => {
               const result = Utils.decodeBleValue(event.target.value, char.uuid);
               UI.log('info', `[STREAM ${uuidArg}] ${result.hex}${result.interpreted}`);
               if (result.bpm !== null) UI.sendToIframe('BPM_DATA', result.bpm);
             };
+
             char.addEventListener('characteristicvaluechanged', listener);
             BLE.notificationListeners.set(char, listener);
-            UI.log('success', `Bật NOTIFY cho ${uuidArg}`);
-          } catch (e) { UI.log('error', e.message); }
+            UI.log('success', `Đã bật NOTIFY cho ${uuidArg}`);
+          });
         },
 
         stop: (type) => {
           if (type === 'notify') {
             BLE.stopAllNotifications();
-            UI.log('success', 'Đã dừng tất cả Notifications.');
+            UI.log('success', 'Đã dừng tất cả các luồng thông báo (Notifications).');
           }
         }
       }
     };
-
     /**
      * MODULE 5: RESIZER & APP INIT
      */
