@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>T2DTECH BLE</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      --header-height: 72px;
+      --footer-height: 28px;
+      --sidebar-width: 280px;
+    }
+
+    body {
+      background-color: #0d1117;
+      color: #c9d1d9;
+      height: 100vh;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(110, 118, 129, 0.3);
+      border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(110, 118, 129, 0.5);
+    }
+
+    header nav {
+      height: var(--header-height);
+    }
+
+    footer {
+      height: var(--footer-height);
+    }
+
+    .main-container {
+      flex-grow: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: var(--sidebar-width);
+      flex-shrink: 0;
+      border-right: 1px solid #30363d;
+      display: flex;
+      flex-direction: column;
+      background-color: #0d1117;
+    }
+
+    .content-area {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .code-editor {
+      flex-grow: 1;
+      background-color: #0d1117;
+      overflow: auto;
+    }
+
+    #terminal-view {
+      height: 220px;
+      min-height: 80px;
+      max-height: 80vh;
+      border-top: 1px solid #30363d;
+      background-color: #010409;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    #resizer-v {
+      height: 6px;
+      cursor: ns-resize;
+      background: transparent;
+      position: absolute;
+      top: -3px;
+      left: 0;
+      right: 0;
+      z-index: 100;
+    }
+
+    #resizer-v:hover,
+    .resizing #resizer-v {
+      background: rgba(33, 136, 255, 0.6);
+    }
+
+    body.resizing {
+      cursor: ns-resize;
+      user-select: none;
+    }
+
+    .terminal-logs {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 12px;
+      font-family: 'Fira Code', 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .terminal-input-container {
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      border-top: 1px solid #161b22;
+      background-color: #010409;
+    }
+
+    .line-number {
+      width: 45px;
+      text-align: right;
+      padding-right: 15px;
+      color: #484f58;
+      user-select: none;
+    }
+
+    .log-line {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 2px;
+    }
+
+    .log-timestamp {
+      color: #484f58;
+      flex-shrink: 0;
+    }
+
+    .log-error {
+      color: #f85149;
+    }
+
+    .log-info {
+      color: #58a6ff;
+    }
+
+    .log-warning {
+      color: #d29922;
+    }
+
+    .log-success {
+      color: #3fb950;
+    }
+
+    .status-dot {
+      height: 8px;
+      width: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .scanning-active {
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+      }
+
+      70% {
+        box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+      }
+    }
+
+    .service-item:hover {
+      background-color: #161b22;
+      color: #58a6ff;
+    }
+
+    .service-item.active {
+      border-left-color: #3b82f6;
+      background-color: #161b22;
+    }
+
+    .char-item {
+      border-bottom: 1px solid #21262d;
+    }
+
+    .char-item:hover {
+      background-color: #161b22;
+    }
+
+    .prop-badge {
+      font-size: 9px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      background: #21262d;
+      color: #8b949e;
+      margin-right: 4px;
+      font-weight: bold;
+    }
+
+    .prop-badge.active {
+      color: #58a6ff;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    /* Style cho iframe viewer */
+    #content-view-frame {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: none;
+      /* Ẩn mặc định */
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <nav class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between z-30 shadow-sm shrink-0">
+      <div class="flex items-center gap-3">
+        <a href="https://t2dtech.io.vn/" target="_blank" class="flex items-center gap-3">
+          <img src="./res/h2t_logo.png" class="w-20 h-20 rounded-lg shadow object-contain"
+            onerror="this.src='https://via.placeholder.com/40?text=LOGO'" />
+          <span class="text-xl font-black tracking-tighter text-blue-600 uppercase">BLE COMMUNICATION</span>
+        </a>
+      </div>
+      <div class="hidden md:flex gap-6 text-sm font-medium text-slate-500">
+        <a href="https://t2dtech.io.vn/" class="hover:text-blue-600 transition">Our website</a>
+        <button class="hover:text-blue-600 transition">Contact Us</button>
+        <a href="mailto:t2dtech.vn@gmail.com" class="hover:text-blue-600 transition">Email</a>
+      </div>
+
+      <button class="md:hidden p-2 text-slate-600" onclick="toggleSidebar()">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+        </svg>
+      </button>
+    </nav>
+  </header>
+
+  <div class="main-container">
+    <aside class="sidebar">
+      <div class="p-4 border-b border-[#30363d] space-y-4 bg-[#161b22]/30">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Connection</span>
+          <div id="statusBadge"
+            class="flex items-center space-x-2 bg-[#0d1117] border border-[#30363d] px-2 py-0.5 rounded-full text-[10px]">
+            <span id="statusIcon" class="status-dot bg-gray-500"></span>
+            <span id="statusText" class="text-gray-400 font-medium uppercase text-[9px]">Ready</span>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <button id="connectBtn"
+            class="w-full bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold py-2 px-4 rounded-md transition flex items-center justify-center gap-2 shadow-lg">
+            <i data-lucide="radio" class="w-4 h-4"></i> START SCAN
+          </button>
+          <button id="disconnectBtn"
+            class="hidden w-full bg-red-900/50 hover:bg-red-800 text-red-200 border border-red-800/50 text-[11px] font-bold py-2 px-4 rounded-md transition">
+            DISCONNECT DEVICE
+          </button>
+        </div>
+      </div>
+
+      <div id="devicePanel" class="hidden border-b border-[#30363d] bg-[#0d1117] p-4 space-y-3">
+        <div class="flex items-center space-x-2 text-blue-400">
+          <i data-lucide="smartphone" class="w-4 h-4"></i>
+          <span id="deviceNameDisplay" class="font-bold text-[13px] truncate">Device Name</span>
+        </div>
+        <div class="text-[10px] space-y-1">
+          <div class="flex justify-between text-gray-500">
+            <span>ID:</span>
+            <span id="deviceMacDisplay" class="text-gray-300 font-mono italic">Searching...</span>
+          </div>
+          <div class="flex justify-between text-gray-500">
+            <span>RSSI:</span>
+            <span id="rssiValue" class="text-green-500 font-bold">-- dBm</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="servicesSection" class="hidden border-b border-[#30363d] flex-grow flex flex-col overflow-hidden">
+        <div class="p-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest bg-[#161b22]/50">Services</div>
+        <div id="servicesList" class="overflow-y-auto flex-grow text-[12px] p-1"></div>
+      </div>
+
+      <div id="characteristicsViewContainer" class="flex-grow flex flex-col overflow-hidden">
+        <div id="characteristicsView" class="hidden flex flex-col flex-grow overflow-hidden border-t border-[#30363d]">
+          <div
+            class="p-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest flex justify-between items-center bg-[#0d1117]">
+            <span>Characteristics</span>
+            <span id="activeServiceLabel" class="text-blue-500 font-mono">UUID</span>
+          </div>
+          <div id="characteristicsList" class="overflow-y-auto flex-grow text-[12px]"></div>
+        </div>
+
+        <div id="emptySidebarState"
+          class="flex flex-col items-center justify-center flex-grow p-6 text-center space-y-3 opacity-30 select-none">
+          <i data-lucide="bluetooth" class="w-12 h-12"></i>
+          <p class="text-[11px] font-medium leading-relaxed">No device connected.<br>Use the Scan button to start.</p>
+        </div>
+      </div>
+    </aside>
+
+    <main class="content-area" id="main-editor-area">
+      <!-- Content Viewer tự động load từ configPath hoặc hiện editor -->
+      <div id="content-view" class="flex-grow flex flex-col overflow-hidden">
+        <iframe id="content-view-frame" src=""></iframe>
+
+        <div id="code_page" class="code-editor p-4 font-mono text-[13px]">
+          <div class="mb-4 text-blue-300">// T2DTECH BLE IDE - Nhấn SCAN để bắt đầu giải mã BPM.</div>
+          <div id="editor-lines"></div>
+        </div>
+      </div>
+
+
+      <div id="terminal-view">
+        <div id="resizer-v"></div>
+        <div
+          class="flex items-center px-4 py-1.5 bg-[#161b22] border-b border-[#30363d] text-[10px] font-bold text-gray-500 space-x-6 select-none uppercase">
+          <span class="text-blue-400 border-b border-blue-400 pb-0.5 cursor-pointer">Terminal</span>
+
+        </div>
+        <div id="logs" class="terminal-logs"></div>
+        <div class="terminal-input-container font-mono text-[13px]">
+          <span class="text-blue-400 mr-2 shrink-0">t2dtech@dev:~$</span>
+          <input type="text" id="terminal-input" class="bg-transparent border-none outline-none text-white w-full"
+            autofocus autocomplete="off" spellcheck="false" placeholder="Gõ 'help' để xem lệnh...">
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <footer
+    class="bg-[#21262d] text-gray-400 flex items-center px-4 py-6 justify-center text-sm border-t border-[#30363d] select-none">
+    <div class="flex items-center space-x-1">
+      <span>Copyright 2026</span>
+      <i data-lucide="copyright" class="w-3 h-3"></i>
+      <span>T2DTECH Co. Ltd</span>
+    </div>
+  </footer>
+
+  <script>
+    // --- BIẾN CONFIG ĐƯỜNG DẪN ---
+    const configPath = "./pages/heart_rate_chart.html";
+
+    // Hàm riêng để khởi tạo nội dung trang (iframe và editor)
+    function initAppContent() {
+      const iframe = document.getElementById('content-view-frame');
+      const codePage = document.getElementById('code_page');
+
+      if (configPath) {
+        iframe.src = configPath;
+
+        iframe.onload = function () {
+          // Luôn hiện iframe nếu có configPath
+          iframe.style.display = 'block';
+          codePage.style.display = 'none';
+        };
+
+        iframe.onerror = function () {
+          iframe.style.display = 'none';
+          codePage.style.display = 'block';
+        };
+      }
+
+      const editorLines = document.getElementById('editor-lines');
+      if (editorLines) {
+        editorLines.innerHTML = "";
+        for (let i = 1; i <= 30; i++) {
+          editorLines.innerHTML += `<div class="flex leading-6 group hover:bg-[#161b22]"><span class="line-number">${i}</span><span class="text-gray-300">const heartRateDecoder = (data) => data[1];</span></div>`;
+        }
+      }
+    }
+
+    // Khởi tạo ứng dụng khi load trang
+    window.onload = function () {
+      lucide.createIcons();
+      initAppContent();
+    };
+
+    const logs = document.getElementById('logs');
+    const input = document.getElementById('terminal-input');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const statusIcon = document.getElementById('statusIcon');
+    const statusText = document.getElementById('statusText');
+    const devicePanel = document.getElementById('devicePanel');
+    const servicesSection = document.getElementById('servicesSection');
+    const servicesList = document.getElementById('servicesList');
+    const characteristicsView = document.getElementById('characteristicsView');
+    const characteristicsList = document.getElementById('characteristicsList');
+    const terminalView = document.getElementById('terminal-view');
+    const resizerV = document.getElementById('resizer-v');
+
+    let bleDevice = null;
+    let bleServer = null;
+    let activeCharacteristics = [];
+    let notificationListeners = new Map();
+    let isResizing = false;
+
+    resizerV.addEventListener('mousedown', (e) => {
+      isResizing = true;
+      document.body.classList.add('resizing');
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      const newHeight = window.innerHeight - e.clientY - 28;
+      if (newHeight > 80 && newHeight < window.innerHeight * 0.8) {
+        terminalView.style.height = `${newHeight}px`;
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      isResizing = false;
+      document.body.classList.remove('resizing');
+    });
+
+    function appendLog(type, message) {
+      const now = new Date();
+      const timestamp = `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
+      const logLine = document.createElement('div');
+      logLine.className = 'log-line';
+      let colorClass = type === 'error' ? 'log-error' : (type === 'success' ? 'log-success' : (type === 'warning' ? 'log-warning' : 'log-info'));
+      logLine.innerHTML = `<span class="log-timestamp">${timestamp}</span><span class="${colorClass}">${message}</span>`;
+      logs.appendChild(logLine);
+      logs.scrollTop = logs.scrollHeight;
+    }
+
+    function formatBleData(value, uuid = "") {
+      let hexArr = [];
+      for (let i = 0; i < value.byteLength; i++) {
+        hexArr.push(value.getUint8(i).toString(16).padStart(2, '0').toUpperCase());
+      }
+      let extra = "";
+      const shortUuid = uuid.substring(4, 8).toLowerCase();
+      let bpmValue = null;
+
+      if (shortUuid === "2a37") {
+        let flags = value.getUint8(0);
+        bpmValue = (flags & 0x01) ? value.getUint16(1, true) : value.getUint8(1);
+        extra = ` [BPM: ${bpmValue}]`;
+
+        // Gửi dữ liệu vào iframe page.html
+        const iframe = document.getElementById('content-view-frame');
+        if (iframe && iframe.contentWindow) {
+          iframe.contentWindow.postMessage({ type: 'BPM_DATA', value: bpmValue }, '*');
+        }
+      }
+
+      const decoder = new TextDecoder('utf-8');
+      let textVal = "";
+      try { textVal = decoder.decode(value).replace(/[\x00-\x1F\x7F-\x9F]/g, "."); } catch (e) { textVal = "(binary)"; }
+      return { hex: hexArr.join(' '), string: textVal, interpreted: extra, bpm: bpmValue };
+    }
+
+    async function onConnect() {
+      try {
+        appendLog('info', 'Đang quét thiết bị...');
+        connectBtn.classList.add('scanning-active');
+        bleDevice = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: ["heart_rate", "battery_service", "device_information", "0000ffe0-0000-1000-8000-00805f9b34fb", "current_time", "00001234-0000-1000-8000-00805f9b34fb"],
+        });
+        document.getElementById('deviceNameDisplay').textContent = bleDevice.name || "Unknown Device";
+        document.getElementById('deviceMacDisplay').textContent = bleDevice.id.substring(0, 15) + "...";
+        bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+        bleServer = await bleDevice.gatt.connect();
+        appendLog('success', 'Kết nối GATT thành công.');
+        document.getElementById('rssiValue').textContent = "-45 dBm";
+        updateUI(true);
+        discoverServices();
+      } catch (err) {
+        appendLog('error', 'Lỗi: ' + err.message);
+        updateUI(false);
+      }
+    }
+
+    function onDisconnected() {
+      appendLog('warning', 'Đã ngắt kết nối.');
+      stopAllNotifications();
+      updateUI(false);
+    }
+
+    function updateUI(isConnected) {
+      connectBtn.classList.remove('scanning-active');
+      if (isConnected) {
+        statusIcon.className = "status-dot bg-green-500";
+        statusText.textContent = "ONLINE";
+        connectBtn.classList.add('hidden');
+        disconnectBtn.classList.remove('hidden');
+        devicePanel.classList.remove('hidden');
+        servicesSection.classList.remove('hidden');
+        document.getElementById('emptySidebarState').classList.add('hidden');
+      } else {
+        statusIcon.className = "status-dot bg-gray-500";
+        statusText.textContent = "READY";
+        connectBtn.classList.remove('hidden');
+        disconnectBtn.classList.add('hidden');
+        devicePanel.classList.add('hidden');
+        servicesSection.classList.add('hidden');
+        characteristicsView.classList.add('hidden');
+        document.getElementById('emptySidebarState').classList.remove('hidden');
+      }
+    }
+
+    async function discoverServices() {
+      try {
+        const services = await bleServer.getPrimaryServices();
+        servicesList.innerHTML = "";
+        services.forEach(service => {
+          const item = document.createElement('div');
+          item.className = "service-item px-3 py-1.5 cursor-pointer rounded border-l-2 border-transparent";
+          const short = service.uuid.substring(4, 8).toUpperCase();
+          item.innerHTML = `<div class="font-bold">Service: ${short}</div><div class="text-[9px] opacity-50 truncate">${service.uuid}</div>`;
+          item.onclick = () => {
+            Array.from(servicesList.children).forEach(el => el.classList.remove('active'));
+            item.classList.add('active');
+            document.getElementById('activeServiceLabel').textContent = short;
+            showCharacteristics(service);
+          };
+          servicesList.appendChild(item);
+        });
+      } catch (err) { appendLog('error', err.message); }
+    }
+
+    async function showCharacteristics(service) {
+      characteristicsView.classList.remove('hidden');
+      characteristicsList.innerHTML = "";
+      try {
+        activeCharacteristics = await service.getCharacteristics();
+        activeCharacteristics.forEach(char => {
+          const div = document.createElement('div');
+          div.className = "char-item p-3 cursor-pointer";
+          const short = char.uuid.substring(4, 8).toUpperCase();
+          let propsHtml = "";
+          const p = char.properties;
+          if (p.read) propsHtml += `<span class="prop-badge active">READ</span>`;
+          if (p.write || p.writeWithoutResponse) propsHtml += `<span class="prop-badge active">WRITE</span>`;
+          if (p.notify) propsHtml += `<span class="prop-badge active">NOTIFY</span>`;
+          div.innerHTML = `<div class="font-bold text-blue-400">Char: ${short}</div><div class="text-[10px] text-gray-500 truncate mb-2">${char.uuid}</div><div class="flex flex-wrap gap-1">${propsHtml}</div>`;
+          div.onclick = () => {
+            if (char.properties.notify) appendLog('info', `Gõ 'notify ${short}' để xem data.`);
+            else if (char.properties.read) handleTerminalRead(short);
+          };
+          characteristicsList.appendChild(div);
+        });
+      } catch (err) { appendLog('error', err.message); }
+    }
+
+    async function handleTerminalRead(uuidArg) {
+      const char = activeCharacteristics.find(c => c.uuid.includes(uuidArg.toLowerCase()));
+      if (!char) return appendLog('error', 'Không tìm thấy UUID.');
+      try {
+        const val = await char.readValue();
+        const f = formatBleData(val, char.uuid);
+        appendLog('success', `READ ${uuidArg}: ${f.hex}${f.interpreted}`);
+      } catch (e) { appendLog('error', e.message); }
+    }
+
+    async function handleTerminalWrite(uuidArg, inputData, isHex = false) {
+      const char = activeCharacteristics.find(c => c.uuid.includes(uuidArg.toLowerCase()));
+      if (!char) return appendLog('error', 'Không tìm thấy UUID.');
+      try {
+        let buffer;
+        if (isHex) {
+          const hex = inputData.replace(/\s+/g, "");
+          if (hex.length % 2 !== 0) throw new Error("Chuỗi Hex không hợp lệ (độ dài lẻ).");
+          buffer = new Uint8Array(hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+        } else {
+          buffer = new TextEncoder().encode(inputData);
+        }
+
+        if (char.properties.write) await char.writeValueWithResponse(buffer);
+        else if (char.properties.writeWithoutResponse) await char.writeValueWithoutResponse(buffer);
+        else throw new Error("Char không hỗ trợ Write.");
+
+        appendLog('success', `WRITE ${isHex ? 'HEX' : 'STR'} -> ${uuidArg}: ${inputData}`);
+      } catch (e) { appendLog('error', 'Write Error: ' + e.message); }
+    }
+
+    async function handleTerminalNotify(uuidArg, start = true) {
+      const char = activeCharacteristics.find(c => c.uuid.includes(uuidArg.toLowerCase()));
+      if (!char) return appendLog('error', 'Không tìm thấy UUID.');
+      try {
+        if (start) {
+          if (notificationListeners.has(char)) return appendLog('warning', 'Đã bật rồi.');
+          await char.startNotifications();
+          const listener = (event) => {
+            const f = formatBleData(event.target.value, char.uuid);
+            appendLog('info', `[STREAM ${uuidArg}] ${f.hex}${f.interpreted}`);
+          };
+          char.addEventListener('characteristicvaluechanged', listener);
+          notificationListeners.set(char, listener);
+          appendLog('success', `Bật NOTIFY cho ${uuidArg}`);
+        } else {
+          if (!notificationListeners.has(char)) return appendLog('warning', 'Chưa bật.');
+          await char.stopNotifications();
+          char.removeEventListener('characteristicvaluechanged', notificationListeners.get(char));
+          notificationListeners.delete(char);
+          appendLog('success', `Dừng NOTIFY cho ${uuidArg}`);
+        }
+      } catch (e) { appendLog('error', e.message); }
+    }
+
+    async function stopAllNotifications() {
+      for (const [char, listener] of notificationListeners) {
+        try { await char.stopNotifications(); char.removeEventListener('characteristicvaluechanged', listener); } catch (e) { }
+      }
+      notificationListeners.clear();
+      appendLog('success', 'Đã dừng tất cả.');
+    }
+
+    input.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter') {
+        const val = input.value.trim();
+        input.value = "";
+        if (!val) return;
+        appendLog('default', `> ${val}`);
+        const parts = val.split(' ');
+        const cmd = parts[0].toLowerCase();
+        if (cmd === 'scan') onConnect();
+        else if (cmd === 'read' && parts[1]) handleTerminalRead(parts[1]);
+        else if (cmd === 'write' && parts[1] && parts[2]) handleTerminalWrite(parts[1], parts.slice(2).join(' '), false);
+        else if (cmd === 'writehex' && parts[1] && parts[2]) handleTerminalWrite(parts[1], parts.slice(2).join(''), true);
+        else if (cmd === 'notify' && parts[1]) handleTerminalNotify(parts[1], true);
+        else if (val.toLowerCase() === 'stop notify') stopAllNotifications();
+        else if (cmd === 'clear') {
+          logs.innerHTML = "";
+        }
+        else if (cmd === 'time') {
+          const now = new Date();
+          appendLog('info', `Giờ hiện tại: ${now.toLocaleTimeString()}`);
+        }
+        else if (cmd === 'help') appendLog('info', 'Lệnh: scan, read [uuid], write [uuid] [text], writehex [uuid] [hex], notify [uuid], clear, time');
+        else appendLog('error', 'Lệnh không hợp lệ.');
+      }
+    });
+
+    connectBtn.onclick = onConnect;
+    disconnectBtn.onclick = () => bleDevice?.gatt.disconnect();
+  </script>
+</body>
+
+</html>
