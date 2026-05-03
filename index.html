@@ -257,7 +257,6 @@
 
   <div class="main-container">
     <aside class="sidebar">
-      <!-- Connection Section -->
       <div class="p-4 border-b border-[#30363d] space-y-4 bg-[#161b22]/30">
         <div class="flex items-center justify-between">
           <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Connection</span>
@@ -280,7 +279,6 @@
         </div>
       </div>
 
-      <!-- Device Info Panel -->
       <div id="devicePanel" class="hidden border-b border-[#30363d] bg-[#0d1117] p-4 space-y-3">
         <div class="flex items-center space-x-2 text-blue-400">
           <i data-lucide="smartphone" class="w-4 h-4"></i>
@@ -298,14 +296,11 @@
         </div>
       </div>
 
-      <!-- Services Section -->
       <div id="servicesSection" class="hidden border-b border-[#30363d] flex-grow flex flex-col overflow-hidden">
-        <div class="p-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest bg-[#161b22]/50">Services
-        </div>
+        <div class="p-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest bg-[#161b22]/50">Services</div>
         <div id="servicesList" class="overflow-y-auto flex-grow text-[12px] p-1"></div>
       </div>
 
-      <!-- Characteristics Section -->
       <div id="characteristicsViewContainer" class="flex-grow flex flex-col overflow-hidden">
         <div id="characteristicsView" class="hidden flex flex-col flex-grow overflow-hidden border-t border-[#30363d]">
           <div
@@ -319,8 +314,7 @@
         <div id="emptySidebarState"
           class="flex flex-col items-center justify-center flex-grow p-6 text-center space-y-3 opacity-30 select-none">
           <i data-lucide="bluetooth" class="w-12 h-12"></i>
-          <p class="text-[11px] font-medium leading-relaxed">No device connected.<br>Use the Scan button to
-            start.</p>
+          <p class="text-[11px] font-medium leading-relaxed">No device connected.<br>Use the Scan button to start.</p>
         </div>
       </div>
     </aside>
@@ -328,9 +322,8 @@
     <main class="content-area" id="main-editor-area">
       <div id="content-view" class="flex-grow flex flex-col overflow-hidden">
         <iframe id="content-view-frame" src=""></iframe>
-
         <div id="code_page" class="code-editor p-4 font-mono text-[13px]">
-          <div class="mb-4 text-blue-300">// T2DTECH BLE IDE - Nhấn SCAN để bắt đầu giải mã BPM.</div>
+          <div class="mb-4 text-blue-300">// T2DTECH BLE IDE - Nhấn SCAN để bắt đầu.</div>
           <div id="editor-lines"></div>
         </div>
       </div>
@@ -361,18 +354,13 @@
   </footer>
 
   <script>
-    /**
-     * MODULE 1: CONFIG & UTILS
-     */
     const CONFIG = {
       chartPath: "./pages/heart_rate_chart.html",
       optionalServices: [
-        "heart_rate",
-        "battery_service",
-        "device_information",
+        "heart_rate", "battery_service", "device_information", "current_time",
         "0000ffe0-0000-1000-8000-00805f9b34fb",
-        "current_time",
-        "00001234-0000-1000-8000-00805f9b34fb"
+        "00001234-0000-1000-8000-00805f9b34fb",
+        "0000fff0-0000-1000-8000-00805f9b34fb"
       ]
     };
 
@@ -380,6 +368,19 @@
       formatTimestamp: () => {
         const now = new Date();
         return `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
+      },
+      calculateCRC16: (data) => {
+        let crc = 0;
+        const polynomial = 0x8005;
+        for (let i = 0; i < data.length; i++) {
+          crc ^= (data[i] << 8);
+          for (let j = 0; j < 8; j++) {
+            if (crc & 0x8000) crc = (crc << 1) ^ polynomial;
+            else crc = crc << 1;
+            crc &= 0xFFFF;
+          }
+        }
+        return crc;
       },
       decodeBleValue: (value, uuid = "") => {
         let hexArr = [];
@@ -404,13 +405,194 @@
           textVal = "(binary)";
         }
 
-        return { hex: hexArr.join(' '), string: textVal, interpreted, bpm: bpmValue };
+        return {
+          hex: hexArr.join(' '),
+          string: textVal,
+          interpreted,
+          bpm: bpmValue
+        };
       }
     };
 
-    /**
-     * MODULE 2: UI CONTROLLER (Handles DOM Manipulation)
-     */
+    class BLET2D {
+      constructor(parent) {
+        this.parent = parent;
+        this.service = null;
+        this.writeChar = null;
+        this.notifyChar = null;
+        this.UUIDS = {
+          SERVICE: '0000fff0-0000-1000-8000-00805f9b34fb',
+          WRITE: 'fff1',
+          NOTIFY: 'fff2'
+        };
+      }
+
+      async autoSetup(gattServer) {
+        UI.log('info', '[T2D] Đang cấu hình tự động...');
+        try {
+          this.service = await gattServer.getPrimaryService(this.UUIDS.SERVICE);
+          const chars = await this.service.getCharacteristics();
+          this.writeChar = chars.find(c => c.uuid.includes(this.UUIDS.WRITE));
+          this.notifyChar = chars.find(c => c.uuid.includes(this.UUIDS.NOTIFY));
+
+          if (this.notifyChar) {
+            await this.notifyChar.startNotifications();
+            this.notifyChar.addEventListener('characteristicvaluechanged', (e) => this.handleData(e));
+            UI.log('success', '[T2D] Đã bật thông báo FFF2.');
+          }
+        } catch (e) {
+          UI.log('warning', '[T2D] Không tìm thấy Service T2D OS.');
+        }
+      }
+
+      handleData(event) {
+        const res = Utils.decodeBleValue(event.target.value, this.UUIDS.NOTIFY);
+        UI.log('info', `[T2D RX] HEX: ${res.hex}`);
+      }
+
+      async ls() {
+        if (!this.writeChar) return UI.log('error', '[T2D] Không có quyền ghi FFF1');
+        const payload = new TextEncoder().encode('ls');
+        const frame = new Uint8Array(1 + 1 + 2 + payload.length + 2 + 1);
+        frame[0] = 0x01;
+        frame[1] = 0x01;
+        frame[2] = payload.length & 0xFF;
+        frame[3] = (payload.length >> 8) & 0xFF;
+        frame.set(payload, 4);
+        const crc = Utils.calculateCRC16(frame.slice(0, 4 + payload.length));
+        frame[4 + payload.length] = crc & 0xFF;
+        frame[5 + payload.length] = (crc >> 8) & 0xFF;
+        frame[frame.length - 1] = 0x04;
+        await this.writeChar.writeValue(frame);
+        UI.log('success', '[T2D] Đã gửi lệnh LS');
+      }
+
+      reset() {
+        this.service = this.writeChar = this.notifyChar = null;
+      }
+    }
+
+    class BLEManager {
+      constructor() {
+        this.device = null;
+        this.server = null;
+        this.activeCharacteristics = [];
+        this.notificationListeners = new Map();
+        this.t2d = new BLET2D(this);
+      }
+
+      async scan() {
+        try {
+          UI.log('info', 'Đang quét thiết bị...');
+          UI.elements.connectBtn.classList.add('scanning-active');
+          this.device = await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true,
+            optionalServices: CONFIG.optionalServices,
+          });
+
+          this.device.addEventListener('gattserverdisconnected', () => this.handleDisconnect());
+          this.server = await this.device.gatt.connect();
+
+          UI.updateDeviceInfo(this.device.id, "N/A");
+
+          UI.log('success', `Kết nối thành công: ${this.device.name || 'Unknown'}`);
+          UI.updateConnectionStatus(true, this.device.name);
+
+          const services = await this.server.getPrimaryServices();
+          UI.renderServices(services, (s) => this.showCharacteristics(s));
+
+          if (this.device.name && this.device.name.includes("T2D OS")) {
+            await this.t2d.autoSetup(this.server);
+          }
+        } catch (err) {
+          UI.log('error', err.message);
+          UI.updateConnectionStatus(false);
+        }
+      }
+
+      handleDisconnect() {
+        UI.log('warning', 'Mất kết nối Bluetooth.');
+        this.t2d.reset();
+        this.stopAllNotifications();
+        UI.updateConnectionStatus(false);
+      }
+
+      async showCharacteristics(service) {
+        try {
+          this.activeCharacteristics = await service.getCharacteristics();
+          UI.renderCharacteristics(this.activeCharacteristics, (char, short) => {
+            if (char.properties.notify) UI.log('info', `Gõ 'notify ${short}' để lắng nghe.`);
+            if (char.properties.read) UI.log('info', `Gõ 'read ${short}' để đọc giá trị.`);
+          });
+        } catch (err) {
+          UI.log('error', err.message);
+        }
+      }
+
+      async readValue(uuidArg) {
+        try {
+          const char = this.activeCharacteristics.find(c => c.uuid.includes(uuidArg.toLowerCase()));
+          if (!char) return UI.log('error', `Không tìm thấy Characteristic: ${uuidArg}`);
+          if (!char.properties.read) return UI.log('error', `Characteristic ${uuidArg} không hỗ trợ READ.`);
+
+          UI.log('info', `Đang đọc ${uuidArg}...`);
+          const value = await char.readValue();
+          const res = Utils.decodeBleValue(value, char.uuid);
+          UI.log('success', `[READ ${uuidArg}] HEX: ${res.hex} | STRING: ${res.string}`);
+        } catch (err) {
+          UI.log('error', `Lỗi khi đọc: ${err.message}`);
+        }
+      }
+
+      async toggleNotify(uuidArg) {
+        const char = this.activeCharacteristics.find(c => c.uuid.includes(uuidArg.toLowerCase()));
+        if (!char) return UI.log('error', 'Không tìm thấy Characteristic.');
+        if (this.notificationListeners.has(char)) return UI.log('warning', 'Đã bật trước đó.');
+
+        await char.startNotifications();
+        const listener = (event) => {
+          const res = Utils.decodeBleValue(event.target.value, char.uuid);
+          UI.log('info', `[${uuidArg}] ${res.hex}${res.interpreted}`);
+          if (res.bpm !== null) UI.sendToIframe('BPM_DATA', res.bpm);
+        };
+        char.addEventListener('characteristicvaluechanged', listener);
+        this.notificationListeners.set(char, listener);
+        UI.log('success', `Đã bật NOTIFY cho ${uuidArg}`);
+      }
+
+      stopAllNotifications() {
+        this.notificationListeners.forEach(async (listener, char) => {
+          try {
+            await char.stopNotifications();
+            char.removeEventListener('characteristicvaluechanged', listener);
+          } catch (e) { }
+        });
+        this.notificationListeners.clear();
+      }
+
+      async writeValue(uuidArg, data, isHex = false) {
+        try {
+          const char = this.activeCharacteristics.find(c => c.uuid.includes(uuidArg.toLowerCase()));
+          if (!char) return UI.log('error', `Không tìm thấy Characteristic: ${uuidArg}`);
+
+          let buffer;
+          if (isHex) {
+            const cleanHex = data.replace(/\s+/g, "");
+            if (cleanHex.length % 2 !== 0) throw new Error("Chuỗi HEX không hợp lệ (lẻ ký tự)");
+            buffer = new Uint8Array(cleanHex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+          } else {
+            buffer = new TextEncoder().encode(data);
+          }
+
+          const method = char.properties.write ? 'writeValueWithResponse' : 'writeValueWithoutResponse';
+          await char[method](buffer);
+          UI.log('success', `Đã ghi vào ${uuidArg}: ${data} (${isHex ? 'HEX' : 'String'})`);
+        } catch (err) {
+          UI.log('error', `Lỗi ghi: ${err.message}`);
+        }
+      }
+    }
+
     const UI = {
       elements: {
         logs: document.getElementById('logs'),
@@ -427,34 +609,27 @@
         emptySidebarState: document.getElementById('emptySidebarState'),
         iframe: document.getElementById('content-view-frame'),
         codePage: document.getElementById('code_page'),
-        editorLines: document.getElementById('editor-lines')
+        editorLines: document.getElementById('editor-lines'),
+        deviceMac: document.getElementById('deviceMacDisplay'),
+        rssi: document.getElementById('rssiValue')
       },
 
       init() {
         lucide.createIcons();
         this.setupEditor();
-        this.setupIframe();
-      },
-
-      setupEditor() {
-        if (!this.elements.editorLines) return;
-        this.elements.editorLines.innerHTML = "";
-        for (let i = 1; i <= 30; i++) {
-          this.elements.editorLines.innerHTML += `
-                        <div class="flex leading-6 group hover:bg-[#161b22]">
-                            <span class="line-number">${i}</span>
-                            <span class="text-gray-300">const heartRateDecoder = (data) => data[1];</span>
-                        </div>`;
-        }
-      },
-
-      setupIframe() {
         if (CONFIG.chartPath) {
           this.elements.iframe.src = CONFIG.chartPath;
           this.elements.iframe.onload = () => {
             this.elements.iframe.style.display = 'block';
             this.elements.codePage.style.display = 'none';
           };
+        }
+      },
+
+      setupEditor() {
+        this.elements.editorLines.innerHTML = "";
+        for (let i = 1; i <= 20; i++) {
+          this.elements.editorLines.innerHTML += `<div class="flex leading-6 group hover:bg-[#161b22]"><span class="line-number">${i}</span><span class="text-gray-500">// Hệ thống sẵn sàng...</span></div>`;
         }
       },
 
@@ -465,36 +640,35 @@
           error: 'log-error',
           success: 'log-success',
           warning: 'log-warning',
-          info: 'log-info',
-          default: 'text-gray-400'
+          info: 'log-info'
         };
-        const colorClass = colors[type] || colors.info;
-        logLine.innerHTML = `<span class="log-timestamp">${Utils.formatTimestamp()}</span><span class="${colorClass}">${message}</span>`;
+        logLine.innerHTML = `<span class="log-timestamp">${Utils.formatTimestamp()}</span><span class="${colors[type] || ''}">${message}</span>`;
         this.elements.logs.appendChild(logLine);
         this.elements.logs.scrollTop = this.elements.logs.scrollHeight;
       },
 
+      updateDeviceInfo(id, rssi) {
+        this.elements.deviceMac.textContent = id || "Unknown";
+        this.elements.rssi.textContent = rssi ? `${rssi} dBm` : "-- dBm";
+      },
+
       updateConnectionStatus(isConnected, deviceName = "") {
         this.elements.connectBtn.classList.remove('scanning-active');
+        this.elements.connectBtn.classList.toggle('hidden', isConnected);
+        this.elements.disconnectBtn.classList.toggle('hidden', !isConnected);
+        this.elements.devicePanel.classList.toggle('hidden', !isConnected);
+        this.elements.servicesSection.classList.toggle('hidden', !isConnected);
+        this.elements.emptySidebarState.classList.toggle('hidden', isConnected);
+
         if (isConnected) {
           this.elements.statusIcon.className = "status-dot bg-green-500";
           this.elements.statusText.textContent = "ONLINE";
-          this.elements.connectBtn.classList.add('hidden');
-          this.elements.disconnectBtn.classList.remove('hidden');
-          this.elements.devicePanel.classList.remove('hidden');
-          this.elements.servicesSection.classList.remove('hidden');
-          this.elements.emptySidebarState.classList.add('hidden');
-          document.getElementById('deviceNameDisplay').textContent = deviceName || "Connected Device";
+          document.getElementById('deviceNameDisplay').textContent = deviceName || "Connected";
         } else {
           this.elements.statusIcon.className = "status-dot bg-gray-500";
           this.elements.statusText.textContent = "READY";
-          this.elements.connectBtn.classList.remove('hidden');
-          this.elements.disconnectBtn.classList.add('hidden');
-          this.elements.devicePanel.classList.add('hidden');
-          this.elements.servicesSection.classList.add('hidden');
           this.elements.characteristicsView.classList.add('hidden');
-          this.elements.emptySidebarState.classList.remove('hidden');
-          this.elements.servicesList.innerHTML = "";
+          this.updateDeviceInfo("Searching...", "--");
         }
       },
 
@@ -502,9 +676,9 @@
         this.elements.servicesList.innerHTML = "";
         services.forEach(service => {
           const item = document.createElement('div');
-          item.className = "service-item px-3 py-1.5 cursor-pointer rounded border-l-2 border-transparent";
+          item.className = "service-item px-3 py-1.5 cursor-pointer rounded border-l-2 border-transparent text-[11px]";
           const short = service.uuid.substring(4, 8).toUpperCase();
-          item.innerHTML = `<div class="font-bold">Service: ${short}</div><div class="text-[9px] opacity-50 truncate">${service.uuid}</div>`;
+          item.innerHTML = `<div class="font-bold text-gray-300">Service: ${short}</div><div class="text-[9px] opacity-40 truncate">${service.uuid}</div>`;
           item.onclick = () => {
             Array.from(this.elements.servicesList.children).forEach(el => el.classList.remove('active'));
             item.classList.add('active');
@@ -515,108 +689,33 @@
         });
       },
 
-      renderCharacteristics(characteristics, onCharClick) {
+      renderCharacteristics(chars, onCharClick) {
         this.elements.characteristicsView.classList.remove('hidden');
         this.elements.characteristicsList.innerHTML = "";
-        characteristics.forEach(char => {
+        chars.forEach(char => {
           const div = document.createElement('div');
           div.className = "char-item p-3 cursor-pointer";
           const short = char.uuid.substring(4, 8).toUpperCase();
           const p = char.properties;
-          let propsHtml = "";
-          if (p.read) propsHtml += `<span class="prop-badge active">READ</span>`;
-          if (p.write || p.writeWithoutResponse) propsHtml += `<span class="prop-badge active">WRITE</span>`;
-          if (p.notify) propsHtml += `<span class="prop-badge active">NOTIFY</span>`;
-
-          div.innerHTML = `
-                        <div class="font-bold text-blue-400">Char: ${short}</div>
-                        <div class="text-[10px] text-gray-500 truncate mb-2">${char.uuid}</div>
-                        <div class="flex flex-wrap gap-1">${propsHtml}</div>`;
-
+          let badges = `${p.read ? '<span class="prop-badge active">READ</span>' : ''}${p.write ? '<span class="prop-badge active">WRITE</span>' : ''}${p.notify ? '<span class="prop-badge active">NOTIFY</span>' : ''}`;
+          div.innerHTML = `<div class="font-bold text-blue-400">Char: ${short}</div><div class="flex flex-wrap gap-1 mt-1">${badges}</div>`;
           div.onclick = () => onCharClick(char, short);
           this.elements.characteristicsList.appendChild(div);
         });
       },
 
       sendToIframe(type, data) {
-        if (this.elements.iframe && this.elements.iframe.contentWindow) {
-          this.elements.iframe.contentWindow.postMessage({ type, value: data }, '*');
-        }
+        if (this.elements.iframe.contentWindow) this.elements.iframe.contentWindow.postMessage({
+          type,
+          value: data
+        }, '*');
       }
     };
 
-    /**
-     * MODULE 3: BLE CORE (Logic Bluetooth)
-     */
-    const BLE = {
-      device: null,
-      server: null,
-      activeCharacteristics: [],
-      notificationListeners: new Map(),
+    const ble = new BLEManager();
 
-      async scan() {
-        try {
-          UI.log('info', 'Đang quét thiết bị...');
-          UI.elements.connectBtn.classList.add('scanning-active');
-          this.device = await navigator.bluetooth.requestDevice({
-            acceptAllDevices: true,
-            optionalServices: CONFIG.optionalServices,
-          });
-          this.device.addEventListener('gattserverdisconnected', () => this.handleDisconnect());
-          this.server = await this.device.gatt.connect();
-          UI.log('success', 'Kết nối GATT thành công.');
-          UI.updateConnectionStatus(true, this.device.name);
-          this.discoverServices();
-        } catch (err) {
-          UI.log('error', 'Lỗi: ' + err.message);
-          UI.updateConnectionStatus(false);
-        }
-      },
-
-      handleDisconnect() {
-        UI.log('warning', 'Đã ngắt kết nối.');
-        this.stopAllNotifications();
-        UI.updateConnectionStatus(false);
-      },
-
-      async discoverServices() {
-        try {
-          const services = await this.server.getPrimaryServices();
-          UI.renderServices(services, (s) => this.showCharacteristics(s));
-        } catch (err) {
-          UI.log('error', err.message);
-        }
-      },
-
-      async showCharacteristics(service) {
-        try {
-          this.activeCharacteristics = await service.getCharacteristics();
-          UI.renderCharacteristics(this.activeCharacteristics, (char, short) => {
-            if (char.properties.notify) UI.log('info', `Gõ 'notify ${short}' để xem data.`);
-            else if (char.properties.read) Terminal.commands.read(short);
-          });
-        } catch (err) {
-          UI.log('error', err.message);
-        }
-      },
-
-      async stopAllNotifications() {
-        for (const [char, listener] of this.notificationListeners) {
-          try {
-            await char.stopNotifications();
-            char.removeEventListener('characteristicvaluechanged', listener);
-          } catch (e) { }
-        }
-        this.notificationListeners.clear();
-      }
-    };
-
-    /**
-     * MODULE 4: TERMINAL (Tập lệnh & Input)
-     */
     const Terminal = {
       input: document.getElementById('terminal-input'),
-
       init() {
         this.input.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') {
@@ -626,140 +725,93 @@
           }
         });
       },
+      async execute(raw) {
+        UI.log('default', `> ${raw}`);
+        const parts = raw.split(/\s+/);
+        const cmd = parts[0].toLowerCase();
 
-      /**
-       * Hàm bổ trợ để giảm trùng lặp (Helper)
-       * @param {string} uuidArg - UUID người dùng nhập
-       * @param {Function} callback - Logic xử lý chính nếu tìm thấy Characteristic
-       */
-      async _runCharCommand(uuidArg, callback) {
-        if (!uuidArg) return UI.log('error', 'Thiếu UUID.');
+        switch (cmd) {
+          case 'help':
+            UI.log('info', 'Lệnh: scan, read [uuid], notify [uuid], stop notify, write [uuid] [data], writehex [uuid] [hex], ls, clear');
+            break;
 
-        const char = BLE.activeCharacteristics.find(c => c.uuid.includes(uuidArg.toLowerCase()));
-        if (!char) return UI.log('error', `Không tìm thấy Characteristic phù hợp với: ${uuidArg}`);
+          case 'scan':
+            ble.scan();
+            break;
 
-        try {
-          await callback(char);
-        } catch (e) {
-          UI.log('error', `Lỗi thực thi: ${e.message}`);
-        }
-      },
+          case 'clear':
+            UI.elements.logs.innerHTML = "";
+            break;
 
-      async execute(rawInput) {
-        UI.log('default', `> ${rawInput}`);
-        const [cmdName, ...args] = rawInput.split(/\s+/);
-        const cmd = cmdName.toLowerCase();
+          case 'ls':
+            ble.t2d.ls();
+            break;
 
-        if (this.commands[cmd]) {
-          await this.commands[cmd](...args);
-        } else {
-          UI.log('error', `Lệnh '${cmd}' không hợp lệ. Gõ 'help' để xem danh sách.`);
-        }
-      },
+          case 'read':
+            if (parts[1]) {
+              ble.readValue(parts[1]);
+            } else {
+              UI.log('error', "Sử dụng: read [uuid]");
+            }
+            break;
 
-      commands: {
-        help: () => UI.log('info', 'Lệnh: scan, read [uuid], write [uuid] [text], writehex [uuid] [hex], notify [uuid], clear, time, stop notify'),
+          case 'notify':
+            ble.toggleNotify(parts[1] || "");
+            break;
 
-        scan: () => BLE.scan(),
+          case 'stop':
+            if (parts[1] === 'notify') {
+              ble.stopAllNotifications();
+              UI.log('success', 'Đã dừng tất cả các luồng thông báo.');
+            } else {
+              UI.log('error', "Sử dụng: stop notify");
+            }
+            break;
 
-        clear: () => { UI.elements.logs.innerHTML = ""; },
+          case 'write':
+            if (parts[1] && parts[2]) {
+              ble.writeValue(parts[1], parts.slice(2).join(' '), false);
+            } else {
+              UI.log('error', "Sử dụng: write [uuid] [data]");
+            }
+            break;
 
-        time: () => UI.log('info', `Giờ hiện tại: ${new Date().toLocaleTimeString()}`),
+          case 'writehex':
+            if (parts[1] && parts[2]) {
+              ble.writeValue(parts[1], parts.slice(2).join(''), true);
+            } else {
+              UI.log('error', "Sử dụng: writehex [uuid] [hex]");
+            }
+            break;
 
-        read: async (uuidArg) => {
-          await Terminal._runCharCommand(uuidArg, async (char) => {
-            const val = await char.readValue();
-            const result = Utils.decodeBleValue(val, char.uuid);
-            UI.log('success', `READ ${uuidArg}: ${result.hex}${result.interpreted}`);
-          });
-        },
-
-        write: async (uuidArg, ...textParts) => {
-          const text = textParts.join(' ');
-          if (!text) return UI.log('error', 'Cú pháp: write [uuid] [nội dung văn bản]');
-
-          await Terminal._runCharCommand(uuidArg, async (char) => {
-            const buffer = new TextEncoder().encode(text);
-            const writeMethod = char.properties.write ? 'writeValueWithResponse' : 'writeValueWithoutResponse';
-            await char[writeMethod](buffer);
-            UI.log('success', `WRITE STR -> ${uuidArg}: ${text}`);
-          });
-        },
-
-        writehex: async (uuidArg, hex) => {
-          if (!hex) return UI.log('error', 'Cú pháp: writehex [uuid] [chuỗi hex]');
-
-          await Terminal._runCharCommand(uuidArg, async (char) => {
-            const cleanHex = hex.replace(/\s+/g, "");
-            if (cleanHex.length % 2 !== 0) throw new Error("Độ dài chuỗi Hex phải là số chẵn.");
-            const buffer = new Uint8Array(cleanHex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-
-            const writeMethod = char.properties.write ? 'writeValueWithResponse' : 'writeValueWithoutResponse';
-            await char[writeMethod](buffer);
-            UI.log('success', `WRITE HEX -> ${uuidArg}: ${cleanHex}`);
-          });
-        },
-
-        notify: async (uuidArg) => {
-          await Terminal._runCharCommand(uuidArg, async (char) => {
-            if (BLE.notificationListeners.has(char)) return UI.log('warning', 'Thông báo đã được bật trước đó.');
-
-            await char.startNotifications();
-            const listener = (event) => {
-              const result = Utils.decodeBleValue(event.target.value, char.uuid);
-              UI.log('info', `[STREAM ${uuidArg}] ${result.hex}${result.interpreted}`);
-              if (result.bpm !== null) UI.sendToIframe('BPM_DATA', result.bpm);
-            };
-
-            char.addEventListener('characteristicvaluechanged', listener);
-            BLE.notificationListeners.set(char, listener);
-            UI.log('success', `Đã bật NOTIFY cho ${uuidArg}`);
-          });
-        },
-
-        stop: (type) => {
-          if (type === 'notify') {
-            BLE.stopAllNotifications();
-            UI.log('success', 'Đã dừng tất cả các luồng thông báo (Notifications).');
-          }
+          default:
+            UI.log('error', 'Lệnh không xác định. Gõ "help" để xem danh sách.');
+            break;
         }
       }
     };
-    /**
-     * MODULE 5: RESIZER & APP INIT
-     */
-    function initLayout() {
-      const resizer = document.getElementById('resizer-v');
-      const terminal = document.getElementById('terminal-view');
-      let isResizing = false;
-
-      resizer.addEventListener('mousedown', () => {
-        isResizing = true;
-        document.body.classList.add('resizing');
-      });
-
-      document.addEventListener('mousemove', (e) => {
-        if (!isResizing) return;
-        const newHeight = window.innerHeight - e.clientY - 28;
-        if (newHeight > 80 && newHeight < window.innerHeight * 0.8) {
-          terminal.style.height = `${newHeight}px`;
-        }
-      });
-
-      document.addEventListener('mouseup', () => {
-        isResizing = false;
-        document.body.classList.remove('resizing');
-      });
-    }
 
     window.onload = () => {
       UI.init();
       Terminal.init();
-      initLayout();
-
-      // Bind global events
-      UI.elements.connectBtn.onclick = () => BLE.scan();
-      UI.elements.disconnectBtn.onclick = () => BLE.device?.gatt.disconnect();
+      const resizer = document.getElementById('resizer-v');
+      const terminal = document.getElementById('terminal-view');
+      let resizing = false;
+      resizer.onmousedown = () => {
+        resizing = true;
+        document.body.classList.add('resizing');
+      };
+      document.onmousemove = (e) => {
+        if (!resizing) return;
+        const h = window.innerHeight - e.clientY - 28;
+        if (h > 80 && h < window.innerHeight * 0.8) terminal.style.height = h + 'px';
+      };
+      document.onmouseup = () => {
+        resizing = false;
+        document.body.classList.remove('resizing');
+      };
+      UI.elements.connectBtn.onclick = () => ble.scan();
+      UI.elements.disconnectBtn.onclick = () => ble.device?.gatt.disconnect();
     };
   </script>
 </body>
