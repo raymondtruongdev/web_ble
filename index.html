@@ -81,9 +81,9 @@
     }
 
     #terminal-view {
-      height: 220px;
-      min-height: 80px;
-      max-height: 80vh;
+      height: 600px;
+      min-height: 100px;
+      max-height: 100vh;
       border-top: 1px solid #30363d;
       background-color: #010409;
       position: relative;
@@ -142,6 +142,7 @@
       display: flex;
       gap: 12px;
       margin-bottom: 2px;
+      white-space: pre-wrap;
     }
 
     .log-timestamp {
@@ -297,7 +298,8 @@
       </div>
 
       <div id="servicesSection" class="hidden border-b border-[#30363d] flex-grow flex flex-col overflow-hidden">
-        <div class="p-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest bg-[#161b22]/50">Services</div>
+        <div class="p-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest bg-[#161b22]/50">Services
+        </div>
         <div id="servicesList" class="overflow-y-auto flex-grow text-[12px] p-1"></div>
       </div>
 
@@ -314,7 +316,8 @@
         <div id="emptySidebarState"
           class="flex flex-col items-center justify-center flex-grow p-6 text-center space-y-3 opacity-30 select-none">
           <i data-lucide="bluetooth" class="w-12 h-12"></i>
-          <p class="text-[11px] font-medium leading-relaxed">No device connected.<br>Use the Scan button to start.</p>
+          <p class="text-[11px] font-medium leading-relaxed">No device connected.<br>Use the Scan button to
+            start.</p>
         </div>
       </div>
     </aside>
@@ -450,7 +453,7 @@
         UI.log('info', `[T2D RX] HEX: ${res.hex}`);
       }
 
-      async ls() {
+      async example_serial_command_ls() {
         if (!this.writeChar) return UI.log('error', '[T2D] Không có quyền ghi FFF1');
         const payload = new TextEncoder().encode('ls');
         const frame = new Uint8Array(1 + 1 + 2 + payload.length + 2 + 1);
@@ -463,8 +466,30 @@
         frame[4 + payload.length] = crc & 0xFF;
         frame[5 + payload.length] = (crc >> 8) & 0xFF;
         frame[frame.length - 1] = 0x04;
-        await this.writeChar.writeValue(frame);
+        const method = this.writeChar.properties.write ? 'writeValueWithResponse' : 'writeValueWithoutResponse';
+        await this.writeChar[method](frame);
         UI.log('success', '[T2D] Đã gửi lệnh LS');
+
+      }
+
+      reset() {
+        this.service = this.writeChar = this.notifyChar = null;
+      }
+      async sendCommand(str_cmd) {
+        if (!this.writeChar) return UI.log('error', '[T2D] Không có quyền ghi FFF1');
+
+        const payload = new TextEncoder().encode(str_cmd);
+        // Construct frame: [type][len(2)][payload]
+        // example command 'pwd' is: 01 0300 707764
+        const frame = new Uint8Array(1 + 2 + payload.length);
+        frame[0] = 0x01;
+        frame[1] = payload.length & 0xFF;
+        frame[2] = (payload.length >> 8) & 0xFF;
+        frame.set(payload, 3);
+        const method = this.writeChar.properties.write ? 'writeValueWithResponse' : 'writeValueWithoutResponse';
+        await this.writeChar[method](frame);
+        UI.log('success', '[T2D] Đã gửi lệnh ' + str_cmd);
+
       }
 
       reset() {
@@ -732,19 +757,24 @@
 
         switch (cmd) {
           case 'help':
-            UI.log('info', 'Lệnh: scan, read [uuid], notify [uuid], stop notify, write [uuid] [data], writehex [uuid] [hex], ls, clear');
+            UI.log(
+              'info',
+              `Supported commands:
+      clear: clear terminal
+      read [uuid]          : read value from characteristic
+      notify [uuid]        : toggle notify on characteristic
+      stop notify          : stop all notifications
+      write [uuid] [data]  : write string data to characteristic
+      writehex [uuid] [hex]: write hex data to characteristic
+      ls: get current directory files (T2D OS)
+      pwd: get current directory path (T2D OS)
+      `
+            );
             break;
 
-          case 'scan':
-            ble.scan();
-            break;
 
           case 'clear':
             UI.elements.logs.innerHTML = "";
-            break;
-
-          case 'ls':
-            ble.t2d.ls();
             break;
 
           case 'read':
@@ -782,6 +812,13 @@
             } else {
               UI.log('error', "Sử dụng: writehex [uuid] [hex]");
             }
+            break;
+
+          case 'ls':
+            ble.t2d.sendCommand('ls');
+            break;
+          case 'pwd':
+            ble.t2d.sendCommand('pwd');
             break;
 
           default:
