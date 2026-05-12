@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>T2DTECH BLE</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     :root {
@@ -15,138 +16,26 @@
     }
 
     body {
-      background-color: #0d1117;
-      color: #c9d1d9;
-      height: 100vh;
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      min-width: 600px;
+      overflow-x: auto;
     }
 
-    ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: rgba(255, 255, 255, 0.02);
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: rgba(110, 118, 129, 0.3);
-      border-radius: 10px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: rgba(110, 118, 129, 0.5);
-    }
-
-    header nav {
-      height: var(--header-height);
-    }
-
-    footer {
-      height: var(--footer-height);
-    }
-
-    .main-container {
-      flex-grow: 1;
-      display: flex;
-      overflow: hidden;
-    }
-
-    .sidebar {
-      width: var(--sidebar-width);
-      flex-shrink: 0;
-      border-right: 1px solid #30363d;
-      display: flex;
-      flex-direction: column;
-      background-color: #0d1117;
-    }
-
-    .content-area {
-      flex-grow: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .code-editor {
-      flex-grow: 1;
-      background-color: #0d1117;
-      overflow: auto;
-    }
-
-    #terminal-view {
-      height: 600px;
-      min-height: 100px;
-      max-height: 100vh;
-      border-top: 1px solid #30363d;
-      background-color: #010409;
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      flex-shrink: 0;
-    }
-
-    #resizer-v {
-      height: 6px;
-      cursor: ns-resize;
-      background: transparent;
-      position: absolute;
-      top: -3px;
-      left: 0;
-      right: 0;
-      z-index: 100;
-    }
-
-    #resizer-v:hover,
-    .resizing #resizer-v {
-      background: rgba(33, 136, 255, 0.6);
-    }
-
-    body.resizing {
-      cursor: ns-resize;
-      user-select: none;
-    }
-
-    .terminal-logs {
-      flex-grow: 1;
-      overflow-y: auto;
-      padding: 12px;
-      font-family: 'Fira Code', 'Courier New', monospace;
-      font-size: 13px;
-      line-height: 1.6;
-    }
-
-    .terminal-input-container {
-      padding: 8px 12px;
-      display: flex;
-      align-items: center;
-      border-top: 1px solid #161b22;
-      background-color: #010409;
-    }
-
-    .line-number {
-      width: 45px;
-      text-align: right;
-      padding-right: 15px;
-      color: #484f58;
-      user-select: none;
+    .status-dot {
+      height: 18px;
+      width: 18px;
+      border-radius: 50%;
+      display: inline-block;
     }
 
     .log-line {
       display: flex;
-      gap: 12px;
+      gap: 11px;
       margin-bottom: 2px;
       white-space: pre-wrap;
     }
 
     .log-timestamp {
-      color: #484f58;
+      color: #8d949d;
       flex-shrink: 0;
     }
 
@@ -166,197 +55,277 @@
       color: #3fb950;
     }
 
-    .status-dot {
-      height: 8px;
-      width: 8px;
-      border-radius: 50%;
-      display: inline-block;
+
+    .terminal-bg {
+      background-color: #1e1e1e;
+      font-family: 'Courier New', Courier, monospace;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
     }
 
-    .scanning-active {
-      animation: pulse 1.5s infinite;
+    ::-webkit-scrollbar {
+      width: 15;
+      height: 10px;
     }
 
-    @keyframes pulse {
-      0% {
-        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
-      }
-
-      70% {
-        box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
-      }
-
-      100% {
-        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
-      }
+    ::-webkit-scrollbar-track {
+      background: #1e1e1e;
+      border-radius: 10px;
     }
 
-    .service-item:hover {
-      background-color: #161b22;
-      color: #58a6ff;
+    ::-webkit-scrollbar-thumb {
+      background: #5a5f66;
+      border-radius: 10px;
+      border: 2px solid #1e1e1e;
     }
 
-    .service-item.active {
-      border-left-color: #3b82f6;
-      background-color: #161b22;
-    }
-
-    .char-item {
-      border-bottom: 1px solid #21262d;
-    }
-
-    .char-item:hover {
-      background-color: #161b22;
-    }
-
-    .prop-badge {
-      font-size: 9px;
-      padding: 1px 4px;
-      border-radius: 3px;
-      background: #21262d;
-      color: #8b949e;
-      margin-right: 4px;
-      font-weight: bold;
-    }
-
-    .prop-badge.active {
-      color: #58a6ff;
-      background: rgba(59, 130, 246, 0.1);
-      border: 1px solid rgba(59, 130, 246, 0.2);
-    }
-
-    #content-view-frame {
-      width: 100%;
-      height: 100%;
-      border: none;
-      display: none;
+    ::-webkit-scrollbar-thumb:hover {
+      background: #7a818a;
     }
   </style>
 </head>
 
-<body>
 
-  <header id="header-component">
-    <nav class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between z-30 shadow-sm shrink-0">
-      <div class="flex items-center gap-3">
-        <a href="https://t2dtech.io.vn/" target="_blank" class="flex items-center gap-3">
-          <img src="./res/h2t_logo.png" class="w-20 h-20 rounded-lg shadow object-contain"
-            onerror="this.src='https://via.placeholder.com/40?text=LOGO'" />
-          <span class="text-xl font-black tracking-tighter text-blue-600 uppercase">BLE COMMUNICATION</span>
-        </a>
+<body class="bg-gray-200 min-h-screen">
+
+  <!-- Header -->
+  <header id="header-component" class="w-full bg-gray-100 shadow-sm">
+
+    <div class="w-full bg-gray-200">
+      <div class="max-w-7xl mx-auto">
+
+        <nav class="bg-gray-200 py-3 px-4 flex items-center justify-between relative z-30">
+
+          <!-- Logo -->
+          <div class="flex items-center gap-3">
+            <a href="https://t2dtech.io.vn/" target="_blank" class="flex items-center gap-3">
+
+              <img src="./res/h2t_logo.png" class="w-20 h-20 rounded-lg shadow object-contain"
+                onerror="this.src='https://via.placeholder.com/40?text=LOGO'" />
+
+              <span class="text-xl font-black tracking-tighter text-blue-600 uppercase">
+                BLE COMMUNICATION
+              </span>
+            </a>
+          </div>
+
+          <!-- Desktop Menu -->
+          <div class="hidden md:flex px-3 gap-6 text-lg font-bold text-slate-500">
+
+            <a href="https://t2dtech.io.vn/" class="hover:text-blue-600 transition">
+              Our website
+            </a>
+
+            <button class="hover:text-blue-600 transition">
+              Contact Us
+            </button>
+
+            <a href="mailto:t2dtech.vn@gmail.com" class="hover:text-blue-600 transition">
+              Email
+            </a>
+
+          </div>
+
+          <!-- Mobile Menu Button -->
+          <button id="mobileMenuBtn" class="md:hidden p-2 text-slate-600 rounded-lg hover:bg-gray-300 transition">
+
+            <i data-lucide="menu" class="h-6 w-6"></i>
+
+          </button>
+
+          <!-- Mobile Popup Menu -->
+          <div id="mobileMenu"
+            class="hidden md:hidden absolute top-full right-4 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden z-50">
+
+            <div class="flex flex-col py-2 text-base font-semibold text-slate-700">
+
+              <a href="https://t2dtech.io.vn/" class="px-5 py-3 hover:bg-gray-100 hover:text-blue-600 transition">
+                Our website
+              </a>
+
+              <button class="text-left px-5 py-3 hover:bg-gray-100 hover:text-blue-600 transition">
+                Contact Us
+              </button>
+
+              <a href="mailto:t2dtech.vn@gmail.com" class="px-5 py-3 hover:bg-gray-100 hover:text-blue-600 transition">
+                Email
+              </a>
+
+            </div>
+          </div>
+
+        </nav>
       </div>
-      <div class="hidden md:flex gap-6 text-sm font-medium text-slate-500">
-        <a href="https://t2dtech.io.vn/" class="hover:text-blue-600 transition">Our website</a>
-        <button class="hover:text-blue-600 transition">Contact Us</button>
-        <a href="mailto:t2dtech.vn@gmail.com" class="hover:text-blue-600 transition">Email</a>
-      </div>
-      <button class="md:hidden p-2 text-slate-600">
-        <i data-lucide="menu" class="h-6 w-6"></i>
-      </button>
-    </nav>
+    </div>
+
+    <!-- Green Bar -->
+    <div class="w-full bg-green-600 h-8"></div>
+
   </header>
 
-  <div class="main-container">
-    <aside class="sidebar">
-      <div class="p-4 border-b border-[#30363d] space-y-4 bg-[#161b22]/30">
-        <div class="flex items-center justify-between">
-          <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Connection</span>
-          <div id="statusBadge"
-            class="flex items-center space-x-2 bg-[#0d1117] border border-[#30363d] px-2 py-0.5 rounded-full text-[10px]">
-            <span id="statusIcon" class="status-dot bg-gray-500"></span>
-            <span id="statusText" class="text-gray-400 font-medium uppercase text-[9px]">Ready</span>
-          </div>
-        </div>
+  <main class="max-w-7xl mx-auto py-4">
+    <!-- Grid chính: Sử dụng flex hoặc grid tùy biến để cột trái có max-width -->
+    <div class="flex flex-col lg:flex-row gap-6">
 
-        <div class="flex flex-col gap-2">
-          <button id="connectBtn"
-            class="w-full bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold py-2 px-4 rounded-md transition flex items-center justify-center gap-2 shadow-lg">
-            <i data-lucide="radio" class="w-4 h-4"></i> START SCAN
-          </button>
-          <button id="disconnectBtn"
-            class="hidden w-full bg-red-900/50 hover:bg-red-800 text-red-200 border border-red-800/50 text-[11px] font-bold py-2 px-4 rounded-md transition">
-            DISCONNECT DEVICE
-          </button>
+      <!-- CỘT TRÁI (Trên Desktop giới hạn 300px) / HÀNG 1 (Trên Mobile) -->
+      <div class="w-full lg:w-[300px] lg:min-w-[300px] flex flex-col gap-6">
+        <!-- Container này xử lý layout 2 cột trên Mobile cho Connection và File Transfer -->
+        <div class="grid grid-cols-2 lg:grid-cols-1 gap-6">
+
+          <!-- Connection Section -->
+          <section id="connection-section"
+            class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+            <h2 class="text-lg font-semibold mb-4 flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span class="truncate">Connection</span>
+            </h2>
+
+            <div class="p-4 rounded-xl space-y-4  mb-4 border-b border-[#30363d] bg-[#0d1117]">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-[12px] text-blue-400 truncate uppercase">Status</span>
+                <div
+                  class="flex items-center space-x-3 bg-[#0d1117] border border-[#30363d] px-2 py-1 rounded-full text-[10px]">
+                  <span id="statusIcon" class="status-dot bg-gray-500"></span>
+                  <span id="statusText" class="text-gray-300 font-bold uppercase text-[11px]">OFFLINE</span>
+                </div>
+              </div>
+              <div class="flex flex-col gap-2">
+                <button id="connectBtn"
+                  class="w-full bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold py-2 px-4 rounded-md transition flex items-center justify-center gap-2 shadow-lg">
+                  <i data-lucide="radio" class="w-4 h-4"></i> START SCAN
+                </button>
+              </div>
+              <button id="disconnectBtn"
+                class=" hidden w-full bg-red-600 hover:bg-red-500 text-white border border-red-800/50 text-[11px] font-bold py-2 px-4 rounded-md transition">
+                DISCONNECT DEVICE
+              </button>
+            </div>
+
+            <div id="devicePanel" class="hidden border border-[#30363d] bg-[#0d1117] p-3 rounded-xl space-y-2">
+              <div class="flex items-center space-x-2 text-blue-400">
+                <i data-lucide="smartphone" class="w-4 h-4"></i>
+                <span id="deviceNameDisplay" class="font-bold text-[13px] truncate">Device Name</span>
+              </div>
+              <div class="text-[10px] space-y-1">
+                <div class="flex justify-between text-gray-500">
+                  <span>ID:</span>
+                  <span id="deviceMacDisplay" class="text-gray-300 font-mono italic">------</span>
+                </div>
+                <div class="flex justify-between text-gray-500">
+                  <span>RSSI:</span>
+                  <span id="rssiValue" class="text-green-500 font-bold">-- dBm</span>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+          <!-- File Transfer Section -->
+          <section id="file-transfer-section" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <h2 class="text-lg font-semibold mb-4 flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-indigo-500" fill="none"
+                viewBox="0 0 24 24" stroke="currentColor">
+                <path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              <span class="truncate">File Transfer</span>
+            </h2>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-[11px] font-medium text-gray-500 mb-1 uppercase">Send File</label>
+                <div class="flex space-x-1">
+                  <button
+                    class="flex-1 text-[11px] bg-gray-50 border border-dashed border-gray-300 py-1.5 px-2 rounded-lg text-gray-400 truncate text-left">Select...</button>
+                  <button id="startSendBtn"
+                    class="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                      stroke="currentColor">
+                      <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label class="block text-[11px] font-medium text-gray-500 mb-1 uppercase">Receive</label>
+                <div class="flex space-x-1">
+                  <input type="text" placeholder="e.g., /data/config.bin"
+                    class="flex-1 min-w-0 text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 outline-none">
+                  <button id="startReceiveBtn"
+                    class="bg-green-600 text-white p-2 rounded-lg hover:bg-green-700 transition shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                      stroke="currentColor">
+                      <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  </button>
+                </div>
+                <div class="justify-center flex mt-2">
+                  <button id="stopTransferBtn" onclick="handleAction('stop')"
+                    class="sm:col-span-2 btn-ripple flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-4 rounded-full shadow-md active:shadow-sm mt-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor"
+                      viewBox="0 0 256 256">
+                      <path
+                        d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm48-88a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h80A8,8,0,0,1,176,128Z">
+                      </path>
+                    </svg>
+                    Stop Transfer
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
 
-      <div id="devicePanel" class="hidden border-b border-[#30363d] bg-[#0d1117] p-4 space-y-3">
-        <div class="flex items-center space-x-2 text-blue-400">
-          <i data-lucide="smartphone" class="w-4 h-4"></i>
-          <span id="deviceNameDisplay" class="font-bold text-[13px] truncate">Device Name</span>
-        </div>
-        <div class="text-[10px] space-y-1">
-          <div class="flex justify-between text-gray-500">
-            <span>ID:</span>
-            <span id="deviceMacDisplay" class="text-gray-300 font-mono italic">Searching...</span>
-          </div>
-          <div class="flex justify-between text-gray-500">
-            <span>RSSI:</span>
-            <span id="rssiValue" class="text-green-500 font-bold">-- dBm</span>
-          </div>
-        </div>
-      </div>
+      <!-- CỘT PHẢI (Tự động giãn rộng trên Desktop) -->
+      <div class="flex-1 flex flex-col gap-6">
 
-      <div id="servicesSection" class="hidden border-b border-[#30363d] flex-grow flex flex-col overflow-hidden">
-        <div class="p-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest bg-[#161b22]/50">Services
-        </div>
-        <div id="servicesList" class="overflow-y-auto flex-grow text-[12px] p-1"></div>
-      </div>
+        <!-- Terminal Section -->
+        <section id="terminal-section" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div class="px-6 py-4  flex justify-between items-center bg-gray-800">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-gray-200">Terminal Output</h2>
+          </div>
+          <div id="terminal"
+            class="terminal-bg h-[360px]  p-4 text-green-400 text-sm overflow-y-auto custom-scrollbar leading-relaxed font-mono">
+          </div>
+          <div class="p-3 bg-gray-800 flex space-x-2">
+            <span class="text-gray-500 font-mono pl-2 py-1">$</span>
+            <input id="terminal-input" type="text" placeholder="Enter command..."
+              class="flex-1 border-none text-black text-sm outline-none font-mono px-2">
+            <button id="sendTerminalBtn"
+              class="bg-blue-600 text-white px-4 py-1 rounded text-xs font-bold uppercase">Send</button>
+            <button id="clearTerminalBtn"
+              class="bg-red-500 text-white px-4 py-1 rounded text-xs font-bold uppercase">CLEAR</button>
+          </div>
+        </section>
 
-      <div id="characteristicsViewContainer" class="flex-grow flex flex-col overflow-hidden">
-        <div id="characteristicsView" class="hidden flex flex-col flex-grow overflow-hidden border-t border-[#30363d]">
+        <!-- Chart Section -->
+        <section id="chart-section" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-gray-500">Real-time Data</h2>
+            <div class="flex space-x-4">
+              <span class="flex items-center text-[10px] text-gray-500 font-bold uppercase"><span
+                  class="w-2 h-2 bg-blue-500 rounded-full mr-1"></span> Sensor A</span>
+              <span class="flex items-center text-[10px] text-gray-500 font-bold uppercase"><span
+                  class="w-2 h-2 bg-red-500 rounded-full mr-1"></span> Sensor B</span>
+            </div>
+          </div>
           <div
-            class="p-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest flex justify-between items-center bg-[#0d1117]">
-            <span>Characteristics</span>
-            <span id="activeServiceLabel" class="text-blue-500 font-mono">UUID</span>
+            class="h-64 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center text-gray-400 italic">
+            <canvas id="dataChart"></canvas>
           </div>
-          <div id="characteristicsList" class="overflow-y-auto flex-grow text-[12px]"></div>
-        </div>
+        </section>
 
-        <div id="emptySidebarState"
-          class="flex flex-col items-center justify-center flex-grow p-6 text-center space-y-3 opacity-30 select-none">
-          <i data-lucide="bluetooth" class="w-12 h-12"></i>
-          <p class="text-[11px] font-medium leading-relaxed">No device connected.<br>Use the Scan button to
-            start.</p>
-        </div>
       </div>
-    </aside>
-
-    <main class="content-area" id="main-editor-area">
-      <div id="content-view" class="flex-grow flex flex-col overflow-hidden">
-        <iframe id="content-view-frame" src=""></iframe>
-        <div id="code_page" class="code-editor p-4 font-mono text-[13px]">
-          <div class="mb-4 text-blue-300">// T2DTECH BLE IDE - Nhấn SCAN để bắt đầu.</div>
-          <div id="editor-lines"></div>
-        </div>
-      </div>
-
-      <div id="terminal-view">
-        <div id="resizer-v"></div>
-        <div
-          class="flex items-center px-4 py-1.5 bg-[#161b22] border-b border-[#30363d] text-[10px] font-bold text-gray-500 space-x-6 select-none uppercase">
-          <span class="text-blue-400 border-b border-blue-400 pb-0.5 cursor-pointer">Terminal</span>
-        </div>
-        <div id="logs" class="terminal-logs"></div>
-        <div class="terminal-input-container font-mono text-[13px]">
-          <span class="text-blue-400 mr-2 shrink-0">t2dtech@dev:~$</span>
-          <input type="text" id="terminal-input" class="bg-transparent border-none outline-none text-white w-full"
-            autofocus autocomplete="off" spellcheck="false" placeholder="Gõ 'help' để xem lệnh...">
-        </div>
-      </div>
-    </main>
-  </div>
-
-  <footer
-    class="bg-[#21262d] text-gray-400 flex items-center px-4 py-6 justify-center text-sm border-t border-[#30363d] select-none">
-    <div class="flex items-center space-x-1">
-      <span>Copyright 2026</span>
-      <i data-lucide="copyright" class="w-3 h-3"></i>
-      <span>T2DTECH Co. Ltd</span>
     </div>
-  </footer>
+  </main>
 
   <script>
+
+
     const CONFIG = {
       chartPath: "./pages/heart_rate_chart.html",
       optionalServices: [
@@ -366,6 +335,12 @@
         "0000fff0-0000-1000-8000-00805f9b34fb"
       ]
     };
+
+    const FLAG_PRINT_HEX = 0;
+    const FLAG_PRINT_STRING = 1;
+
+    // For  UI testing
+    const FLAG_SHOW_ALL_UI = false; // set TRUE to show all UI components without needing to connect to a device
 
     const Utils = {
       formatTimestamp: () => {
@@ -403,7 +378,7 @@
         const decoder = new TextDecoder('utf-8');
         let textVal = "";
         try {
-          textVal = decoder.decode(value).replace(/[\x00-\x1F\x7F-\x9F]/g, ".");
+          textVal = decoder.decode(value).replace(/[\x00-\x1F\x7F-\x9F]/g, "");
         } catch (e) {
           textVal = "(binary)";
         }
@@ -417,12 +392,21 @@
       }
     };
 
-    class BLET2D {
-      constructor(parent) {
-        this.parent = parent;
+    class BLEManager {
+      constructor() {
+        this.device = null;
+        this.server = null;
+
         this.service = null;
         this.writeChar = null;
         this.notifyChar = null;
+
+        this.isConnected = false;
+
+        // bind fixed handler references
+        this.boundDisconnectHandler = this.handleDisconnect.bind(this);
+        this.boundNotifyHandler = this.handleData.bind(this);
+
         this.UUIDS = {
           SERVICE: '0000fff0-0000-1000-8000-00805f9b34fb',
           WRITE: 'fff1',
@@ -430,51 +414,134 @@
         };
       }
 
-      async autoSetup(gattServer) {
-        UI.log('info', '[T2D] Đang cấu hình tự động...');
+      async scan() {
         try {
-          this.service = await gattServer.getPrimaryService(this.UUIDS.SERVICE);
+          UI.log('info', 'Scanning...');
+          this.device = await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true,
+            optionalServices: CONFIG.optionalServices
+          });
+
+          // REMOVE OLD LISTENER FIRST
+          this.device.removeEventListener(
+            'gattserverdisconnected',
+            this.boundDisconnectHandler
+          );
+
+          // ADD NEW
+          this.device.addEventListener(
+            'gattserverdisconnected',
+            this.boundDisconnectHandler
+          );
+
+          this.server = await this.device.gatt.connect();
+
+          this.isConnected = true;
+
+          UI.updateConnectionStatus(true, this.device.name || "Unknown Device");
+          UI.updateDeviceInfo(this.device.id, "N/A");
+
+          UI.log('success', `Connected: ${this.device.name || 'Unknown'} successfully.`);
+
+          if (
+            this.device.name &&
+            this.device.name.includes("T2D OS")
+          ) {
+            await this.autoSetup(this.server);
+          }
+
+        }
+        catch (err) {
+          UI.log('error', err.message);
+          UI.updateConnectionStatus(false);
+        }
+      }
+
+      async autoSetup(gattServer) {
+
+        try {
+          // UI.log('info', '[T2D] Đang cấu hình tự động...');
+
+          this.service = await gattServer.getPrimaryService(
+            this.UUIDS.SERVICE
+          );
           const chars = await this.service.getCharacteristics();
           this.writeChar = chars.find(c => c.uuid.includes(this.UUIDS.WRITE));
-          this.notifyChar = chars.find(c => c.uuid.includes(this.UUIDS.NOTIFY));
+
+          this.notifyChar =
+            chars.find(c =>
+              c.uuid.includes(this.UUIDS.NOTIFY)
+            );
 
           if (this.notifyChar) {
             await this.notifyChar.startNotifications();
-            this.notifyChar.addEventListener('characteristicvaluechanged', (e) => this.handleData(e));
-            UI.log('success', '[T2D] Đã bật thông báo FFF2.');
+
+            // REMOVE OLD
+            this.notifyChar.removeEventListener('characteristicvaluechanged',
+              this.boundNotifyHandler);
+
+            // ADD NEW
+            this.notifyChar.addEventListener('characteristicvaluechanged',
+              this.boundNotifyHandler);
+            // UI.log('success', '[T2D] Đã bật notify FFF2');
           }
-        } catch (e) {
-          UI.log('warning', '[T2D] Không tìm thấy Service T2D OS.');
+
+        }
+        catch (e) {
+          UI.log('warning', '[T2D] Không tìm thấy service T2D');
         }
       }
 
       handleData(event) {
-        const res = Utils.decodeBleValue(event.target.value, this.UUIDS.NOTIFY);
-        UI.log('info', `[T2D RX] HEX: ${res.hex}`);
+
+        const res =
+          Utils.decodeBleValue(
+            event.target.value,
+            this.UUIDS.NOTIFY
+          );
+
+        if (FLAG_PRINT_HEX) {
+          UI.log('info', `[RX] HEX: ${res.hex}`);
+        }
+
+        UI.log(
+          'info',
+          `${res.string}`
+        );
       }
 
-      async example_serial_command_ls() {
-        if (!this.writeChar) return UI.log('error', '[T2D] Không có quyền ghi FFF1');
-        const payload = new TextEncoder().encode('ls');
-        const frame = new Uint8Array(1 + 1 + 2 + payload.length + 2 + 1);
-        frame[0] = 0x01;
-        frame[1] = 0x01;
-        frame[2] = payload.length & 0xFF;
-        frame[3] = (payload.length >> 8) & 0xFF;
-        frame.set(payload, 4);
-        const crc = Utils.calculateCRC16(frame.slice(0, 4 + payload.length));
-        frame[4 + payload.length] = crc & 0xFF;
-        frame[5 + payload.length] = (crc >> 8) & 0xFF;
-        frame[frame.length - 1] = 0x04;
-        const method = this.writeChar.properties.write ? 'writeValueWithResponse' : 'writeValueWithoutResponse';
-        await this.writeChar[method](frame);
-        UI.log('success', '[T2D] Đã gửi lệnh LS');
+      async handleDisconnect() {
 
+        if (!this.isConnected) {
+          return;
+        }
+
+        this.isConnected = false;
+
+        UI.log(
+          'warning',
+          'Bluetooth disconnected.'
+        );
+
+        try {
+          if (this.notifyChar) {
+            this.notifyChar.removeEventListener(
+              'characteristicvaluechanged',
+              this.boundNotifyHandler
+            );
+          }
+        }
+        catch (e) {
+          UI.log('warning', 'Cleanup error: ' + e.message);
+        }
+
+        UI.updateConnectionStatus(false);
+
+        this.service = null;
+        this.writeChar = null;
+        this.notifyChar = null;
       }
 
-      reset() {
-        this.service = this.writeChar = this.notifyChar = null;
-      }
       async sendCommand(str_cmd) {
         if (!this.writeChar) return UI.log('error', '[T2D] Không có quyền ghi FFF1');
 
@@ -488,177 +555,64 @@
         frame.set(payload, 3);
         const method = this.writeChar.properties.write ? 'writeValueWithResponse' : 'writeValueWithoutResponse';
         await this.writeChar[method](frame);
-        UI.log('success', '[T2D] Đã gửi lệnh ' + str_cmd);
-
       }
 
-      reset() {
-        this.service = this.writeChar = this.notifyChar = null;
-      }
     }
 
-    class BLEManager {
-      constructor() {
-        this.device = null;
-        this.server = null;
-        this.activeCharacteristics = [];
-        this.notificationListeners = new Map();
-        this.t2d = new BLET2D(this);
-      }
+    class T2DCommand {
+      static async execute(raw) {
+        UI.log('default', `> ${raw}`);
+        const parts = raw.split(/\s+/);
+        const cmd = parts[0].toLowerCase();
 
-      async scan() {
-        try {
-          UI.log('info', 'Đang quét thiết bị...');
-          UI.elements.connectBtn.classList.add('scanning-active');
-          this.device = await navigator.bluetooth.requestDevice({
-            acceptAllDevices: true,
-            optionalServices: CONFIG.optionalServices,
-          });
+        switch (cmd) {
+          case 'clear':
+            UI.clearlog();
+            break;
 
-          this.device.addEventListener('gattserverdisconnected', () => this.handleDisconnect());
-          this.server = await this.device.gatt.connect();
-
-          UI.updateDeviceInfo(this.device.id, "N/A");
-
-          UI.log('success', `Kết nối thành công: ${this.device.name || 'Unknown'}`);
-          UI.updateConnectionStatus(true, this.device.name);
-
-          const services = await this.server.getPrimaryServices();
-          UI.renderServices(services, (s) => this.showCharacteristics(s));
-
-          if (this.device.name && this.device.name.includes("T2D OS")) {
-            await this.t2d.autoSetup(this.server);
-          }
-        } catch (err) {
-          UI.log('error', err.message);
-          UI.updateConnectionStatus(false);
+          default:
+            ble.sendCommand(raw);
+            break;
         }
       }
 
-      handleDisconnect() {
-        UI.log('warning', 'Mất kết nối Bluetooth.');
-        this.t2d.reset();
-        this.stopAllNotifications();
-        UI.updateConnectionStatus(false);
-      }
-
-      async showCharacteristics(service) {
-        try {
-          this.activeCharacteristics = await service.getCharacteristics();
-          UI.renderCharacteristics(this.activeCharacteristics, (char, short) => {
-            if (char.properties.notify) UI.log('info', `Gõ 'notify ${short}' để lắng nghe.`);
-            if (char.properties.read) UI.log('info', `Gõ 'read ${short}' để đọc giá trị.`);
-          });
-        } catch (err) {
-          UI.log('error', err.message);
-        }
-      }
-
-      async readValue(uuidArg) {
-        try {
-          const char = this.activeCharacteristics.find(c => c.uuid.includes(uuidArg.toLowerCase()));
-          if (!char) return UI.log('error', `Không tìm thấy Characteristic: ${uuidArg}`);
-          if (!char.properties.read) return UI.log('error', `Characteristic ${uuidArg} không hỗ trợ READ.`);
-
-          UI.log('info', `Đang đọc ${uuidArg}...`);
-          const value = await char.readValue();
-          const res = Utils.decodeBleValue(value, char.uuid);
-          UI.log('success', `[READ ${uuidArg}] HEX: ${res.hex} | STRING: ${res.string}`);
-        } catch (err) {
-          UI.log('error', `Lỗi khi đọc: ${err.message}`);
-        }
-      }
-
-      async toggleNotify(uuidArg) {
-        const char = this.activeCharacteristics.find(c => c.uuid.includes(uuidArg.toLowerCase()));
-        if (!char) return UI.log('error', 'Không tìm thấy Characteristic.');
-        if (this.notificationListeners.has(char)) return UI.log('warning', 'Đã bật trước đó.');
-
-        await char.startNotifications();
-        const listener = (event) => {
-          const res = Utils.decodeBleValue(event.target.value, char.uuid);
-          UI.log('info', `[${uuidArg}] ${res.hex}${res.interpreted}`);
-          if (res.bpm !== null) UI.sendToIframe('BPM_DATA', res.bpm);
-        };
-        char.addEventListener('characteristicvaluechanged', listener);
-        this.notificationListeners.set(char, listener);
-        UI.log('success', `Đã bật NOTIFY cho ${uuidArg}`);
-      }
-
-      stopAllNotifications() {
-        this.notificationListeners.forEach(async (listener, char) => {
-          try {
-            await char.stopNotifications();
-            char.removeEventListener('characteristicvaluechanged', listener);
-          } catch (e) { }
-        });
-        this.notificationListeners.clear();
-      }
-
-      async writeValue(uuidArg, data, isHex = false) {
-        try {
-          const char = this.activeCharacteristics.find(c => c.uuid.includes(uuidArg.toLowerCase()));
-          if (!char) return UI.log('error', `Không tìm thấy Characteristic: ${uuidArg}`);
-
-          let buffer;
-          if (isHex) {
-            const cleanHex = data.replace(/\s+/g, "");
-            if (cleanHex.length % 2 !== 0) throw new Error("Chuỗi HEX không hợp lệ (lẻ ký tự)");
-            buffer = new Uint8Array(cleanHex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-          } else {
-            buffer = new TextEncoder().encode(data);
-          }
-
-          const method = char.properties.write ? 'writeValueWithResponse' : 'writeValueWithoutResponse';
-          await char[method](buffer);
-          UI.log('success', `Đã ghi vào ${uuidArg}: ${data} (${isHex ? 'HEX' : 'String'})`);
-        } catch (err) {
-          UI.log('error', `Lỗi ghi: ${err.message}`);
-        }
-      }
     }
 
     const UI = {
       elements: {
-        logs: document.getElementById('logs'),
         statusIcon: document.getElementById('statusIcon'),
         statusText: document.getElementById('statusText'),
         connectBtn: document.getElementById('connectBtn'),
         disconnectBtn: document.getElementById('disconnectBtn'),
+        terminalOutput: document.getElementById('terminal'),
         devicePanel: document.getElementById('devicePanel'),
-        servicesSection: document.getElementById('servicesSection'),
-        servicesList: document.getElementById('servicesList'),
-        characteristicsView: document.getElementById('characteristicsView'),
-        characteristicsList: document.getElementById('characteristicsList'),
-        activeServiceLabel: document.getElementById('activeServiceLabel'),
-        emptySidebarState: document.getElementById('emptySidebarState'),
-        iframe: document.getElementById('content-view-frame'),
-        codePage: document.getElementById('code_page'),
-        editorLines: document.getElementById('editor-lines'),
         deviceMac: document.getElementById('deviceMacDisplay'),
-        rssi: document.getElementById('rssiValue')
-      },
+        rssi: document.getElementById('rssiValue'),
+        terminalInput: document.getElementById('terminal-input'),
+        clearTerminalBtn: document.getElementById('clearTerminalBtn'),
+        sendTerminalBtn: document.getElementById('sendTerminalBtn'),
 
+
+      },
       init() {
-        lucide.createIcons();
-        this.setupEditor();
-        if (CONFIG.chartPath) {
-          this.elements.iframe.src = CONFIG.chartPath;
-          this.elements.iframe.onload = () => {
-            this.elements.iframe.style.display = 'block';
-            this.elements.codePage.style.display = 'none';
-          };
-        }
+        this.log('success', 'System initialized. Click "START SCAN" to begin.');
+        this.elements.terminalInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            const val = this.elements.terminalInput.value.trim();
+            this.elements.terminalInput.value = "";
+            if (val) T2DCommand.execute(val);
+          }
+        });
+        this.elements.clearTerminalBtn.onclick = () => {
+          this.elements.terminalOutput.innerHTML = "";
+        };
+        this.elements.sendTerminalBtn.onclick = () => {
+          const val = this.elements.terminalInput.value.trim();
+          this.elements.terminalInput.value = "";
+          if (val) T2DCommand.execute(val);
+        };
       },
-
-      setupEditor() {
-        this.elements.editorLines.innerHTML = "";
-        for (let i = 1; i <= 20; i++) {
-          this.elements.editorLines.innerHTML += `<div class="flex leading-6 group hover:bg-[#161b22]"><span class="line-number">${i}</span><span class="text-gray-500">// Hệ thống sẵn sàng...</span></div>`;
-        }
-      },
-
-      log(type, message) {
+      log(type = 'info', message) {
         const logLine = document.createElement('div');
         logLine.className = 'log-line';
         const colors = {
@@ -667,9 +621,15 @@
           warning: 'log-warning',
           info: 'log-info'
         };
-        logLine.innerHTML = `<span class="log-timestamp">${Utils.formatTimestamp()}</span><span class="${colors[type] || ''}">${message}</span>`;
-        this.elements.logs.appendChild(logLine);
-        this.elements.logs.scrollTop = this.elements.logs.scrollHeight;
+
+        const time = Utils.formatTimestamp();
+        logLine.innerHTML = `<span class="log-timestamp">${time}</span><span class="${colors[type] || ''}">${message}</span>`;
+
+        this.elements.terminalOutput.appendChild(logLine);
+        this.elements.terminalOutput.scrollTop = this.elements.terminalOutput.scrollHeight;
+      },
+      clearlog() {
+        this.elements.terminalOutput.innerHTML = "";
       },
 
       updateDeviceInfo(id, rssi) {
@@ -678,178 +638,100 @@
       },
 
       updateConnectionStatus(isConnected, deviceName = "") {
-        this.elements.connectBtn.classList.remove('scanning-active');
         this.elements.connectBtn.classList.toggle('hidden', isConnected);
         this.elements.disconnectBtn.classList.toggle('hidden', !isConnected);
-        this.elements.devicePanel.classList.toggle('hidden', !isConnected);
-        this.elements.servicesSection.classList.toggle('hidden', !isConnected);
-        this.elements.emptySidebarState.classList.toggle('hidden', isConnected);
 
         if (isConnected) {
           this.elements.statusIcon.className = "status-dot bg-green-500";
+          this.elements.statusText.classList.replace("text-gray-300", "text-green-400");
           this.elements.statusText.textContent = "ONLINE";
           document.getElementById('deviceNameDisplay').textContent = deviceName || "Connected";
+          this.elements.devicePanel.classList.remove('hidden');
         } else {
           this.elements.statusIcon.className = "status-dot bg-gray-500";
-          this.elements.statusText.textContent = "READY";
-          this.elements.characteristicsView.classList.add('hidden');
+          this.elements.statusText.classList.replace("text-green-400", "text-gray-300");
+          this.elements.statusText.textContent = "OFFLINE";
+          this.elements.devicePanel.classList.add('hidden');
           this.updateDeviceInfo("Searching...", "--");
         }
       },
 
-      renderServices(services, onServiceClick) {
-        this.elements.servicesList.innerHTML = "";
-        services.forEach(service => {
-          const item = document.createElement('div');
-          item.className = "service-item px-3 py-1.5 cursor-pointer rounded border-l-2 border-transparent text-[11px]";
-          const short = service.uuid.substring(4, 8).toUpperCase();
-          item.innerHTML = `<div class="font-bold text-gray-300">Service: ${short}</div><div class="text-[9px] opacity-40 truncate">${service.uuid}</div>`;
-          item.onclick = () => {
-            Array.from(this.elements.servicesList.children).forEach(el => el.classList.remove('active'));
-            item.classList.add('active');
-            this.elements.activeServiceLabel.textContent = short;
-            onServiceClick(service);
-          };
-          this.elements.servicesList.appendChild(item);
-        });
-      },
 
-      renderCharacteristics(chars, onCharClick) {
-        this.elements.characteristicsView.classList.remove('hidden');
-        this.elements.characteristicsList.innerHTML = "";
-        chars.forEach(char => {
-          const div = document.createElement('div');
-          div.className = "char-item p-3 cursor-pointer";
-          const short = char.uuid.substring(4, 8).toUpperCase();
-          const p = char.properties;
-          let badges = `${p.read ? '<span class="prop-badge active">READ</span>' : ''}${p.write ? '<span class="prop-badge active">WRITE</span>' : ''}${p.notify ? '<span class="prop-badge active">NOTIFY</span>' : ''}`;
-          div.innerHTML = `<div class="font-bold text-blue-400">Char: ${short}</div><div class="flex flex-wrap gap-1 mt-1">${badges}</div>`;
-          div.onclick = () => onCharClick(char, short);
-          this.elements.characteristicsList.appendChild(div);
-        });
-      },
+    }
 
-      sendToIframe(type, data) {
-        if (this.elements.iframe.contentWindow) this.elements.iframe.contentWindow.postMessage({
-          type,
-          value: data
-        }, '*');
+    // Chart Initialization
+    const ctx = document.getElementById('dataChart').getContext('2d');
+    const dataChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: Array(20).fill(''),
+        datasets: [{
+          label: 'Sensor Data',
+          data: Array(20).fill(0).map(() => Math.floor(Math.random() * 100)),
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { display: false },
+          y: { beginAtZero: true, grid: { color: '#f3f4f6' } }
+        }
       }
-    };
+    });
 
     const ble = new BLEManager();
 
-    const Terminal = {
-      input: document.getElementById('terminal-input'),
-      init() {
-        this.input.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            const val = this.input.value.trim();
-            this.input.value = "";
-            if (val) this.execute(val);
-          }
-        });
-      },
-      async execute(raw) {
-        UI.log('default', `> ${raw}`);
-        const parts = raw.split(/\s+/);
-        const cmd = parts[0].toLowerCase();
-
-        switch (cmd) {
-          case 'help':
-            UI.log(
-              'info',
-              `Supported commands:
-      clear: clear terminal
-      read [uuid]          : read value from characteristic
-      notify [uuid]        : toggle notify on characteristic
-      stop notify          : stop all notifications
-      write [uuid] [data]  : write string data to characteristic
-      writehex [uuid] [hex]: write hex data to characteristic
-      ls: get current directory files (T2D OS)
-      pwd: get current directory path (T2D OS)
-      `
-            );
-            break;
-
-
-          case 'clear':
-            UI.elements.logs.innerHTML = "";
-            break;
-
-          case 'read':
-            if (parts[1]) {
-              ble.readValue(parts[1]);
-            } else {
-              UI.log('error', "Sử dụng: read [uuid]");
-            }
-            break;
-
-          case 'notify':
-            ble.toggleNotify(parts[1] || "");
-            break;
-
-          case 'stop':
-            if (parts[1] === 'notify') {
-              ble.stopAllNotifications();
-              UI.log('success', 'Đã dừng tất cả các luồng thông báo.');
-            } else {
-              UI.log('error', "Sử dụng: stop notify");
-            }
-            break;
-
-          case 'write':
-            if (parts[1] && parts[2]) {
-              ble.writeValue(parts[1], parts.slice(2).join(' '), false);
-            } else {
-              UI.log('error', "Sử dụng: write [uuid] [data]");
-            }
-            break;
-
-          case 'writehex':
-            if (parts[1] && parts[2]) {
-              ble.writeValue(parts[1], parts.slice(2).join(''), true);
-            } else {
-              UI.log('error', "Sử dụng: writehex [uuid] [hex]");
-            }
-            break;
-
-          case 'ls':
-            ble.t2d.sendCommand('ls');
-            break;
-          case 'pwd':
-            ble.t2d.sendCommand('pwd');
-            break;
-
-          default:
-            UI.log('error', 'Lệnh không xác định. Gõ "help" để xem danh sách.');
-            break;
-        }
+    // Update chart mock
+    setInterval(() => {
+      if (ble.isConnected) {
+        dataChart.data.datasets[0].data.shift();
+        dataChart.data.datasets[0].data.push(Math.floor(Math.random() * 100));
+        dataChart.update('none');
       }
-    };
+    }, 500);
 
     window.onload = () => {
+      lucide.createIcons();
       UI.init();
-      Terminal.init();
-      const resizer = document.getElementById('resizer-v');
-      const terminal = document.getElementById('terminal-view');
-      let resizing = false;
-      resizer.onmousedown = () => {
-        resizing = true;
-        document.body.classList.add('resizing');
+      // Mobile popup menu
+      const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+      const mobileMenu = document.getElementById('mobileMenu');
+
+      mobileMenuBtn.onclick = (e) => {
+        e.stopPropagation();
+        mobileMenu.classList.toggle('hidden');
       };
-      document.onmousemove = (e) => {
-        if (!resizing) return;
-        const h = window.innerHeight - e.clientY - 28;
-        if (h > 80 && h < window.innerHeight * 0.8) terminal.style.height = h + 'px';
-      };
-      document.onmouseup = () => {
-        resizing = false;
-        document.body.classList.remove('resizing');
-      };
+
+      // click outside => close popup
+      document.addEventListener('click', (e) => {
+        if (
+          !mobileMenu.contains(e.target) &&
+          !mobileMenuBtn.contains(e.target)
+        ) {
+          mobileMenu.classList.add('hidden');
+        }
+      });
+
       UI.elements.connectBtn.onclick = () => ble.scan();
       UI.elements.disconnectBtn.onclick = () => ble.device?.gatt.disconnect();
-    };
+
+      if (FLAG_SHOW_ALL_UI) {
+        UI.elements.devicePanel.classList.remove('hidden');
+        UI.elements.disconnectBtn.classList.remove('hidden');
+        UI.log('error', 'This is an error message');
+        UI.log('info', 'Kết nối giả lập: T2D OS Device');
+      }
+
+    }
+
   </script>
 </body>
 
