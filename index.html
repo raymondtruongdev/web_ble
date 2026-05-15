@@ -173,15 +173,15 @@
         <!-- Container này xử lý layout 2 cột trên Mobile cho Connection và File Transfer -->
         <div class="grid grid-cols-2 lg:grid-cols-1 gap-6">
 
-          <!-- Connection Section -->
-          <section id="connection-section"
+          <!-- BLE Connection Section -->
+          <section id="ble-connection-section"
             class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
             <h2 class="text-lg font-semibold mb-4 flex items-center">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor">
                 <path d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
-              <span class="truncate">Connection</span>
+              <span class="truncate">BLE Connection</span>
             </h2>
 
             <div class="p-4 rounded-xl space-y-4  mb-4 border-b border-[#30363d] bg-[#0d1117]">
@@ -189,17 +189,17 @@
                 <span class="font-bold text-[12px] text-blue-400 truncate uppercase">Status</span>
                 <div
                   class="flex items-center space-x-3 bg-[#0d1117] border border-[#30363d] px-2 py-1 rounded-full text-[10px]">
-                  <span id="statusIcon" class="status-dot bg-gray-500"></span>
-                  <span id="statusText" class="text-gray-300 font-bold uppercase text-[11px]">OFFLINE</span>
+                  <span id="statusBLEIcon" class="status-dot bg-gray-500"></span>
+                  <span id="statusBLEText" class="text-gray-300 font-bold uppercase text-[11px]">OFFLINE</span>
                 </div>
               </div>
               <div class="flex flex-col gap-2">
-                <button id="connectBtn"
+                <button id="connectBLEBtn"
                   class="w-full bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold py-2 px-4 rounded-md transition flex items-center justify-center gap-2 shadow-lg">
                   <i data-lucide="radio" class="w-4 h-4"></i> START SCAN
                 </button>
               </div>
-              <button id="disconnectBtn"
+              <button id="disconnectBLEBtn"
                 class=" hidden w-full bg-red-600 hover:bg-red-500 text-white border border-red-800/50 text-[11px] font-bold py-2 px-4 rounded-md transition">
                 DISCONNECT DEVICE
               </button>
@@ -221,6 +221,38 @@
                 </div>
               </div>
 
+            </div>
+          </section>
+          <!-- UART Connection Section -->
+          <section id="uart-connection-section"
+            class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+            <h2 class="text-lg font-semibold mb-4 flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span class="truncate">UART Connection</span>
+            </h2>
+
+            <div class="p-4 rounded-xl space-y-4  mb-4 border-b border-[#30363d] bg-[#0d1117]">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-[12px] text-blue-400 truncate uppercase">Status</span>
+                <div
+                  class="flex items-center space-x-3 bg-[#0d1117] border border-[#30363d] px-2 py-1 rounded-full text-[10px]">
+                  <span id="statusIconUart" class="status-dot bg-gray-500"></span>
+                  <span id="statusTextUart" class="text-gray-300 font-bold uppercase text-[11px]">OFFLINE</span>
+                </div>
+              </div>
+              <div class="flex flex-col gap-2">
+                <button id="connectUartBtn"
+                  class="w-full bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold py-2 px-4 rounded-md transition flex items-center justify-center gap-2 shadow-lg">
+                  <i data-lucide="radio" class="w-4 h-4"></i> START SCAN
+                </button>
+              </div>
+              <button id="disconnectUartBtn"
+                class=" hidden w-full bg-red-600 hover:bg-red-500 text-white border border-red-800/50 text-[11px] font-bold py-2 px-4 rounded-md transition">
+                DISCONNECT DEVICE
+              </button>
             </div>
           </section>
 
@@ -323,8 +355,8 @@
     </div>
   </main>
 
-  <script>
-
+  <script type="module">
+    import { SerialConnection } from './serialConnection.js';
 
     const CONFIG = {
       chartPath: "./pages/heart_rate_chart.html",
@@ -339,6 +371,15 @@
     const FLAG_PRINT_HEX = 0;
     const FLAG_PRINT_STRING = 1;
 
+    const CONNECTION_TYPE = {
+      NONE: 'none',
+      BLE: 'ble',
+      UART: 'uart'
+    };
+    const AppState = {
+      connectionType: CONNECTION_TYPE.NONE
+    };
+
     // For  UI testing
     const FLAG_SHOW_ALL_UI = false; // set TRUE to show all UI components without needing to connect to a device
 
@@ -347,6 +388,7 @@
         const now = new Date();
         return `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
       },
+
       calculateCRC16: (data) => {
         let crc = 0;
         const polynomial = 0x8005;
@@ -360,6 +402,7 @@
         }
         return crc;
       },
+
       decodeBleValue: (value, uuid = "") => {
         let hexArr = [];
         for (let i = 0; i < value.byteLength; i++) {
@@ -438,8 +481,8 @@
 
           this.isConnected = true;
 
-          UI.updateConnectionStatus(true, this.device.name || "Unknown Device");
-          UI.updateDeviceInfo(this.device.id, "N/A");
+          UI.updateConnectionBLEStatus(true, this.device.name || "Unknown Device");
+          UI.updateDeviceBLEInfo(this.device.id, "N/A");
 
           UI.log('success', `Connected: ${this.device.name || 'Unknown'} successfully.`);
 
@@ -453,7 +496,7 @@
         }
         catch (err) {
           UI.log('error', err.message);
-          UI.updateConnectionStatus(false);
+          UI.updateConnectionBLEStatus(false);
         }
       }
 
@@ -535,7 +578,7 @@
           UI.log('warning', 'Cleanup error: ' + e.message);
         }
 
-        UI.updateConnectionStatus(false);
+        UI.updateConnectionBLEStatus(false);
 
         this.service = null;
         this.writeChar = null;
@@ -559,31 +602,12 @@
 
     }
 
-    class T2DCommand {
-      static async execute(raw) {
-        UI.log('default', `> ${raw}`);
-        const parts = raw.split(/\s+/);
-        const cmd = parts[0].toLowerCase();
-
-        switch (cmd) {
-          case 'clear':
-            UI.clearlog();
-            break;
-
-          default:
-            ble.sendCommand(raw);
-            break;
-        }
-      }
-
-    }
-
     const UI = {
       elements: {
-        statusIcon: document.getElementById('statusIcon'),
-        statusText: document.getElementById('statusText'),
-        connectBtn: document.getElementById('connectBtn'),
-        disconnectBtn: document.getElementById('disconnectBtn'),
+        statusBLEIcon: document.getElementById('statusBLEIcon'),
+        statusBLEText: document.getElementById('statusBLEText'),
+        connectBLEBtn: document.getElementById('connectBLEBtn'),
+        disconnectBLEBtn: document.getElementById('disconnectBLEBtn'),
         terminalOutput: document.getElementById('terminal'),
         devicePanel: document.getElementById('devicePanel'),
         deviceMac: document.getElementById('deviceMacDisplay'),
@@ -592,15 +616,17 @@
         clearTerminalBtn: document.getElementById('clearTerminalBtn'),
         sendTerminalBtn: document.getElementById('sendTerminalBtn'),
 
+        statusUartIcon: document.getElementById('statusIconUart'),
+        statusUartText: document.getElementById('statusTextUart'),
+        connectUartBtn: document.getElementById('connectUartBtn'),
+        disconnectUartBtn: document.getElementById('disconnectUartBtn'),
 
       },
       init() {
         this.log('success', 'System initialized. Click "START SCAN" to begin.');
         this.elements.terminalInput.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') {
-            const val = this.elements.terminalInput.value.trim();
-            this.elements.terminalInput.value = "";
-            if (val) T2DCommand.execute(val);
+            this.elements.sendTerminalBtn.click();
           }
         });
         this.elements.clearTerminalBtn.onclick = () => {
@@ -609,7 +635,9 @@
         this.elements.sendTerminalBtn.onclick = () => {
           const val = this.elements.terminalInput.value.trim();
           this.elements.terminalInput.value = "";
-          if (val) T2DCommand.execute(val);
+          if (val) {
+            UI.terminal_send(val);
+          }
         };
       },
       log(type = 'info', message) {
@@ -628,31 +656,69 @@
         this.elements.terminalOutput.appendChild(logLine);
         this.elements.terminalOutput.scrollTop = this.elements.terminalOutput.scrollHeight;
       },
+      async terminal_send(cmd) {
+        UI.log('default', `> ${cmd}`);
+        const parts = cmd.split(/\s+/);
+        const cmd_1 = parts[0].toLowerCase();
+        switch (cmd_1) {
+          case 'clear':
+            UI.clearlog();
+            break;
+
+          default:
+            switch (AppState.connectionType) {
+              case CONNECTION_TYPE.UART:
+                serial.sendFrame(0x01, cmd);
+                break;
+              case CONNECTION_TYPE.BLE:
+                ble.sendCommand(cmd);
+              default:
+                break;
+            }
+            break;
+        }
+      },
+
       clearlog() {
         this.elements.terminalOutput.innerHTML = "";
       },
 
-      updateDeviceInfo(id, rssi) {
+      updateDeviceBLEInfo(id, rssi) {
         this.elements.deviceMac.textContent = id || "Unknown";
         this.elements.rssi.textContent = rssi ? `${rssi} dBm` : "-- dBm";
       },
 
-      updateConnectionStatus(isConnected, deviceName = "") {
-        this.elements.connectBtn.classList.toggle('hidden', isConnected);
-        this.elements.disconnectBtn.classList.toggle('hidden', !isConnected);
+      updateConnectionBLEStatus(isConnected, deviceName = "") {
+        this.elements.connectBLEBtn.classList.toggle('hidden', isConnected);
+        this.elements.disconnectBLEBtn.classList.toggle('hidden', !isConnected);
 
         if (isConnected) {
-          this.elements.statusIcon.className = "status-dot bg-green-500";
-          this.elements.statusText.classList.replace("text-gray-300", "text-green-400");
-          this.elements.statusText.textContent = "ONLINE";
+          this.elements.statusBLEIcon.className = "status-dot bg-green-500";
+          this.elements.statusBLEText.classList.replace("text-gray-300", "text-green-400");
+          this.elements.statusBLEText.textContent = "ONLINE";
           document.getElementById('deviceNameDisplay').textContent = deviceName || "Connected";
           this.elements.devicePanel.classList.remove('hidden');
         } else {
-          this.elements.statusIcon.className = "status-dot bg-gray-500";
-          this.elements.statusText.classList.replace("text-green-400", "text-gray-300");
-          this.elements.statusText.textContent = "OFFLINE";
+          this.elements.statusBLEIcon.className = "status-dot bg-gray-500";
+          this.elements.statusBLEText.classList.replace("text-green-400", "text-gray-300");
+          this.elements.statusBLEText.textContent = "OFFLINE";
           this.elements.devicePanel.classList.add('hidden');
-          this.updateDeviceInfo("Searching...", "--");
+          this.updateDeviceBLEInfo("Searching...", "--");
+        }
+      },
+
+      updateConnectionUartStatus(isConnected) {
+        this.elements.connectUartBtn.classList.toggle('hidden', isConnected);
+        this.elements.disconnectUartBtn.classList.toggle('hidden', !isConnected);
+
+        if (isConnected) {
+          this.elements.statusUartIcon.className = "status-dot bg-green-500";
+          this.elements.statusUartText.classList.replace("text-gray-300", "text-green-400");
+          this.elements.statusUartText.textContent = "ONLINE";
+        } else {
+          this.elements.statusUartIcon.className = "status-dot bg-gray-500";
+          this.elements.statusUartText.classList.replace("text-green-400", "text-gray-300");
+          this.elements.statusUartText.textContent = "OFFLINE";
         }
       },
 
@@ -688,6 +754,7 @@
     });
 
     const ble = new BLEManager();
+    const serial = new SerialConnection();
 
     // Update chart mock
     setInterval(() => {
@@ -720,12 +787,90 @@
         }
       });
 
-      UI.elements.connectBtn.onclick = () => ble.scan();
-      UI.elements.disconnectBtn.onclick = () => ble.device?.gatt.disconnect();
+      UI.elements.connectBLEBtn.onclick = async () => {
+        try {
+          if (serial?.disconnect) {
+            await serial.disconnect();
+          }
+
+          await ble.scan();
+          AppState.connectionType = CONNECTION_TYPE.BLE;
+        } catch (err) {
+          UI.log('error', "BLE connect error:", err);
+        }
+      };
+
+      UI.elements.disconnectBLEBtn.onclick = async () => {
+        try {
+          ble.device?.gatt.disconnect();
+          AppState.connectionType = CONNECTION_TYPE.NONE;
+        } catch (err) {
+          UI.log('error', "BLE disconnect error:", err);
+        }
+      };
+
+
+      UI.elements.connectUartBtn.onclick = () => {
+
+        const connectSerial = () => {
+          if (serial?.connect) {
+            serial.connect()
+              .then(() => {
+                UI.updateConnectionUartStatus(true);
+                AppState.connectionType = CONNECTION_TYPE.UART;
+              })
+              .catch((err) => {
+                UI.updateConnectionUartStatus(false);
+                UI.log('error', "UART connect error:", err);
+              });
+          }
+        };
+
+        try {
+
+          if (ble.device?.gatt?.connected) {
+            const device = ble.device;
+            const onDisconnected = () => {
+              device.removeEventListener('gattserverdisconnected', onDisconnected);
+              connectSerial();
+            };
+
+            device.addEventListener(
+              'gattserverdisconnected', onDisconnected);
+            device.gatt.disconnect();
+          } else {
+            connectSerial();
+          }
+
+        } catch (err) {
+          updateConnectionUartStatus(false);
+          UI.log('error', "UART connect error:", err);
+        }
+      };
+
+      UI.elements.disconnectUartBtn.onclick = async () => {
+        serial?.disconnect()
+          .then(() => {
+            UI.updateConnectionUartStatus(false);
+            AppState.connectionType = CONNECTION_TYPE.NONE;
+          })
+          .catch((err) => {
+            UI.log('error', "UART disconnect error:", err);
+          });
+
+      };
+
+
+      // Serial event handlers
+      serial.onStatusChange = (type, msg) => {
+        UI.log(type, msg);
+      };
+
+      serial.onDataReceived = (type, data) => UI.log(type, data);
 
       if (FLAG_SHOW_ALL_UI) {
         UI.elements.devicePanel.classList.remove('hidden');
-        UI.elements.disconnectBtn.classList.remove('hidden');
+        UI.elements.disconnectBLEBtn.classList.remove('hidden');
         UI.log('error', 'This is an error message');
         UI.log('info', 'Kết nối giả lập: T2D OS Device');
       }
