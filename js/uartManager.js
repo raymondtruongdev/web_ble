@@ -1,10 +1,32 @@
-export class SerialConnection {
+class UARTManager {
   constructor() {
     this.port = null;
     this.reader = null;
     this.writer = null;
+
+    /**
+     * Callback to notify a message from BLE manager
+     * @param {string} type - Type of the message (e.g., "info", "warning", "error")
+     * @param {string} text - Message text to display
+     */
+    this.onMessageNotify = () => {};
+
+    /**
+     * Callback to update UART connection status
+     * @param {boolean} isConnected - state of the device connection
+     */
     this.onStatusChange = () => {};
+
+    /**
+     * Callback to notify when new data is received from the UART device
+     * @param {string} data - Message text get from UART
+     */
     this.onDataReceived = () => {};
+
+    /**
+     * Callback to notify file transfer status updates from the UART device
+     * @param {object} info - Message text to display
+     */
     this.onFileTransferStatus = () => {};
   }
 
@@ -13,11 +35,82 @@ export class SerialConnection {
       this.port = await navigator.serial.requestPort();
       await this.port.open({ baudRate: 460800 }); // 921600 , 460800 (max value for MACOS)
       this.writer = this.port.writable.getWriter();
+
+      // Lắng nghe sự kiện hệ thống disconnect
+      navigator.serial.addEventListener("disconnect", (event) => {
+        if (event.port === this.port) {
+          this.handleUnexpectedDisconnect();
+        }
+      });
+
+      // KHÔNG sử dụng await ở đây để tránh chặn luồng kết nối
       this.readLoop();
-      this.onStatusChange("Connected ✅");
+      this.onStatusChange(true);
+      this.onMessageNotify("success", "UART Connected ✅");
     } catch (err) {
-      this.onStatusChange("Failed to connect: " + err.message);
+      this.onMessageNotify("error", "UART Failed to connect: " + err.message);
     }
+  }
+
+  /** 🧼 Hàm dọn dẹp tài nguyên dùng chung (Đã sửa lỗi Async) */
+  async _cleanup() {
+    // 1. Giải phóng Writer
+    if (this.writer) {
+      try {
+        this.writer.releaseLock();
+      } catch (e) {
+        console.error("Error releasing UART writer lock:", e);
+      }
+      this.writer = null;
+    }
+
+    // 2. Hủy/Giải phóng Reader một cách an toàn
+    if (this.reader) {
+      try {
+        // Gọi cancel() để bẻ gãy luồng await reader.read() ở readLoop
+        await this.reader.cancel();
+
+        // KIỂM TRA LẠI: readLoop có thể đã nhảy vào `finally` và gán this.reader = null
+        if (this.reader) {
+          this.reader.releaseLock();
+          this.reader = null; // Đánh dấu đã dọn dẹp xong
+        }
+      } catch (e) {
+        console.error("Error releasing UART reader lock:", e);
+      }
+    }
+  }
+
+  /** 🔴 Hàm chủ động ngắt kết nối */
+  async disconnect() {
+    if (!this.port) {
+      this.onMessageNotify("warning", "UART is already disconnected ❌");
+      return;
+    }
+
+    try {
+      // Chờ dọn dẹp xong luồng đọc/ghi
+      await this._cleanup();
+
+      // Đóng cổng vật lý
+      await this.port.close();
+      this.port = null;
+
+      this.onStatusChange(false);
+      this.onMessageNotify("warning", "UART disconnected ❌");
+    } catch (err) {
+      this.onMessageNotify("error", "UART Failed to disconnect: " + err.message);
+    }
+  }
+
+  /** ⚠️ Xử lý khi mất kết nối phần cứng đột ngột */
+  async handleUnexpectedDisconnect() {
+    // Dọn dẹp luồng đọc/ghi
+    await this._cleanup();
+    this.port = null;
+
+    this.onStatusChange(false);
+    this.onMessageNotify("error", "UART is disconnected ❌");
   }
 
   calculateCRC16(data) {
@@ -166,15 +259,12 @@ export class SerialConnection {
       crcOk,
     };
 
-    // Pass to file transfer handler
-    if (this.onFileTransferStatus) {
-      this.onFileTransferStatus(info);
-    }
+    this.onFileTransferStatus(info);
   }
 
   /** 📖 Read incoming data - length-based frame detection */
   async readLoop() {
-    const reader = this.port.readable.getReader();
+    this.reader = this.port.readable.getReader();
     let buffer = [];
     let expectedLength = null;
     let inFrame = false;
@@ -183,10 +273,15 @@ export class SerialConnection {
 
     try {
       while (true) {
-        const { value, done } = await reader.read();
+        const { value, done } = await this.reader.read();
         if (done) break;
         if (!value) continue;
-        // console.log("RX Data before validation (hex):", Array.from(value).map(b => b.toString(16).padStart(2, "0")).join(" "));
+        console.log(
+          "RX Data before validation (hex):",
+          Array.from(value)
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join(" "),
+        );
         for (let byte of value) {
           if (byte === 0x01 && !inFrame) {
             // Start of new frame detected
@@ -245,16 +340,33 @@ export class SerialConnection {
             // Detect end of message (newline)
             if (byte === 0x0a || byte === 0x0d) {
               const finalText = decoder.decode(new Uint8Array(asciiBuffer));
-              this.onDataReceived('info',finalText);
+              this.onDataReceived(finalText);
               asciiBuffer = [];
             }
           }
         }
       }
     } catch (err) {
-      this.onStatusChange("error","Read error: " + err.message);
+      this.onMessageNotify("error", "UART read error: " + err.message);
     } finally {
-      reader.releaseLock();
+      if (this.reader) {
+        this.reader.releaseLock();
+        this.reader = null;
+      }
     }
   }
 }
+
+const UART = new UARTManager();
+// Export public API for UART module
+export default {
+  connect: () => UART.connect(),
+  disconnect: () => UART.disconnect(),
+  sendCommand: (cmd) => UART.sendCommand(cmd),
+  sendFrame: (cmd, payload) => UART.sendFrame(cmd, payload),
+
+  onMessageNotify: (fn) => (UART.onMessageNotify = fn),
+  onStatusChange: (fn) => (UART.onStatusChange = fn),
+  onDataReceived: (fn) => (UART.onDataReceived = fn),
+  onFileTransferStatus: (fn) => (UART.onFileTransferStatus = fn),
+};

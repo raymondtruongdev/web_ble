@@ -9,52 +9,12 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
-    :root {
-      --header-height: 72px;
-      --footer-height: 28px;
-      --sidebar-width: 280px;
-    }
-
-    body {
-      min-width: 600px;
-      overflow-x: auto;
-    }
-
     .status-dot {
       height: 18px;
       width: 18px;
       border-radius: 50%;
       display: inline-block;
     }
-
-    .log-line {
-      display: flex;
-      gap: 11px;
-      margin-bottom: 2px;
-      white-space: pre-wrap;
-    }
-
-    .log-timestamp {
-      color: #8d949d;
-      flex-shrink: 0;
-    }
-
-    .log-error {
-      color: #f85149;
-    }
-
-    .log-info {
-      color: #58a6ff;
-    }
-
-    .log-warning {
-      color: #d29922;
-    }
-
-    .log-success {
-      color: #3fb950;
-    }
-
 
     .terminal-bg {
       background-color: #1e1e1e;
@@ -87,797 +47,317 @@
 </head>
 
 
-<body class="bg-gray-200 min-h-screen">
+<body class="bg-gray-200 min-h-screen flex flex-col">
 
   <!-- Header -->
-  <header id="header-component" class="w-full bg-gray-100 shadow-sm">
+  <header id="header-component"
+    class="w-full max-w-7xl mx-auto bg-gradient-to-r from-blue-900 to-blue-700 rounded-t-2xl shadow-sm">
 
-    <div class="w-full bg-gray-200">
-      <div class="max-w-7xl mx-auto">
+    <nav class=" py-3 px-4 flex items-center justify-between relative z-30">
+      <!-- Logo -->
+      <section class="flex items-center gap-3">
+        <a href="https://t2dtech.io.vn/" target="_blank" class="flex items-center gap-3">
 
-        <nav class="bg-gray-200 py-3 px-4 flex items-center justify-between relative z-30">
+          <img src="./res/h2t_logo.png" class="w-20 h-20 bg-white rounded-lg shadow object-contain"
+            onerror="this.src='https://via.placeholder.com/40?text=LOGO'" />
 
-          <!-- Logo -->
-          <div class="flex items-center gap-3">
-            <a href="https://t2dtech.io.vn/" target="_blank" class="flex items-center gap-3">
+          <span class="text-xl font-black tracking-tighter text-white uppercase">
+            BLE COMMUNICATION
+          </span>
+        </a>
+      </section>
 
-              <img src="./res/h2t_logo.png" class="w-20 h-20 rounded-lg shadow object-contain"
-                onerror="this.src='https://via.placeholder.com/40?text=LOGO'" />
+      <!-- Desktop Menu -->
+      <nav class="hidden md:flex items-center px-4 gap-3 text-md font-semibold text-blue-100">
+        <a href="https://t2dtech.io.vn/"
+          class="px-4 py-2 rounded-lg hover:bg-white/15 hover:text-white transition duration-200">
+          Our website
+        </a>
 
-              <span class="text-xl font-black tracking-tighter text-blue-600 uppercase">
-                BLE COMMUNICATION
-              </span>
-            </a>
-          </div>
+        <button class="px-4 py-2 rounded-lg hover:bg-white/15 hover:text-white transition duration-200">
+          Contact Us
+        </button>
 
-          <!-- Desktop Menu -->
-          <div class="hidden md:flex px-3 gap-6 text-lg font-bold text-slate-500">
+        <a href="mailto:t2dtech.vn@gmail.com"
+          class="px-4 py-2 rounded-lg hover:bg-white/15 hover:text-white transition duration-200">
+          Email
+        </a>
+      </nav>
 
-            <a href="https://t2dtech.io.vn/" class="hover:text-blue-600 transition">
-              Our website
-            </a>
+      <!-- Mobile Menu Button -->
+      <button id="mobileMenuBtn"
+        class="md:hidden p-2 text-slate-200 rounded-lg hover:bg-white/15 hover:text-white transition">
+        <i data-lucide="menu" class="h-6 w-6"></i>
+      </button>
 
-            <button class="hover:text-blue-600 transition">
-              Contact Us
-            </button>
+      <!-- Mobile Popup Menu -->
+      <div id="mobileMenu"
+        class="hidden md:hidden absolute top-full right-4 mt-2 w-56 bg-white/15 rounded-xl shadow-2xl border border-slate-200 overflow-hidden z-50">
 
-            <a href="mailto:t2dtech.vn@gmail.com" class="hover:text-blue-600 transition">
-              Email
-            </a>
+        <div class="flex flex-col py-2 text-base font-semibold text-slate-700">
 
-          </div>
+          <a href="https://t2dtech.io.vn/" class="px-5 py-3 hover:bg-gray-100 hover:text-blue-600 transition">
+            Our website
+          </a>
 
-          <!-- Mobile Menu Button -->
-          <button id="mobileMenuBtn" class="md:hidden p-2 text-slate-600 rounded-lg hover:bg-gray-300 transition">
-
-            <i data-lucide="menu" class="h-6 w-6"></i>
-
+          <button class="text-left px-5 py-3 hover:bg-gray-100 hover:text-blue-600 transition">
+            Contact Us
           </button>
 
-          <!-- Mobile Popup Menu -->
-          <div id="mobileMenu"
-            class="hidden md:hidden absolute top-full right-4 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden z-50">
+          <a href="mailto:t2dtech.vn@gmail.com" class="px-5 py-3 hover:bg-gray-100 hover:text-blue-600 transition">
+            Email
+          </a>
 
-            <div class="flex flex-col py-2 text-base font-semibold text-slate-700">
-
-              <a href="https://t2dtech.io.vn/" class="px-5 py-3 hover:bg-gray-100 hover:text-blue-600 transition">
-                Our website
-              </a>
-
-              <button class="text-left px-5 py-3 hover:bg-gray-100 hover:text-blue-600 transition">
-                Contact Us
-              </button>
-
-              <a href="mailto:t2dtech.vn@gmail.com" class="px-5 py-3 hover:bg-gray-100 hover:text-blue-600 transition">
-                Email
-              </a>
-
-            </div>
-          </div>
-
-        </nav>
-      </div>
-    </div>
-
-    <!-- Green Bar -->
-    <div class="w-full bg-green-600 h-8"></div>
-
-  </header>
-
-  <main class="max-w-7xl mx-auto py-4">
-    <!-- Grid chính: Sử dụng flex hoặc grid tùy biến để cột trái có max-width -->
-    <div class="flex flex-col lg:flex-row gap-6">
-
-      <!-- CỘT TRÁI (Trên Desktop giới hạn 300px) / HÀNG 1 (Trên Mobile) -->
-      <div class="w-full lg:w-[300px] lg:min-w-[300px] flex flex-col gap-6">
-        <!-- Container này xử lý layout 2 cột trên Mobile cho Connection và File Transfer -->
-        <div class="grid grid-cols-2 lg:grid-cols-1 gap-6">
-
-          <!-- BLE Connection Section -->
-          <section id="ble-connection-section"
-            class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
-            <h2 class="text-lg font-semibold mb-4 flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24"
-                stroke="currentColor">
-                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <span class="truncate">BLE Connection</span>
-            </h2>
-
-            <div class="p-4 rounded-xl space-y-4  mb-4 border-b border-[#30363d] bg-[#0d1117]">
-              <div class="flex items-center justify-between">
-                <span class="font-bold text-[12px] text-blue-400 truncate uppercase">Status</span>
-                <div
-                  class="flex items-center space-x-3 bg-[#0d1117] border border-[#30363d] px-2 py-1 rounded-full text-[10px]">
-                  <span id="statusBLEIcon" class="status-dot bg-gray-500"></span>
-                  <span id="statusBLEText" class="text-gray-300 font-bold uppercase text-[11px]">OFFLINE</span>
-                </div>
-              </div>
-              <div class="flex flex-col gap-2">
-                <button id="connectBLEBtn"
-                  class="w-full bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold py-2 px-4 rounded-md transition flex items-center justify-center gap-2 shadow-lg">
-                  <i data-lucide="radio" class="w-4 h-4"></i> START SCAN
-                </button>
-              </div>
-              <button id="disconnectBLEBtn"
-                class=" hidden w-full bg-red-600 hover:bg-red-500 text-white border border-red-800/50 text-[11px] font-bold py-2 px-4 rounded-md transition">
-                DISCONNECT DEVICE
-              </button>
-            </div>
-
-            <div id="devicePanel" class="hidden border border-[#30363d] bg-[#0d1117] p-3 rounded-xl space-y-2">
-              <div class="flex items-center space-x-2 text-blue-400">
-                <i data-lucide="smartphone" class="w-4 h-4"></i>
-                <span id="deviceNameDisplay" class="font-bold text-[13px] truncate">Device Name</span>
-              </div>
-              <div class="text-[10px] space-y-1">
-                <div class="flex justify-between text-gray-500">
-                  <span>ID:</span>
-                  <span id="deviceMacDisplay" class="text-gray-300 font-mono italic">------</span>
-                </div>
-                <div class="flex justify-between text-gray-500">
-                  <span>RSSI:</span>
-                  <span id="rssiValue" class="text-green-500 font-bold">-- dBm</span>
-                </div>
-              </div>
-
-            </div>
-          </section>
-          <!-- UART Connection Section -->
-          <section id="uart-connection-section"
-            class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
-            <h2 class="text-lg font-semibold mb-4 flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24"
-                stroke="currentColor">
-                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <span class="truncate">UART Connection</span>
-            </h2>
-
-            <div class="p-4 rounded-xl space-y-4  mb-4 border-b border-[#30363d] bg-[#0d1117]">
-              <div class="flex items-center justify-between">
-                <span class="font-bold text-[12px] text-blue-400 truncate uppercase">Status</span>
-                <div
-                  class="flex items-center space-x-3 bg-[#0d1117] border border-[#30363d] px-2 py-1 rounded-full text-[10px]">
-                  <span id="statusIconUart" class="status-dot bg-gray-500"></span>
-                  <span id="statusTextUart" class="text-gray-300 font-bold uppercase text-[11px]">OFFLINE</span>
-                </div>
-              </div>
-              <div class="flex flex-col gap-2">
-                <button id="connectUartBtn"
-                  class="w-full bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold py-2 px-4 rounded-md transition flex items-center justify-center gap-2 shadow-lg">
-                  <i data-lucide="radio" class="w-4 h-4"></i> START SCAN
-                </button>
-              </div>
-              <button id="disconnectUartBtn"
-                class=" hidden w-full bg-red-600 hover:bg-red-500 text-white border border-red-800/50 text-[11px] font-bold py-2 px-4 rounded-md transition">
-                DISCONNECT DEVICE
-              </button>
-            </div>
-          </section>
-
-          <!-- File Transfer Section -->
-          <section id="file-transfer-section" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <h2 class="text-lg font-semibold mb-4 flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-indigo-500" fill="none"
-                viewBox="0 0 24 24" stroke="currentColor">
-                <path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
-              <span class="truncate">File Transfer</span>
-            </h2>
-
-            <div class="space-y-4">
-              <div>
-                <label class="block text-[11px] font-medium text-gray-500 mb-1 uppercase">Send File</label>
-                <div class="flex space-x-1">
-                  <button
-                    class="flex-1 text-[11px] bg-gray-50 border border-dashed border-gray-300 py-1.5 px-2 rounded-lg text-gray-400 truncate text-left">Select...</button>
-                  <button id="startSendBtn"
-                    class="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition shadow-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
-                      stroke="currentColor">
-                      <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label class="block text-[11px] font-medium text-gray-500 mb-1 uppercase">Receive</label>
-                <div class="flex space-x-1">
-                  <input type="text" placeholder="e.g., /data/config.bin"
-                    class="flex-1 min-w-0 text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 outline-none">
-                  <button id="startReceiveBtn"
-                    class="bg-green-600 text-white p-2 rounded-lg hover:bg-green-700 transition shadow-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
-                      stroke="currentColor">
-                      <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                  </button>
-                </div>
-                <div class="justify-center flex mt-2">
-                  <button id="stopTransferBtn" onclick="handleAction('stop')"
-                    class="sm:col-span-2 btn-ripple flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-4 rounded-full shadow-md active:shadow-sm mt-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor"
-                      viewBox="0 0 256 256">
-                      <path
-                        d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm48-88a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h80A8,8,0,0,1,176,128Z">
-                      </path>
-                    </svg>
-                    Stop Transfer
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
         </div>
       </div>
 
-      <!-- CỘT PHẢI (Tự động giãn rộng trên Desktop) -->
-      <div class="flex-1 flex flex-col gap-6">
+    </nav>
+  </header>
+  <!-- Green Bar -->
+  <div class="w-full h-3 bg-green-600"></div>
+  <!-- Main Content -->
+  <main class="w-full max-w-7xl mx-auto flex-1 flex py-4 gap-2">
+    <!-- Left Container Connection và File Transfer -->
+    <aside class="min-w-[300px] px-2 gap-3 flex flex-col">
 
-        <!-- Terminal Section -->
-        <section id="terminal-section" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div class="px-6 py-4  flex justify-between items-center bg-gray-800">
-            <h2 class="text-sm font-bold uppercase tracking-wider text-gray-200">Terminal Output</h2>
-          </div>
-          <div id="terminal"
-            class="terminal-bg h-[360px]  p-4 text-green-400 text-sm overflow-y-auto custom-scrollbar leading-relaxed font-mono">
-          </div>
-          <div class="p-3 bg-gray-800 flex space-x-2">
-            <span class="text-gray-500 font-mono pl-2 py-1">$</span>
-            <input id="terminal-input" type="text" placeholder="Enter command..."
-              class="flex-1 border-none text-black text-sm outline-none font-mono px-2">
-            <button id="sendTerminalBtn"
-              class="bg-blue-600 text-white px-4 py-1 rounded text-xs font-bold uppercase">Send</button>
-            <button id="clearTerminalBtn"
-              class="bg-red-500 text-white px-4 py-1 rounded text-xs font-bold uppercase">CLEAR</button>
-          </div>
-        </section>
 
-        <!-- Chart Section -->
-        <section id="chart-section" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <div class="flex justify-between items-center mb-6">
-            <h2 class="text-sm font-bold uppercase tracking-wider text-gray-500">Real-time Data</h2>
-            <div class="flex space-x-4">
-              <span class="flex items-center text-[10px] text-gray-500 font-bold uppercase"><span
-                  class="w-2 h-2 bg-blue-500 rounded-full mr-1"></span> Sensor A</span>
-              <span class="flex items-center text-[10px] text-gray-500 font-bold uppercase"><span
-                  class="w-2 h-2 bg-red-500 rounded-full mr-1"></span> Sensor B</span>
-            </div>
+      <div id="devicePanel" class=" w-full  border border-[#30363d] bg-[#0d1117] p-3 rounded-xl space-y-2">
+        <div class="flex items-center space-x-2 text-blue-400">
+          <i data-lucide="smartphone" class="w-4 h-4"></i>
+          <span id="deviceNameDisplay" class="font-bold text-[13px] truncate">Device Name</span>
+        </div>
+        <div class="text-[10px] space-y-1">
+          <div class="flex justify-between text-gray-500">
+            <span>ID:</span>
+            <span id="deviceMacDisplay" class="text-gray-300 font-mono italic">------</span>
           </div>
-          <div
-            class="h-64 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center text-gray-400 italic">
-            <canvas id="dataChart"></canvas>
+          <div class="flex justify-between text-gray-500">
+            <span>RSSI:</span>
+            <span id="rssiValue" class="text-green-500 font-bold">-- dBm</span>
           </div>
-        </section>
+        </div>
 
       </div>
-    </div>
+
+      <!-- BLE Connection Section -->
+      <section id="ble-connection-section"
+        class=" bg-white rounded-2xl shadow-sm h-[150px] flex flex-col items-center ">
+        <h2 id="ble-connection-title" class="w-full p-2 text-lg font-semibold flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor">
+            <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span class="truncate">BLE Connection</span>
+        </h2>
+
+        <div id="ble-status"
+          class="flex-1  w-full px-3 py-3 flex flex-col items-center justify-center gap-3 rounded-b-2xl bg-[#0d1117]">
+          <div class="w-full flex items-center justify-between ">
+            <span class="font-bold text-[12px] text-blue-400 truncate uppercase">Status</span>
+            <div
+              class="flex items-center space-x-3 bg-[#0d1117] border border-[#30363d] px-2 py-1 rounded-full text-[10px]">
+              <span id="statusBLEIcon" class="status-dot bg-gray-500"></span>
+              <span id="statusBLEText" class="text-gray-300 font-bold uppercase text-[11px]">OFFLINE</span>
+            </div>
+          </div>
+
+          <button id="connectBLEBtn"
+            class="w-[160px] bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold py-2 px-4 rounded-md transition flex items-center justify-center gap-2 shadow-lg">
+            <i data-lucide="radio" class="w-4 h-4"></i> START SCAN
+          </button>
+
+          <button id="disconnectBLEBtn"
+            class=" w-[160px] hidden bg-red-600 hover:bg-red-500 text-white border border-red-800/50 text-[11px] font-bold py-2 px-4 rounded-md transition">
+            DISCONNECT DEVICE
+          </button>
+
+        </div>
+      </section>
+
+
+      <!-- UART Connection Section -->
+      <section id="uart-connection-section"
+        class=" bg-white rounded-2xl shadow-sm h-[150px] flex flex-col items-center ">
+        <h2 id="uart-connection-title" class="w-full p-2 text-lg font-semibold flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor">
+            <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span class="truncate">UART Connection</span>
+        </h2>
+
+        <div id="uart-status" class=" w-full flex-1 px-3 py-3 grid gap-3 place-items-center rounded-b-2xl bg-[#0d1117]">
+          <div class=" w-full flex items-center justify-between ">
+            <span class="font-bold text-[12px] text-blue-400 truncate uppercase">Status</span>
+            <div
+              class="flex items-center space-x-3 bg-[#0d1117] border border-[#30363d] px-2 py-1 rounded-full text-[10px]">
+              <span id="statusUartIcon" class="status-dot bg-gray-500"></span>
+              <span id="statusUartText" class="text-gray-300 font-bold uppercase text-[11px]">OFFLINE</span>
+            </div>
+          </div>
+
+          <button id="connectUartBtn"
+            class="w-[160px] bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold py-2 px-4 rounded-md transition flex items-center justify-center gap-2 shadow-lg">
+            <i data-lucide="radio" class="w-4 h-4"></i> START SCAN
+          </button>
+
+          <button id="disconnectUartBtn"
+            class=" w-[160px] hidden bg-red-600 hover:bg-red-500 text-white border border-red-800/50 text-[11px] font-bold py-2 px-4 rounded-md transition">
+            DISCONNECT DEVICE
+          </button>
+
+        </div>
+      </section>
+
+
+      <!-- File Transfer Section -->
+      <!-- File Transfer Section -->
+      <section id="file-transfer-section" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+
+        <!-- H2 ĐÃ ĐƯỢC ĐỔI NỀN XANH FULL WIDTH HEIGHT 50PX -->
+        <h2 class="text-lg font-semibold flex items-center bg-blue-600 text-white w-full h-[50px] px-4 mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-white" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor">
+            <path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+          </svg>
+          <span class="truncate">File Transfer</span>
+        </h2>
+
+        <!-- Thêm px-4 ở đây để nội dung bên trong không bị dính sát lề -->
+        <div class="space-y-4 px-4 pb-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-500 mb-1 uppercase">
+              Send File
+            </label>
+
+            <div class="flex items-center gap-2">
+              <!-- Custom File Input -->
+              <label for="fileInput"
+                class="flex-1 flex items-center border border-gray-400 rounded-lg overflow-hidden cursor-pointer bg-gray-50 h-[45px]">
+                <span id="fileName" class=" px-2 text-gray-500 text-sm truncate">
+                  Choose here
+                </span>
+              </label>
+              <!-- Hidden real input -->
+              <input type="file" id="fileInput" class="hidden" />
+              <!-- Send Button -->
+              <button id="sendFileBtn"
+                class="w-[60px] h-[56px] flex flex-col items-center justify-center bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                  stroke="currentColor">
+                  <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                <span class="text-xs font-medium">Send</span>
+              </button>
+            </div>
+
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-500 mb-1 uppercase">Receive</label>
+            <div class="flex space-x-2">
+              <input id="deviceFilePath" type="text" placeholder="/home/Downloads/file.txt"
+                class="flex-1 text-[14px] bg-gray-50 border  border-gray-400 px-2 rounded-lg  truncate text-left">
+              <button id="getFileBtn"
+                class="w-[60px] flex flex-col items-center justify-center bg-green-600 text-white p-2 rounded-lg hover:bg-green-700 transition shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                  stroke="currentColor">
+                  <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span class="text-xs font-medium">Get</span>
+              </button>
+            </div>
+            <div class="justify-center flex mt-2">
+              <button id="stopFileBtn" onclick=""
+                class="hidden sm:col-span-2 btn-ripple flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-4 rounded-full shadow-md active:shadow-sm mt-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor"
+                  viewBox="0 0 256 256">
+                  <path
+                    d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm48-88a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h80A8,8,0,0,1,176,128Z">
+                  </path>
+                </svg>
+                Stop Transfer
+              </button>
+            </div>
+            <!-- File transfer status -->
+            <section id="status-file-transfer-panel" class="space-y-1 mt-4 mb-4">
+              <!-- File status -->
+              <p id="fileStatus" class="text-[13px] text-gray-600 font-medium"></p>
+
+              <div id="progressContainer" class="  space-y-1">
+                <!-- Progress bar -->
+                <div class="w-full h-4 bg-gray-300 rounded-full overflow-hidden">
+                  <div id="progressBar" class="h-full w-0 bg-green-500 rounded-full transition-all duration-300">
+                  </div>
+                </div>
+                <!-- Progress text -->
+                <div id="progressText" class="flex justify-between text-[13px] text-gray-500">
+
+                  <span>Progress: 0% | Speed: 0 KB/s | ETA: 0s</span>
+                </div>
+              </div>
+
+            </section>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- CỘT PHẢI (Tự động giãn rộng trên Desktop) -->
+    <aside class=" flex-1 flex flex-col gap-6 px-2">
+      <!-- Terminal Section -->
+      <section id="terminal-section" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-6 py-4  flex justify-between items-center bg-gray-800">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-gray-200">Terminal Output</h2>
+        </div>
+        <div id="terminal"
+          class="terminal-bg h-[350px]  p-4 text-green-400 text-sm overflow-y-auto custom-scrollbar leading-relaxed font-mono">
+        </div>
+        <div class="p-3 bg-gray-800 flex space-x-2">
+          <span class="text-gray-500 font-mono pl-2 py-1">$</span>
+          <input id="terminal-input" type="text" placeholder="Enter command..."
+            class="flex-1 border-none text-black text-sm outline-none font-mono px-2">
+          <button id="sendTerminalBtn"
+            class="bg-blue-600 text-white px-4 py-1 rounded text-xs font-bold uppercase">Send</button>
+          <button id="clearTerminalBtn"
+            class="bg-red-500 text-white px-4 py-1 rounded text-xs font-bold uppercase">CLEAR</button>
+        </div>
+      </section>
+      <!-- Chart Section -->
+      <section id="chart-section"
+        class="flex-1 flex flex-col bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <!-- Chart Header -->
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-gray-500">Real-time Data</h2>
+          <div class="flex space-x-4">
+            <span class="flex items-center text-[10px] text-gray-500 font-bold uppercase"><span
+                class="w-2 h-2 bg-blue-500 rounded-full mr-1"></span> Sensor A</span>
+            <span class="flex items-center text-[10px] text-gray-500 font-bold uppercase"><span
+                class="w-2 h-2 bg-red-500 rounded-full mr-1"></span> Sensor B</span>
+          </div>
+        </div>
+        <!-- Chart Container -->
+        <div class="flex-1 min-h-0 bg-gray-50 rounded-xl border border-gray-100 p-2">
+          <canvas id="dataChart" class="w-full h-full"></canvas>
+        </div>
+      </section>
+
+    </aside>
   </main>
 
-  <script type="module">
-    import { SerialConnection } from './serialConnection.js';
-
-    const CONFIG = {
-      chartPath: "./pages/heart_rate_chart.html",
-      optionalServices: [
-        "heart_rate", "battery_service", "device_information", "current_time",
-        "0000ffe0-0000-1000-8000-00805f9b34fb",
-        "00001234-0000-1000-8000-00805f9b34fb",
-        "0000fff0-0000-1000-8000-00805f9b34fb"
-      ]
-    };
-
-    const FLAG_PRINT_HEX = 0;
-    const FLAG_PRINT_STRING = 1;
-
-    const CONNECTION_TYPE = {
-      NONE: 'none',
-      BLE: 'ble',
-      UART: 'uart'
-    };
-    const AppState = {
-      connectionType: CONNECTION_TYPE.NONE
-    };
-
-    // For  UI testing
-    const FLAG_SHOW_ALL_UI = false; // set TRUE to show all UI components without needing to connect to a device
-
-    const Utils = {
-      formatTimestamp: () => {
-        const now = new Date();
-        return `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
-      },
-
-      calculateCRC16: (data) => {
-        let crc = 0;
-        const polynomial = 0x8005;
-        for (let i = 0; i < data.length; i++) {
-          crc ^= (data[i] << 8);
-          for (let j = 0; j < 8; j++) {
-            if (crc & 0x8000) crc = (crc << 1) ^ polynomial;
-            else crc = crc << 1;
-            crc &= 0xFFFF;
-          }
-        }
-        return crc;
-      },
-
-      decodeBleValue: (value, uuid = "") => {
-        let hexArr = [];
-        for (let i = 0; i < value.byteLength; i++) {
-          hexArr.push(value.getUint8(i).toString(16).padStart(2, '0').toUpperCase());
-        }
-        const shortUuid = uuid.substring(4, 8).toLowerCase();
-        let bpmValue = null;
-        let interpreted = "";
-
-        if (shortUuid === "2a37") {
-          let flags = value.getUint8(0);
-          bpmValue = (flags & 0x01) ? value.getUint16(1, true) : value.getUint8(1);
-          interpreted = ` [BPM: ${bpmValue}]`;
-        }
-
-        const decoder = new TextDecoder('utf-8');
-        let textVal = "";
-        try {
-          textVal = decoder.decode(value).replace(/[\x00-\x1F\x7F-\x9F]/g, "");
-        } catch (e) {
-          textVal = "(binary)";
-        }
-
-        return {
-          hex: hexArr.join(' '),
-          string: textVal,
-          interpreted,
-          bpm: bpmValue
-        };
-      }
-    };
-
-    class BLEManager {
-      constructor() {
-        this.device = null;
-        this.server = null;
-
-        this.service = null;
-        this.writeChar = null;
-        this.notifyChar = null;
-
-        this.isConnected = false;
-
-        // bind fixed handler references
-        this.boundDisconnectHandler = this.handleDisconnect.bind(this);
-        this.boundNotifyHandler = this.handleData.bind(this);
-
-        this.UUIDS = {
-          SERVICE: '0000fff0-0000-1000-8000-00805f9b34fb',
-          WRITE: 'fff1',
-          NOTIFY: 'fff2'
-        };
-      }
-
-      async scan() {
-        try {
-          UI.log('info', 'Scanning...');
-          this.device = await navigator.bluetooth.requestDevice({
-            acceptAllDevices: true,
-            optionalServices: CONFIG.optionalServices
-          });
-
-          // REMOVE OLD LISTENER FIRST
-          this.device.removeEventListener(
-            'gattserverdisconnected',
-            this.boundDisconnectHandler
-          );
-
-          // ADD NEW
-          this.device.addEventListener(
-            'gattserverdisconnected',
-            this.boundDisconnectHandler
-          );
-
-          this.server = await this.device.gatt.connect();
-
-          this.isConnected = true;
-
-          UI.updateConnectionBLEStatus(true, this.device.name || "Unknown Device");
-          UI.updateDeviceBLEInfo(this.device.id, "N/A");
-
-          UI.log('success', `Connected: ${this.device.name || 'Unknown'} successfully.`);
-
-          if (
-            this.device.name &&
-            this.device.name.includes("T2D OS")
-          ) {
-            await this.autoSetup(this.server);
-          }
-
-        }
-        catch (err) {
-          UI.log('error', err.message);
-          UI.updateConnectionBLEStatus(false);
-        }
-      }
-
-      async autoSetup(gattServer) {
-
-        try {
-          // UI.log('info', '[T2D] Đang cấu hình tự động...');
-
-          this.service = await gattServer.getPrimaryService(
-            this.UUIDS.SERVICE
-          );
-          const chars = await this.service.getCharacteristics();
-          this.writeChar = chars.find(c => c.uuid.includes(this.UUIDS.WRITE));
-
-          this.notifyChar =
-            chars.find(c =>
-              c.uuid.includes(this.UUIDS.NOTIFY)
-            );
-
-          if (this.notifyChar) {
-            await this.notifyChar.startNotifications();
-
-            // REMOVE OLD
-            this.notifyChar.removeEventListener('characteristicvaluechanged',
-              this.boundNotifyHandler);
-
-            // ADD NEW
-            this.notifyChar.addEventListener('characteristicvaluechanged',
-              this.boundNotifyHandler);
-            // UI.log('success', '[T2D] Đã bật notify FFF2');
-          }
-
-        }
-        catch (e) {
-          UI.log('warning', '[T2D] Không tìm thấy service T2D');
-        }
-      }
-
-      handleData(event) {
-
-        const res =
-          Utils.decodeBleValue(
-            event.target.value,
-            this.UUIDS.NOTIFY
-          );
-
-        if (FLAG_PRINT_HEX) {
-          UI.log('info', `[RX] HEX: ${res.hex}`);
-        }
-
-        UI.log(
-          'info',
-          `${res.string}`
-        );
-      }
-
-      async handleDisconnect() {
-
-        if (!this.isConnected) {
-          return;
-        }
-
-        this.isConnected = false;
-
-        UI.log(
-          'warning',
-          'Bluetooth disconnected.'
-        );
-
-        try {
-          if (this.notifyChar) {
-            this.notifyChar.removeEventListener(
-              'characteristicvaluechanged',
-              this.boundNotifyHandler
-            );
-          }
-        }
-        catch (e) {
-          UI.log('warning', 'Cleanup error: ' + e.message);
-        }
-
-        UI.updateConnectionBLEStatus(false);
-
-        this.service = null;
-        this.writeChar = null;
-        this.notifyChar = null;
-      }
-
-      async sendCommand(str_cmd) {
-        if (!this.writeChar) return UI.log('error', '[T2D] Không có quyền ghi FFF1');
-
-        const payload = new TextEncoder().encode(str_cmd);
-        // Construct frame: [type][len(2)][payload]
-        // example command 'pwd' is: 01 0300 707764
-        const frame = new Uint8Array(1 + 2 + payload.length);
-        frame[0] = 0x01;
-        frame[1] = payload.length & 0xFF;
-        frame[2] = (payload.length >> 8) & 0xFF;
-        frame.set(payload, 3);
-        const method = this.writeChar.properties.write ? 'writeValueWithResponse' : 'writeValueWithoutResponse';
-        await this.writeChar[method](frame);
-      }
-
-    }
-
-    const UI = {
-      elements: {
-        statusBLEIcon: document.getElementById('statusBLEIcon'),
-        statusBLEText: document.getElementById('statusBLEText'),
-        connectBLEBtn: document.getElementById('connectBLEBtn'),
-        disconnectBLEBtn: document.getElementById('disconnectBLEBtn'),
-        terminalOutput: document.getElementById('terminal'),
-        devicePanel: document.getElementById('devicePanel'),
-        deviceMac: document.getElementById('deviceMacDisplay'),
-        rssi: document.getElementById('rssiValue'),
-        terminalInput: document.getElementById('terminal-input'),
-        clearTerminalBtn: document.getElementById('clearTerminalBtn'),
-        sendTerminalBtn: document.getElementById('sendTerminalBtn'),
-
-        statusUartIcon: document.getElementById('statusIconUart'),
-        statusUartText: document.getElementById('statusTextUart'),
-        connectUartBtn: document.getElementById('connectUartBtn'),
-        disconnectUartBtn: document.getElementById('disconnectUartBtn'),
-
-      },
-      init() {
-        this.log('success', 'System initialized. Click "START SCAN" to begin.');
-        this.elements.terminalInput.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            this.elements.sendTerminalBtn.click();
-          }
-        });
-        this.elements.clearTerminalBtn.onclick = () => {
-          this.elements.terminalOutput.innerHTML = "";
-        };
-        this.elements.sendTerminalBtn.onclick = () => {
-          const val = this.elements.terminalInput.value.trim();
-          this.elements.terminalInput.value = "";
-          if (val) {
-            UI.terminal_send(val);
-          }
-        };
-      },
-      log(type = 'info', message) {
-        const logLine = document.createElement('div');
-        logLine.className = 'log-line';
-        const colors = {
-          error: 'log-error',
-          success: 'log-success',
-          warning: 'log-warning',
-          info: 'log-info'
-        };
-
-        const time = Utils.formatTimestamp();
-        logLine.innerHTML = `<span class="log-timestamp">${time}</span><span class="${colors[type] || ''}">${message}</span>`;
-
-        this.elements.terminalOutput.appendChild(logLine);
-        this.elements.terminalOutput.scrollTop = this.elements.terminalOutput.scrollHeight;
-      },
-      async terminal_send(cmd) {
-        UI.log('default', `> ${cmd}`);
-        const parts = cmd.split(/\s+/);
-        const cmd_1 = parts[0].toLowerCase();
-        switch (cmd_1) {
-          case 'clear':
-            UI.clearlog();
-            break;
-
-          default:
-            switch (AppState.connectionType) {
-              case CONNECTION_TYPE.UART:
-                serial.sendFrame(0x01, cmd);
-                break;
-              case CONNECTION_TYPE.BLE:
-                ble.sendCommand(cmd);
-              default:
-                break;
-            }
-            break;
-        }
-      },
-
-      clearlog() {
-        this.elements.terminalOutput.innerHTML = "";
-      },
-
-      updateDeviceBLEInfo(id, rssi) {
-        this.elements.deviceMac.textContent = id || "Unknown";
-        this.elements.rssi.textContent = rssi ? `${rssi} dBm` : "-- dBm";
-      },
-
-      updateConnectionBLEStatus(isConnected, deviceName = "") {
-        this.elements.connectBLEBtn.classList.toggle('hidden', isConnected);
-        this.elements.disconnectBLEBtn.classList.toggle('hidden', !isConnected);
-
-        if (isConnected) {
-          this.elements.statusBLEIcon.className = "status-dot bg-green-500";
-          this.elements.statusBLEText.classList.replace("text-gray-300", "text-green-400");
-          this.elements.statusBLEText.textContent = "ONLINE";
-          document.getElementById('deviceNameDisplay').textContent = deviceName || "Connected";
-          this.elements.devicePanel.classList.remove('hidden');
-        } else {
-          this.elements.statusBLEIcon.className = "status-dot bg-gray-500";
-          this.elements.statusBLEText.classList.replace("text-green-400", "text-gray-300");
-          this.elements.statusBLEText.textContent = "OFFLINE";
-          this.elements.devicePanel.classList.add('hidden');
-          this.updateDeviceBLEInfo("Searching...", "--");
-        }
-      },
-
-      updateConnectionUartStatus(isConnected) {
-        this.elements.connectUartBtn.classList.toggle('hidden', isConnected);
-        this.elements.disconnectUartBtn.classList.toggle('hidden', !isConnected);
-
-        if (isConnected) {
-          this.elements.statusUartIcon.className = "status-dot bg-green-500";
-          this.elements.statusUartText.classList.replace("text-gray-300", "text-green-400");
-          this.elements.statusUartText.textContent = "ONLINE";
-        } else {
-          this.elements.statusUartIcon.className = "status-dot bg-gray-500";
-          this.elements.statusUartText.classList.replace("text-green-400", "text-gray-300");
-          this.elements.statusUartText.textContent = "OFFLINE";
-        }
-      },
-
-
-    }
-
-    // Chart Initialization
-    const ctx = document.getElementById('dataChart').getContext('2d');
-    const dataChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: Array(20).fill(''),
-        datasets: [{
-          label: 'Sensor Data',
-          data: Array(20).fill(0).map(() => Math.floor(Math.random() * 100)),
-          borderColor: '#3b82f6',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 0
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { display: false },
-          y: { beginAtZero: true, grid: { color: '#f3f4f6' } }
-        }
-      }
-    });
-
-    const ble = new BLEManager();
-    const serial = new SerialConnection();
-
-    // Update chart mock
-    setInterval(() => {
-      if (ble.isConnected) {
-        dataChart.data.datasets[0].data.shift();
-        dataChart.data.datasets[0].data.push(Math.floor(Math.random() * 100));
-        dataChart.update('none');
-      }
-    }, 500);
-
+  <footer
+    class="bg-gradient-to-r from-blue-900 to-blue-700 p-3 text-[11px] text-gray-200 text-center uppercase tracking-[0.25em] font-bold">
+    T2DTECH Co. Ltd © 2026
+  </footer>
+
+  <script>
     window.onload = () => {
       lucide.createIcons();
-      UI.init();
-      // Mobile popup menu
-      const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-      const mobileMenu = document.getElementById('mobileMenu');
-
-      mobileMenuBtn.onclick = (e) => {
-        e.stopPropagation();
-        mobileMenu.classList.toggle('hidden');
-      };
-
-      // click outside => close popup
-      document.addEventListener('click', (e) => {
-        if (
-          !mobileMenu.contains(e.target) &&
-          !mobileMenuBtn.contains(e.target)
-        ) {
-          mobileMenu.classList.add('hidden');
-        }
-      });
-
-      UI.elements.connectBLEBtn.onclick = async () => {
-        try {
-          if (serial?.disconnect) {
-            await serial.disconnect();
-          }
-
-          await ble.scan();
-          AppState.connectionType = CONNECTION_TYPE.BLE;
-        } catch (err) {
-          UI.log('error', "BLE connect error:", err);
-        }
-      };
-
-      UI.elements.disconnectBLEBtn.onclick = async () => {
-        try {
-          ble.device?.gatt.disconnect();
-          AppState.connectionType = CONNECTION_TYPE.NONE;
-        } catch (err) {
-          UI.log('error', "BLE disconnect error:", err);
-        }
-      };
-
-
-      UI.elements.connectUartBtn.onclick = () => {
-
-        const connectSerial = () => {
-          if (serial?.connect) {
-            serial.connect()
-              .then(() => {
-                UI.updateConnectionUartStatus(true);
-                AppState.connectionType = CONNECTION_TYPE.UART;
-              })
-              .catch((err) => {
-                UI.updateConnectionUartStatus(false);
-                UI.log('error', "UART connect error:", err);
-              });
-          }
-        };
-
-        try {
-
-          if (ble.device?.gatt?.connected) {
-            const device = ble.device;
-            const onDisconnected = () => {
-              device.removeEventListener('gattserverdisconnected', onDisconnected);
-              connectSerial();
-            };
-
-            device.addEventListener(
-              'gattserverdisconnected', onDisconnected);
-            device.gatt.disconnect();
-          } else {
-            connectSerial();
-          }
-
-        } catch (err) {
-          updateConnectionUartStatus(false);
-          UI.log('error', "UART connect error:", err);
-        }
-      };
-
-      UI.elements.disconnectUartBtn.onclick = async () => {
-        serial?.disconnect()
-          .then(() => {
-            UI.updateConnectionUartStatus(false);
-            AppState.connectionType = CONNECTION_TYPE.NONE;
-          })
-          .catch((err) => {
-            UI.log('error', "UART disconnect error:", err);
-          });
-
-      };
-
-
-      // Serial event handlers
-      serial.onStatusChange = (type, msg) => {
-        UI.log(type, msg);
-      };
-
-      serial.onDataReceived = (type, data) => UI.log(type, data);
-
-      if (FLAG_SHOW_ALL_UI) {
-        UI.elements.devicePanel.classList.remove('hidden');
-        UI.elements.disconnectBLEBtn.classList.remove('hidden');
-        UI.log('error', 'This is an error message');
-        UI.log('info', 'Kết nối giả lập: T2D OS Device');
-      }
-
     }
-
   </script>
+  <script type="module" src="./js/app.js"></script>
+
 </body>
+
+
 
 </html>
