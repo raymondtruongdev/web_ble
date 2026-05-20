@@ -183,8 +183,8 @@
               ánh sáng.
             </p>
             <p>
-              • <b class="text-slate-300">Khởi động (Start):</b> Tự động tạo tệp ghi dữ liệu mới và bắt đầu ghi lũy kế
-              liên tục.
+              • <b class="text-slate-300">Khởi động (Start):</b> Tạo phiên ghi dữ liệu mới sử dụng cấu trúc bộ nhớ tối
+              ưu (TypedArray).
             </p>
             <p>
               • <b class="text-slate-300">Dừng (Stop):</b> Tạm ngừng thu thập nhưng vẫn giữ lại toàn bộ dữ liệu của
@@ -302,7 +302,7 @@
                 </div>
                 <div class="flex items-center gap-1.5">
                   <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
-                  <span>Ghi file: Không giới hạn</span>
+                  <span>Ghi file: Không giới hạn (Tối ưu RAM)</span>
                 </div>
               </div>
             </div>
@@ -444,8 +444,13 @@
       // 3. HỆ THỐNG MÔ PHỎNG SÓNG PPG VÀ ĐỒ THỊ
       // Trạng thái đồ thị
       let isRunning = false;
-      let dataPoints = []; // Mảng chứa dữ liệu vẽ màn hình: { value, timestamp } (giới hạn 10s)
-      let recordedSessionPoints = []; // Mảng tích lũy dữ liệu phiên ghi hiện tại (không giới hạn để ghi file)
+      let dataPoints = []; // Mảng vẽ màn hình (chứa data 10s gần nhất). Bounded mượt mà.
+
+      // --- SỬ DỤNG TYPEDARRAY ĐỂ GHI FILE KHÔNG GIỚI HẠN MÀ KHÔNG TRÀN RAM ---
+      let recordedCapacity = 30000; // Dung lượng khởi tạo (đáp ứng 1 phút ban đầu ở 500Hz)
+      let recordedValues = new Float32Array(recordedCapacity); // Lưu giá trị sóng PPG (32-bit float)
+      let recordedTimestamps = new Float64Array(recordedCapacity); // Lưu thời gian thô (64-bit double float)
+      let recordedCount = 0; // Số điểm dữ liệu thực tế đang có trong file ghi hiện tại
 
       const viewDurationMs = 10000; // Khung nhìn 10 giây
       const sampleRate = 500; // 500 điểm dữ liệu/giây
@@ -529,11 +534,29 @@
               timestamp: sampleTime,
             };
 
-            // 1. Thêm vào mảng vẽ màn hình
+            // 1. Thêm vào mảng vẽ màn hình chính (mượt mà 10 giây)
             dataPoints.push(point);
 
-            // 2. Thêm vào mảng ghi lũy kế của file hiện tại
-            recordedSessionPoints.push(point);
+            // 2. GHI LŨY KẾ VÀO TYPEDARRAY (Tối ưu hóa RAM tuyệt đối)
+            if (recordedCount >= recordedCapacity) {
+              // Tự động gấp đôi kích thước mảng nếu bị đầy (Dynamic Resizing)
+              const newCapacity = recordedCapacity * 2;
+              const newValues = new Float32Array(newCapacity);
+              const newTimestamps = new Float64Array(newCapacity);
+
+              // Copy dữ liệu cũ sang mảng mới nhanh chóng bằng lệnh native .set()
+              newValues.set(recordedValues);
+              newTimestamps.set(recordedTimestamps);
+
+              recordedValues = newValues;
+              recordedTimestamps = newTimestamps;
+              recordedCapacity = newCapacity;
+            }
+
+            // Ghi trực tiếp giá trị nhị phân thô
+            recordedValues[recordedCount] = val;
+            recordedTimestamps[recordedCount] = sampleTime;
+            recordedCount++;
           }
 
           // Đồng bộ mốc thời gian cuối cùng đã xử lý
@@ -545,9 +568,9 @@
             dataPoints.shift();
           }
 
-          // Cập nhật số liệu hiển thị
+          // Cập nhật số liệu hiển thị lên HUD
           bufferCountEl.innerText = `${dataPoints.length} mẫu`;
-          recordCountEl.innerText = `${recordedSessionPoints.length} mẫu`;
+          recordCountEl.innerText = `${recordedCount} mẫu`;
         }
       }
 
@@ -719,9 +742,16 @@
       btnStart.addEventListener("click", () => {
         if (isRunning) return;
 
-        // BƯỚC QUAN TRỌNG: Khi bấm Start, tạo file mới (reset tệp đang ghi)
-        recordedSessionPoints = [];
+        // BƯỚC QUAN TRỌNG: Đặt lại số lượng mẫu về 0 cho tệp ghi mới
+        recordedCount = 0;
         dataPoints = []; // Làm sạch màn hình vẽ để khởi đầu phiên mới gọn gàng
+
+        // Giải phóng dung lượng cực lớn trước đó để đưa về mức ban đầu dễ chịu
+        if (recordedCapacity > 30000) {
+          recordedCapacity = 30000;
+          recordedValues = new Float32Array(recordedCapacity);
+          recordedTimestamps = new Float64Array(recordedCapacity);
+        }
 
         isRunning = true;
         lastDataGenTime = performance.now();
@@ -735,7 +765,7 @@
         playSound(523.25, 0.1, "triangle"); // Đốt đô C5
         setTimeout(() => playSound(659.25, 0.15, "triangle"), 80); // Nốt mi E5
 
-        showNotification("Đã tạo tệp ghi mới! Hệ thống bắt đầu lưu trữ dữ liệu...", "success");
+        showNotification("Đã tạo tệp ghi mới sử dụng cấu trúc bộ nhớ tối ưu!", "success");
       });
 
       // Nút Tạm dừng (STOP)
@@ -757,11 +787,18 @@
 
       // Nút Đặt lại / Xóa (RESET)
       btnReset.addEventListener("click", () => {
-        // Xóa sạch mảng lưu dữ liệu hiển thị lẫn dữ liệu ghi file
+        // Xóa sạch dữ liệu hiển thị và dữ liệu ghi file
         dataPoints = [];
-        recordedSessionPoints = [];
+        recordedCount = 0;
         lastDataGenTime = null;
         wavePhase = 0;
+
+        // Giải phóng dung lượng cực lớn để đưa bộ nhớ về mặc định ban đầu
+        if (recordedCapacity > 30000) {
+          recordedCapacity = 30000;
+          recordedValues = new Float32Array(recordedCapacity);
+          recordedTimestamps = new Float64Array(recordedCapacity);
+        }
 
         bufferCountEl.innerText = "0 mẫu";
         recordCountEl.innerText = "0 mẫu";
@@ -779,28 +816,29 @@
 
       // Nút Lưu dữ liệu (SAVE DATA)
       btnSave.addEventListener("click", () => {
-        if (recordedSessionPoints.length === 0) {
+        if (recordedCount === 0) {
           showNotification("Không có dữ liệu trong tệp ghi hiện thời để xuất!", "warning");
           playSound(250, 0.15, "sawtooth");
           return;
         }
 
-        // Chuẩn bị nội dung file text chuyên nghiệp từ tệp ghi lũy kế
-        let txtContent = "=== DỮ LIỆU ĐO PPG CHUẨN CAO LŨY KẾ (500Hz) ===\n";
+        // Chuẩn bị nội dung file text chuyên nghiệp từ tệp ghi lũy kế TypedArray
+        let txtContent = "=== DỮ LIỆU ĐO PPG CHUẨN CAO LŨY KẾ (500Hz) - TỐI ƯU TYPEDARRAY ===\n";
         txtContent += `Thời gian xuất: ${new Date().toLocaleString("vi-VN")}\n`;
-        txtContent += `Tổng số mẫu ghi nhận: ${recordedSessionPoints.length}\n`;
-        txtContent += `Thời gian đo liên tục: ${((recordedSessionPoints.length * sampleIntervalMs) / 1000).toFixed(2)} giây\n`;
+        txtContent += `Tổng số mẫu ghi nhận: ${recordedCount}\n`;
+        txtContent += `Thời gian đo liên tục: ${((recordedCount * sampleIntervalMs) / 1000).toFixed(2)} giây\n`;
         txtContent += "----------------------------------------\n";
         txtContent += "Thời gian (s), Giá trị PPG (%)\n";
 
         // Thời mốc bắt đầu của phiên ghi (làm mốc 0.000s)
-        const firstTimestamp = recordedSessionPoints[0].timestamp;
+        const firstTimestamp = recordedTimestamps[0];
 
-        recordedSessionPoints.forEach((point) => {
-          const relativeSecs = ((point.timestamp - firstTimestamp) / 1000).toFixed(3);
-          const ppgValue = point.value.toFixed(2);
+        // Đọc trực tiếp từ TypedArray với tốc độ truy xuất cực nhanh
+        for (let i = 0; i < recordedCount; i++) {
+          const relativeSecs = ((recordedTimestamps[i] - firstTimestamp) / 1000).toFixed(3);
+          const ppgValue = recordedValues[i].toFixed(2);
           txtContent += `${relativeSecs}, ${ppgValue}\n`;
-        });
+        }
 
         // Tạo Blob dữ liệu tải xuống
         const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
@@ -812,7 +850,7 @@
 
         // Tên file chứa mốc thời gian chi tiết
         const fileTimestamp = new Date().toISOString().replace(/T/, "_").replace(/\..+/, "").replace(/:/g, "-");
-        downloadLink.download = `ppg_recorded_session_${fileTimestamp}.txt`;
+        downloadLink.download = `ppg_typed_session_${fileTimestamp}.txt`;
 
         document.body.appendChild(downloadLink);
         downloadLink.click();
@@ -825,7 +863,7 @@
         playSound(880, 0.12, "sine"); // A5 sáng sủa
         setTimeout(() => playSound(1046.5, 0.15, "sine"), 70); // C6 tươi vui
 
-        showNotification(`Đã xuất và lưu thành công tệp chứa ${recordedSessionPoints.length} mẫu!`, "success");
+        showNotification(`Đã xuất và lưu thành công tệp chứa ${recordedCount} mẫu!`, "success");
       });
 
       // Đặt trạng thái ban đầu của nút stop vì chưa chạy
