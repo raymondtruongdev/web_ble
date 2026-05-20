@@ -179,20 +179,17 @@
               <i class="fa-solid fa-circle-info text-blue-400"></i> Thông tin tín hiệu
             </h3>
             <p>
-              • <b class="text-slate-300">PPG (Mạch đồ thể tích):</b> Đo sự thay đổi thể tích máu trong mao mạch bằng
-              ánh sáng.
+              • <b class="text-slate-300">Ghi trực tiếp ổ cứng (Stream):</b> Khi nhấn <b>Start</b>, bạn sẽ chọn tệp lưu
+              trữ trên máy tính. Dữ liệu ghi thẳng xuống đĩa, giải phóng RAM tuyệt đối.
             </p>
             <p>
-              • <b class="text-slate-300">Khởi động (Start):</b> Tự động tạo tệp ghi dữ liệu mới và bắt đầu ghi lũy kế
-              liên tục.
+              • <b class="text-slate-300">Dừng (Stop):</b> Tạm dừng vẽ và đóng tệp ghi trực tiếp để lưu dữ liệu an toàn
+              vào đĩa.
             </p>
+            <p>• <b class="text-slate-300">Xóa (Reset):</b> Làm trống đồ thị hiển thị, xóa sạch bộ nhớ tạm thời.</p>
             <p>
-              • <b class="text-slate-300">Dừng (Stop):</b> Tạm ngừng thu thập nhưng vẫn giữ lại toàn bộ dữ liệu của
-              phiên ghi hiện tại để xem.
-            </p>
-            <p>
-              • <b class="text-slate-300">Lưu dữ liệu:</b> Bạn có thể xuất và lưu toàn bộ tệp ghi lũy kế xuống máy dạng
-              `.txt`.
+              • <b class="text-slate-300">Save Data:</b> Đối với ghi stream trực tiếp, file đã được lưu tự động. Bạn
+              cũng có thể dùng nút này để kiểm tra trạng thái.
             </p>
           </div>
         </div>
@@ -302,7 +299,7 @@
                 </div>
                 <div class="flex items-center gap-1.5">
                   <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
-                  <span>Ghi file: Không giới hạn</span>
+                  <span id="storage-mode-text">Ghi file: Chọn ổ cứng khi Start</span>
                 </div>
               </div>
             </div>
@@ -343,6 +340,7 @@
       const overlayPause = document.getElementById("chart-overlay-pause");
       const bufferCountEl = document.getElementById("buffer-count");
       const recordCountEl = document.getElementById("record-count");
+      const storageModeText = document.getElementById("storage-mode-text");
 
       // Khởi tạo âm thanh click và beep tương tác nhẹ bằng Web Audio API
       let audioCtx = null;
@@ -394,13 +392,13 @@
           toast.classList.remove("translate-y-2", "opacity-0");
         }, 10);
 
-        // Tự động đóng sau 3 giây
+        // Tự động đóng sau 4 giây
         setTimeout(() => {
           toast.classList.add("translate-y-2", "opacity-0");
           setTimeout(() => {
             toast.remove();
           }, 300);
-        }, 3000);
+        }, 4000);
       }
 
       // 1. CHỨC NĂNG BỘ ĐẾM (COUNTER BUTTON)
@@ -442,10 +440,20 @@
       updateSliderValue(valueSlider.value);
 
       // 3. HỆ THỐNG MÔ PHỎNG SÓNG PPG VÀ ĐỒ THỊ
-      // Trạng thái đồ thị
       let isRunning = false;
-      let dataPoints = []; // Mảng chứa dữ liệu vẽ màn hình: { value, timestamp } (giới hạn 10s)
-      let recordedSessionPoints = []; // Mảng tích lũy dữ liệu phiên ghi hiện tại (không giới hạn để ghi file)
+      let dataPoints = []; // Mảng vẽ màn hình (chứa data 10s gần nhất). Bounded mượt mà.
+
+      // --- CẤU HÌNH FILE SYSTEM ACCESS & CHẾ ĐỘ RECORD ---
+      let fileHandle = null;
+      let fileWritableStream = null;
+      let isDirectStreaming = false; // Nhận biết đang ghi trực tiếp xuống ổ cứng hay không
+      let firstTimestamp = null; // Để làm gốc mốc 0.000 giây của tệp tin ghi
+
+      // Cấu hình dự phòng TypedArray phòng trường hợp trình duyệt không hỗ trợ File System Access API
+      let recordedCapacity = 30000;
+      let recordedValues = new Float32Array(recordedCapacity);
+      let recordedTimestamps = new Float64Array(recordedCapacity);
+      let recordedCount = 0; // Đếm tổng số mẫu đo đạc được ghi nhận thực tế
 
       const viewDurationMs = 10000; // Khung nhìn 10 giây
       const sampleRate = 500; // 500 điểm dữ liệu/giây
@@ -507,9 +515,13 @@
           const sliderVal = parseInt(valueSlider.value);
           const bpm = 30 + (sliderVal - 1) * (150 / 99);
           const bps = bpm / 60; // Beats per second
-
-          // Gia lượng pha cho mỗi mẫu dựa trên tần số bpm hiện thời
           const phaseStepPerSample = bps / sampleRate;
+
+          let chunkText = "";
+
+          if (firstTimestamp === null) {
+            firstTimestamp = lastDataGenTime;
+          }
 
           for (let i = 0; i < samplesNeeded; i++) {
             wavePhase = (wavePhase + phaseStepPerSample) % 1.0;
@@ -529,11 +541,44 @@
               timestamp: sampleTime,
             };
 
-            // 1. Thêm vào mảng vẽ màn hình
+            // 1. Thêm vào mảng vẽ màn hình chính (mượt mà 10 giây)
             dataPoints.push(point);
 
-            // 2. Thêm vào mảng ghi lũy kế của file hiện tại
-            recordedSessionPoints.push(point);
+            // 2. KIỂM TRA CHẾ ĐỘ LƯU TRỮ VÀ GHI
+            if (isDirectStreaming && fileWritableStream) {
+              // Thiết lập văn bản ghi thẳng xuống stream ổ cứng để tránh chiếm dụng RAM
+              const relativeSecs = ((sampleTime - firstTimestamp) / 1000).toFixed(3);
+              const ppgValue = val.toFixed(2);
+              chunkText += `${relativeSecs}, ${ppgValue}\n`;
+              recordedCount++;
+            } else {
+              // Dự phòng bằng TypedArray nếu không dùng Direct Streaming
+              if (recordedCount >= recordedCapacity) {
+                const newCapacity = recordedCapacity * 2;
+                const newValues = new Float32Array(newCapacity);
+                const newTimestamps = new Float64Array(newCapacity);
+
+                newValues.set(recordedValues);
+                newTimestamps.set(recordedTimestamps);
+
+                recordedValues = newValues;
+                recordedTimestamps = newTimestamps;
+                recordedCapacity = newCapacity;
+              }
+
+              recordedValues[recordedCount] = val;
+              recordedTimestamps[recordedCount] = sampleTime;
+              recordedCount++;
+            }
+          }
+
+          // GHI CHUNK TRỰC TIẾP XUỐNG Ổ CỨNG TRÁNH TÍCH LŨY TRÊN RAM
+          if (isDirectStreaming && fileWritableStream && chunkText) {
+            fileWritableStream.write(chunkText).catch((err) => {
+              console.error("Ghi dữ liệu vào Stream thất bại:", err);
+              isDirectStreaming = false;
+              showNotification("Mất kết nối với Stream ổ cứng! Chuyển sang lưu bộ đệm.", "warning");
+            });
           }
 
           // Đồng bộ mốc thời gian cuối cùng đã xử lý
@@ -545,9 +590,9 @@
             dataPoints.shift();
           }
 
-          // Cập nhật số liệu hiển thị
+          // Cập nhật số liệu hiển thị lên HUD
           bufferCountEl.innerText = `${dataPoints.length} mẫu`;
-          recordCountEl.innerText = `${recordedSessionPoints.length} mẫu`;
+          recordCountEl.innerText = `${recordedCount} mẫu`;
         }
       }
 
@@ -696,7 +741,7 @@
           ctx.fillStyle = "rgba(148, 163, 184, 0.4)";
           ctx.font = `${12 * dpr}px Inter`;
           ctx.textAlign = "center";
-          ctx.fillText("Nhấn 'Start' để khởi động cảm biến mô phỏng & Ghi file mới", width / 2, height / 2 + 4 * dpr);
+          ctx.fillText("Nhấn 'Start' để lựa chọn file ghi & Khởi động cảm biến", width / 2, height / 2 + 4 * dpr);
           ctx.textAlign = "left"; // trả lại mặc định
         }
       }
@@ -716,12 +761,72 @@
 
       // 6. XỬ LÝ SỰ KIỆN CÁC NÚT ĐIỀU KHIỂN ĐỒ THỊ
       // Nút Bắt đầu (START)
-      btnStart.addEventListener("click", () => {
+      btnStart.addEventListener("click", async () => {
         if (isRunning) return;
 
-        // BƯỚC QUAN TRỌNG: Khi bấm Start, tạo file mới (reset tệp đang ghi)
-        recordedSessionPoints = [];
-        dataPoints = []; // Làm sạch màn hình vẽ để khởi đầu phiên mới gọn gàng
+        // KIỂM TRA HỖ TRỢ FILE SYSTEM ACCESS API
+        const isSupported = "showSaveFilePicker" in window;
+        isDirectStreaming = false;
+        fileWritableStream = null;
+        fileHandle = null;
+
+        if (isSupported) {
+          try {
+            // Cấu hình lựa chọn file save trên đĩa cứng cục bộ
+            const options = {
+              suggestedName: `ppg_recording_${new Date().toISOString().replace(/T/, "_").slice(0, 19).replace(/:/g, "-")}.txt`,
+              types: [
+                {
+                  description: "Tệp Văn Bản (.txt)",
+                  accept: { "text/plain": [".txt"] },
+                },
+              ],
+            };
+
+            fileHandle = await window.showSaveFilePicker(options);
+            fileWritableStream = await fileHandle.createWritable();
+
+            // Ghi Header tệp tin ban đầu
+            await fileWritableStream.write("=== DỮ LIỆU ĐO PPG CHUẨN CAO TRỰC TIẾP (500Hz) ===\n");
+            await fileWritableStream.write(`Thời gian ghi nhận: ${new Date().toLocaleString("vi-VN")}\n`);
+            await fileWritableStream.write("Chế độ lưu trữ: File System Access API (Stream to Disk)\n");
+            await fileWritableStream.write("----------------------------------------\n");
+            await fileWritableStream.write("Thời gian (s), Giá trị PPG (%)\n");
+
+            isDirectStreaming = true;
+            storageModeText.innerText = "Ghi file: Trực tiếp vào đĩa cứng (Stream)";
+            storageModeText.classList.replace("text-indigo-400", "text-emerald-400");
+            showNotification("Đã thiết lập file lưu trữ! Bắt đầu ghi trực tiếp vào ổ cứng...", "success");
+          } catch (err) {
+            // Trường hợp người dùng chủ động nhấn Hủy/Cancel hộp thoại chọn file
+            if (err.name === "AbortError") {
+              showNotification("Bạn đã hủy chọn file ghi. Thiết bị đo chưa khởi động.", "warning");
+              playSound(250, 0.1, "sawtooth");
+              return;
+            }
+            console.error("Lỗi khởi tạo lưu trữ trực tiếp: ", err);
+            showNotification("Lỗi kết nối đĩa. Chuyển sang lưu trữ đệm (TypedArray).", "warning");
+          }
+        } else {
+          // Trình duyệt không hỗ trợ File System Access API (Safari, Firefox, Mobile)
+          storageModeText.innerText = "Ghi file: Sử dụng TypedArray dự phòng";
+          storageModeText.classList.replace("text-emerald-400", "text-indigo-400");
+          showNotification("Trình duyệt không hỗ trợ Direct Write. Chuyển sang lưu bộ đệm TypedArray.", "warning");
+        }
+
+        // Đặt lại số lượng mẫu về 0 cho tệp ghi mới
+        recordedCount = 0;
+        dataPoints = []; // Làm sạch màn hình vẽ
+        firstTimestamp = null; // Reset mốc thời gian zero
+
+        if (!isDirectStreaming) {
+          // Khởi tạo/Giải phóng dung lượng TypedArray dự phòng
+          if (recordedCapacity > 30000) {
+            recordedCapacity = 30000;
+            recordedValues = new Float32Array(recordedCapacity);
+            recordedTimestamps = new Float64Array(recordedCapacity);
+          }
+        }
 
         isRunning = true;
         lastDataGenTime = performance.now();
@@ -731,15 +836,13 @@
         btnStart.classList.add("opacity-50", "pointer-events-none");
         btnStop.classList.remove("opacity-50", "pointer-events-none");
 
-        // Âm báo bíp khởi động hệ thống vui tai
+        // Âm báo bíp khởi động hệ thống
         playSound(523.25, 0.1, "triangle"); // Đốt đô C5
         setTimeout(() => playSound(659.25, 0.15, "triangle"), 80); // Nốt mi E5
-
-        showNotification("Đã tạo tệp ghi mới! Hệ thống bắt đầu lưu trữ dữ liệu...", "success");
       });
 
       // Nút Tạm dừng (STOP)
-      btnStop.addEventListener("click", () => {
+      btnStop.addEventListener("click", async () => {
         if (!isRunning) return;
 
         isRunning = false;
@@ -749,22 +852,55 @@
         btnStart.classList.remove("opacity-50", "pointer-events-none");
         btnStop.classList.add("opacity-50", "pointer-events-none");
 
+        // HÀNH ĐỘNG QUAN TRỌNG: ĐÓNG VÀ HOÀN TẤT GHI FILE TRỰC TIẾP
+        if (isDirectStreaming && fileWritableStream) {
+          try {
+            await fileWritableStream.close();
+            fileWritableStream = null;
+            showNotification(`Đã kết thúc phiên ghi! Lưu thành công ${recordedCount} mẫu thẳng vào ổ cứng.`, "success");
+          } catch (err) {
+            console.error("Lỗi khi đóng stream:", err);
+            showNotification("Có lỗi xảy ra khi đóng và lưu file ghi đĩa.", "warning");
+          }
+        } else {
+          showNotification("Đã tạm dừng. Dữ liệu hiện có được lưu tạm thời trên bộ đệm.", "warning");
+        }
+
         // Âm báo dừng
         playSound(329.63, 0.2, "sawtooth"); // Nốt mi thấp E4
-
-        showNotification("Đã dừng thu thập. Dữ liệu ghi hiện tại đã được khóa tạm thời.", "warning");
       });
 
       // Nút Đặt lại / Xóa (RESET)
-      btnReset.addEventListener("click", () => {
-        // Xóa sạch mảng lưu dữ liệu hiển thị lẫn dữ liệu ghi file
+      btnReset.addEventListener("click", async () => {
+        // Đóng stream đang chạy dở dang (nếu có)
+        if (fileWritableStream) {
+          try {
+            await fileWritableStream.close();
+          } catch (e) {}
+          fileWritableStream = null;
+        }
+        fileHandle = null;
+        isDirectStreaming = false;
+
+        // Xóa sạch dữ liệu hiển thị và dữ liệu ghi file
         dataPoints = [];
-        recordedSessionPoints = [];
+        recordedCount = 0;
         lastDataGenTime = null;
+        firstTimestamp = null;
         wavePhase = 0;
+
+        // Giải phóng dung lượng cực lớn để đưa bộ nhớ về mặc định ban đầu
+        if (recordedCapacity > 30000) {
+          recordedCapacity = 30000;
+          recordedValues = new Float32Array(recordedCapacity);
+          recordedTimestamps = new Float64Array(recordedCapacity);
+        }
 
         bufferCountEl.innerText = "0 mẫu";
         recordCountEl.innerText = "0 mẫu";
+        storageModeText.innerText = "Ghi file: Chọn ổ cứng khi Start";
+        storageModeText.classList.remove("text-emerald-400");
+        storageModeText.classList.add("text-indigo-400");
 
         // Nếu đang tạm dừng vẽ thì vẽ lại để cập nhật canvas trống liền
         if (!isRunning) {
@@ -774,33 +910,47 @@
         // Âm báo reset
         playSound(220, 0.3, "sine"); // Nốt la thấp A3
 
-        showNotification("Đã xóa sạch dữ liệu đồ thị và tệp ghi hiện tại.", "success");
+        showNotification("Đã xóa sạch dữ liệu đồ thị và giải phóng phiên ghi cũ.", "success");
       });
 
       // Nút Lưu dữ liệu (SAVE DATA)
       btnSave.addEventListener("click", () => {
-        if (recordedSessionPoints.length === 0) {
+        if (recordedCount === 0) {
           showNotification("Không có dữ liệu trong tệp ghi hiện thời để xuất!", "warning");
           playSound(250, 0.15, "sawtooth");
           return;
         }
 
-        // Chuẩn bị nội dung file text chuyên nghiệp từ tệp ghi lũy kế
-        let txtContent = "=== DỮ LIỆU ĐO PPG CHUẨN CAO LŨY KẾ (500Hz) ===\n";
+        // Nếu đang chạy chế độ Direct Streaming, báo cho người dùng biết file đã được tự động ghi
+        if (isDirectStreaming) {
+          showNotification("Dữ liệu đang được ghi trực tiếp vào đường dẫn bạn đã chọn khi nhấn Start!", "success");
+          playSound(880, 0.12, "sine");
+          return;
+        }
+
+        if (!isDirectStreaming && fileHandle) {
+          // Đã hoàn tất file stream từ trước
+          showNotification("Tệp dữ liệu của bạn đã được kết xuất trực tiếp vào đĩa cứng thành công!", "success");
+          playSound(880, 0.12, "sine");
+          return;
+        }
+
+        // PHƯƠNG ÁN DỰ PHÒNG: Tải file qua blob nếu trình duyệt không hỗ trợ stream đĩa
+        let txtContent = "=== DỮ LIỆU ĐO PPG CHUẨN CAO LŨY KẾ (500Hz) - DỰ PHÒNG TYPEDARRAY ===\n";
         txtContent += `Thời gian xuất: ${new Date().toLocaleString("vi-VN")}\n`;
-        txtContent += `Tổng số mẫu ghi nhận: ${recordedSessionPoints.length}\n`;
-        txtContent += `Thời gian đo liên tục: ${((recordedSessionPoints.length * sampleIntervalMs) / 1000).toFixed(2)} giây\n`;
+        txtContent += `Tổng số mẫu ghi nhận: ${recordedCount}\n`;
+        txtContent += `Thời gian đo liên tục: ${((recordedCount * sampleIntervalMs) / 1000).toFixed(2)} giây\n`;
         txtContent += "----------------------------------------\n";
         txtContent += "Thời gian (s), Giá trị PPG (%)\n";
 
         // Thời mốc bắt đầu của phiên ghi (làm mốc 0.000s)
-        const firstTimestamp = recordedSessionPoints[0].timestamp;
+        const startT = recordedTimestamps[0];
 
-        recordedSessionPoints.forEach((point) => {
-          const relativeSecs = ((point.timestamp - firstTimestamp) / 1000).toFixed(3);
-          const ppgValue = point.value.toFixed(2);
+        for (let i = 0; i < recordedCount; i++) {
+          const relativeSecs = ((recordedTimestamps[i] - startT) / 1000).toFixed(3);
+          const ppgValue = recordedValues[i].toFixed(2);
           txtContent += `${relativeSecs}, ${ppgValue}\n`;
-        });
+        }
 
         // Tạo Blob dữ liệu tải xuống
         const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
@@ -811,8 +961,8 @@
         downloadLink.href = url;
 
         // Tên file chứa mốc thời gian chi tiết
-        const fileTimestamp = new Date().toISOString().replace(/T/, "_").replace(/\..+/, "").replace(/:/g, "-");
-        downloadLink.download = `ppg_recorded_session_${fileTimestamp}.txt`;
+        const fileTimestamp = new Date().toISOString().replace(/T/, "_").slice(0, 19).replace(/:/g, "-");
+        downloadLink.download = `ppg_fallback_session_${fileTimestamp}.txt`;
 
         document.body.appendChild(downloadLink);
         downloadLink.click();
@@ -825,7 +975,7 @@
         playSound(880, 0.12, "sine"); // A5 sáng sủa
         setTimeout(() => playSound(1046.5, 0.15, "sine"), 70); // C6 tươi vui
 
-        showNotification(`Đã xuất và lưu thành công tệp chứa ${recordedSessionPoints.length} mẫu!`, "success");
+        showNotification(`Đã tải xuống thành công tệp dự phòng chứa ${recordedCount} mẫu!`, "success");
       });
 
       // Đặt trạng thái ban đầu của nút stop vì chưa chạy
