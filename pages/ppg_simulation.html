@@ -183,13 +183,16 @@
               ánh sáng.
             </p>
             <p>
-              • <b class="text-slate-300">Tần số 500Hz:</b> Hệ thống tự động tạo 500 điểm dữ liệu giả lập mỗi giây để vẽ
-              mượt mà nhất.
+              • <b class="text-slate-300">Khởi động (Start):</b> Tự động tạo tệp ghi dữ liệu mới và bắt đầu ghi lũy kế
+              liên tục.
             </p>
-            <p>• <b class="text-slate-300">Trục hoành:</b> Cố định chuẩn 10 giây gần nhất theo thời gian thực.</p>
             <p>
-              • <b class="text-slate-300">Lưu dữ liệu:</b> Bạn có thể bấm nút "Save Data" bất kỳ lúc nào để lưu dữ liệu
-              đo đạc hiện thời xuống file .txt.
+              • <b class="text-slate-300">Dừng (Stop):</b> Tạm ngừng thu thập nhưng vẫn giữ lại toàn bộ dữ liệu của
+              phiên ghi hiện tại để xem.
+            </p>
+            <p>
+              • <b class="text-slate-300">Lưu dữ liệu:</b> Bạn có thể xuất và lưu toàn bộ tệp ghi lũy kế xuống máy dạng
+              `.txt`.
             </p>
           </div>
         </div>
@@ -223,8 +226,12 @@
                   <span id="monitor-speed" class="text-xs font-bold text-teal-400">500 Mẫu/giây</span>
                 </div>
                 <div class="text-right border-l border-slate-800 pl-4">
-                  <span class="text-[10px] text-slate-500 block uppercase font-semibold">Bộ nhớ đệm</span>
+                  <span class="text-[10px] text-slate-500 block uppercase font-semibold">Đã vẽ (Màn hình)</span>
                   <span id="buffer-count" class="text-xs font-bold text-slate-300">0 mẫu</span>
+                </div>
+                <div class="text-right border-l border-slate-800 pl-4">
+                  <span class="text-[10px] text-slate-500 block uppercase font-semibold">Đã ghi (File)</span>
+                  <span id="record-count" class="text-xs font-bold text-indigo-400">0 mẫu</span>
                 </div>
               </div>
             </div>
@@ -294,8 +301,8 @@
                   <span>Y-Axis: 0 - 100%</span>
                 </div>
                 <div class="flex items-center gap-1.5">
-                  <span class="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
-                  <span>X-Axis: 10 Giây</span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                  <span>Ghi file: Không giới hạn</span>
                 </div>
               </div>
             </div>
@@ -335,6 +342,7 @@
       const ctx = canvas.getContext("2d");
       const overlayPause = document.getElementById("chart-overlay-pause");
       const bufferCountEl = document.getElementById("buffer-count");
+      const recordCountEl = document.getElementById("record-count");
 
       // Khởi tạo âm thanh click và beep tương tác nhẹ bằng Web Audio API
       let audioCtx = null;
@@ -436,7 +444,9 @@
       // 3. HỆ THỐNG MÔ PHỎNG SÓNG PPG VÀ ĐỒ THỊ
       // Trạng thái đồ thị
       let isRunning = false;
-      let dataPoints = []; // Mảng chứa dữ liệu: { value, timestamp }
+      let dataPoints = []; // Mảng chứa dữ liệu vẽ màn hình: { value, timestamp } (giới hạn 10s)
+      let recordedSessionPoints = []; // Mảng tích lũy dữ liệu phiên ghi hiện tại (không giới hạn để ghi file)
+
       const viewDurationMs = 10000; // Khung nhìn 10 giây
       const sampleRate = 500; // 500 điểm dữ liệu/giây
       const sampleIntervalMs = 1000 / sampleRate; // ~2ms mỗi mẫu
@@ -514,23 +524,30 @@
             // Gán nhãn thời gian thực tế cho điểm dữ liệu
             const sampleTime = lastDataGenTime + i * sampleIntervalMs;
 
-            dataPoints.push({
+            const point = {
               value: val,
               timestamp: sampleTime,
-            });
+            };
+
+            // 1. Thêm vào mảng vẽ màn hình
+            dataPoints.push(point);
+
+            // 2. Thêm vào mảng ghi lũy kế của file hiện tại
+            recordedSessionPoints.push(point);
           }
 
           // Đồng bộ mốc thời gian cuối cùng đã xử lý
           lastDataGenTime = lastDataGenTime + samplesNeeded * sampleIntervalMs;
 
-          // Cắt bớt các điểm cũ nằm ngoài phạm vi quan sát (quá 11 giây trước) để tiết kiệm Ram
+          // Cắt bớt các điểm cũ nằm ngoài phạm vi quan sát (quá 11 giây trước) trên đồ thị hiển thị để tránh lag
           const threshold = now - (viewDurationMs + 1000);
           while (dataPoints.length > 0 && dataPoints[0].timestamp < threshold) {
             dataPoints.shift();
           }
 
-          // Cập nhật số liệu đệm trên màn hình giám sát
+          // Cập nhật số liệu hiển thị
           bufferCountEl.innerText = `${dataPoints.length} mẫu`;
+          recordCountEl.innerText = `${recordedSessionPoints.length} mẫu`;
         }
       }
 
@@ -679,7 +696,7 @@
           ctx.fillStyle = "rgba(148, 163, 184, 0.4)";
           ctx.font = `${12 * dpr}px Inter`;
           ctx.textAlign = "center";
-          ctx.fillText("Nhấn 'Start' để khởi động cảm biến mô phỏng", width / 2, height / 2 + 4 * dpr);
+          ctx.fillText("Nhấn 'Start' để khởi động cảm biến mô phỏng & Ghi file mới", width / 2, height / 2 + 4 * dpr);
           ctx.textAlign = "left"; // trả lại mặc định
         }
       }
@@ -702,6 +719,10 @@
       btnStart.addEventListener("click", () => {
         if (isRunning) return;
 
+        // BƯỚC QUAN TRỌNG: Khi bấm Start, tạo file mới (reset tệp đang ghi)
+        recordedSessionPoints = [];
+        dataPoints = []; // Làm sạch màn hình vẽ để khởi đầu phiên mới gọn gàng
+
         isRunning = true;
         lastDataGenTime = performance.now();
         overlayPause.classList.add("opacity-0", "pointer-events-none");
@@ -714,7 +735,7 @@
         playSound(523.25, 0.1, "triangle"); // Đốt đô C5
         setTimeout(() => playSound(659.25, 0.15, "triangle"), 80); // Nốt mi E5
 
-        showNotification("Hệ thống bắt đầu vẽ tín hiệu PPG!", "success");
+        showNotification("Đã tạo tệp ghi mới! Hệ thống bắt đầu lưu trữ dữ liệu...", "success");
       });
 
       // Nút Tạm dừng (STOP)
@@ -731,16 +752,19 @@
         // Âm báo dừng
         playSound(329.63, 0.2, "sawtooth"); // Nốt mi thấp E4
 
-        showNotification("Đã tạm dừng thu thập dữ liệu.", "warning");
+        showNotification("Đã dừng thu thập. Dữ liệu ghi hiện tại đã được khóa tạm thời.", "warning");
       });
 
-      // Nút Đặt lại (RESET)
+      // Nút Đặt lại / Xóa (RESET)
       btnReset.addEventListener("click", () => {
-        // Xóa sạch mảng lưu dữ liệu
+        // Xóa sạch mảng lưu dữ liệu hiển thị lẫn dữ liệu ghi file
         dataPoints = [];
+        recordedSessionPoints = [];
         lastDataGenTime = null;
         wavePhase = 0;
+
         bufferCountEl.innerText = "0 mẫu";
+        recordCountEl.innerText = "0 mẫu";
 
         // Nếu đang tạm dừng vẽ thì vẽ lại để cập nhật canvas trống liền
         if (!isRunning) {
@@ -750,28 +774,29 @@
         // Âm báo reset
         playSound(220, 0.3, "sine"); // Nốt la thấp A3
 
-        showNotification("Đã xóa trắng bộ nhớ đệm đồ thị.", "success");
+        showNotification("Đã xóa sạch dữ liệu đồ thị và tệp ghi hiện tại.", "success");
       });
 
       // Nút Lưu dữ liệu (SAVE DATA)
       btnSave.addEventListener("click", () => {
-        if (dataPoints.length === 0) {
-          showNotification("Không có dữ liệu trong bộ đệm để xuất!", "warning");
+        if (recordedSessionPoints.length === 0) {
+          showNotification("Không có dữ liệu trong tệp ghi hiện thời để xuất!", "warning");
           playSound(250, 0.15, "sawtooth");
           return;
         }
 
-        // Chuẩn bị nội dung file text
-        let txtContent = "=== DỮ LIỆU ĐO PPG CHUẨN CAO (500Hz) ===\n";
+        // Chuẩn bị nội dung file text chuyên nghiệp từ tệp ghi lũy kế
+        let txtContent = "=== DỮ LIỆU ĐO PPG CHUẨN CAO LŨY KẾ (500Hz) ===\n";
         txtContent += `Thời gian xuất: ${new Date().toLocaleString("vi-VN")}\n`;
-        txtContent += `Tổng số mẫu: ${dataPoints.length}\n`;
+        txtContent += `Tổng số mẫu ghi nhận: ${recordedSessionPoints.length}\n`;
+        txtContent += `Thời gian đo liên tục: ${((recordedSessionPoints.length * sampleIntervalMs) / 1000).toFixed(2)} giây\n`;
         txtContent += "----------------------------------------\n";
         txtContent += "Thời gian (s), Giá trị PPG (%)\n";
 
-        // Thời mốc bắt đầu (làm mốc 0.000s)
-        const firstTimestamp = dataPoints[0].timestamp;
+        // Thời mốc bắt đầu của phiên ghi (làm mốc 0.000s)
+        const firstTimestamp = recordedSessionPoints[0].timestamp;
 
-        dataPoints.forEach((point) => {
+        recordedSessionPoints.forEach((point) => {
           const relativeSecs = ((point.timestamp - firstTimestamp) / 1000).toFixed(3);
           const ppgValue = point.value.toFixed(2);
           txtContent += `${relativeSecs}, ${ppgValue}\n`;
@@ -787,7 +812,7 @@
 
         // Tên file chứa mốc thời gian chi tiết
         const fileTimestamp = new Date().toISOString().replace(/T/, "_").replace(/\..+/, "").replace(/:/g, "-");
-        downloadLink.download = `ppg_signal_data_${fileTimestamp}.txt`;
+        downloadLink.download = `ppg_recorded_session_${fileTimestamp}.txt`;
 
         document.body.appendChild(downloadLink);
         downloadLink.click();
@@ -800,7 +825,7 @@
         playSound(880, 0.12, "sine"); // A5 sáng sủa
         setTimeout(() => playSound(1046.5, 0.15, "sine"), 70); // C6 tươi vui
 
-        showNotification(`Đã xuất và lưu thành công ${dataPoints.length} mẫu!`, "success");
+        showNotification(`Đã xuất và lưu thành công tệp chứa ${recordedSessionPoints.length} mẫu!`, "success");
       });
 
       // Đặt trạng thái ban đầu của nút stop vì chưa chạy
