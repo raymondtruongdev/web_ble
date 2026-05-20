@@ -236,16 +236,13 @@
               <!-- Lưới đồ thị tĩnh / Canvas động -->
               <canvas id="ppg-canvas" class="absolute inset-0 w-full h-full cursor-crosshair"></canvas>
 
-              <!-- Overlay khi dừng vẽ -->
+              <!-- Overlay/Badge khi dừng vẽ (Được tinh giản để không che khuất đồ thị) -->
               <div
                 id="chart-overlay-pause"
-                class="absolute inset-0 bg-slate-950/70 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2 opacity-0 pointer-events-none transition-opacity duration-300"
+                class="absolute top-4 right-4 bg-slate-900/95 border border-amber-500/40 text-amber-400 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-lg shadow-black/50 opacity-0 pointer-events-none transition-opacity duration-300 z-10"
               >
-                <div class="p-3 bg-amber-500/10 rounded-full border border-amber-500/20 text-amber-500">
-                  <i class="fa-solid fa-pause text-xl animate-pulse"></i>
-                </div>
-                <span class="text-sm font-semibold text-amber-500/90 tracking-wider">TÍN HIỆU ĐANG TẠM DỪNG</span>
-                <span class="text-xs text-slate-500">Bấm START để tiếp tục nhận dữ liệu</span>
+                <i class="fa-solid fa-circle-pause text-xs animate-pulse text-amber-400"></i>
+                <span class="text-xs font-bold tracking-wider uppercase">ĐÃ TẠM DỪNG (HOLD)</span>
               </div>
             </div>
 
