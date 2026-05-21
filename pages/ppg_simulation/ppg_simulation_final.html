@@ -91,9 +91,9 @@
     <main class="flex-grow max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
       <!-- Dashboard Grid Layout -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Left Side Controls Panel (1 Col) -->
+        <!-- Left Side Controls Panel -->
         <div class="lg:col-span-1 flex flex-col gap-6">
-          <!-- Card 1: Bộ đếm tương tác (Counter) -->
+          <!-- Card 1: Counter -->
           <div
             class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur flex flex-col justify-between shadow-xl relative overflow-hidden group"
           >
@@ -222,7 +222,7 @@
           </div>
         </div>
 
-        <!-- Right Side Chart Panel (2 Cols) -->
+        <!-- Right Side Chart Panel -->
         <div class="lg:col-span-2 flex flex-col gap-6">
           <!-- Monitor Console Wrapper -->
           <div
@@ -279,19 +279,25 @@
                 <i class="fa-solid fa-circle-pause text-xs animate-pulse text-amber-400"></i>
                 <span class="text-xs font-bold tracking-wider uppercase" id="pause-badge-text">ĐÃ TẠM DỪNG (HOLD)</span>
               </div>
+              <!-- Badge riêng cho trạng thái Chart Paused (vẫn ghi data) -->
+              <div
+                id="chart-overlay-chart-pause"
+                class="absolute top-4 left-4 bg-slate-900/95 border border-amber-500/40 text-amber-400 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-lg shadow-black/50 opacity-0 pointer-events-none transition-opacity duration-300 z-10"
+              >
+                <i class="fa-solid fa-video text-xs animate-pulse text-amber-400"></i>
+                <span class="text-xs font-bold tracking-wider uppercase">ĐỒ THỊ TẠM DỪNG · DATA VẪN GHI</span>
+              </div>
             </div>
 
             <!-- Chart Controls Toolbar -->
             <div class="flex flex-col sm:flex-row justify-between items-center gap-4 pt-2">
-              <!-- Nhóm nút chính -->
               <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                 <!-- Nút START -->
                 <button
                   id="btn-start"
                   class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 px-6 rounded-xl shadow-lg shadow-emerald-900/20 active:scale-95 transition-all flex items-center justify-center gap-2 border border-emerald-400/25"
                 >
-                  <i class="fa-solid fa-play text-xs"></i>
-                  <span>Start</span>
+                  <i class="fa-solid fa-play text-xs"></i><span>Start</span>
                 </button>
 
                 <!-- Nút STOP -->
@@ -299,17 +305,20 @@
                   id="btn-stop"
                   class="flex-1 sm:flex-none bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2.5 px-6 rounded-xl border border-slate-700 hover:border-slate-600 active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
-                  <i class="fa-solid fa-stop text-xs"></i>
-                  <span>Stop</span>
+                  <i class="fa-solid fa-stop text-xs"></i><span>Stop</span>
                 </button>
-
-                <!-- Nút RESET -->
+                <!-- Nút PAUSE / CONTINUE (toggle) -->
+                <button
+                  id="btn-pause"
+                  class="flex-1 sm:flex-none bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2.5 px-6 rounded-xl shadow-lg shadow-amber-900/20 active:scale-95 transition-all flex items-center justify-center gap-2 border border-amber-400/25 opacity-50 pointer-events-none"
+                >
+                  <i class="fa-solid fa-pause text-xs" id="btn-pause-icon"></i><span id="btn-pause-label">Pause</span>
+                </button>
                 <button
                   id="btn-reset"
                   class="flex-1 sm:flex-none bg-rose-950/30 hover:bg-rose-900/30 text-rose-400 border border-rose-900/40 hover:border-rose-800 py-2.5 px-6 rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
-                  <i class="fa-solid fa-rotate-left text-xs"></i>
-                  <span>Reset</span>
+                  <i class="fa-solid fa-rotate-left text-xs"></i><span>Reset</span>
                 </button>
 
                 <!-- Nút SAVE DATA -->
@@ -317,8 +326,7 @@
                   id="btn-save"
                   class="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 px-6 rounded-xl shadow-lg shadow-indigo-900/20 active:scale-95 transition-all flex items-center justify-center gap-2 border border-indigo-400/25"
                 >
-                  <i class="fa-solid fa-download text-xs"></i>
-                  <span>Save Data</span>
+                  <i class="fa-solid fa-download text-xs"></i><span>Save Data</span>
                 </button>
               </div>
 
@@ -352,1032 +360,1119 @@
 
     <!-- JS CHỨC NĂNG -->
     <script>
-      // Khởi tạo các phần tử DOM quan trọng
-      const btnCount = document.getElementById("btn-count");
-      const counterDisplay = document.getElementById("counter-display");
-      const valueSlider = document.getElementById("value-slider");
-      const sliderTextValue = document.getElementById("slider-text-value");
-      const calculatedBpm = document.getElementById("calculated-bpm");
+      // ============================================================
+      // UIManager – quản lý tất cả DOM element và thông báo toast
+      // ============================================================
+      class UIManager {
+        constructor() {
+          // Counter
+          this.btnCount = document.getElementById("btn-count");
+          this.counterDisplay = document.getElementById("counter-display");
 
-      const btnStart = document.getElementById("btn-start");
-      const btnStop = document.getElementById("btn-stop");
-      const btnReset = document.getElementById("btn-reset");
-      const btnSave = document.getElementById("btn-save");
-      const allowRecordToggle = document.getElementById("allow-record-toggle");
+          // Slider BPM
+          this.valueSlider = document.getElementById("value-slider");
+          this.sliderTextValue = document.getElementById("slider-text-value");
+          this.calculatedBpm = document.getElementById("calculated-bpm");
 
-      const heartIcon = document.getElementById("heart-pulse-icon");
-      const heartPing = document.getElementById("heart-pulse-ping");
-      const canvas = document.getElementById("ppg-canvas");
-      const ctx = canvas.getContext("2d");
-      const overlayPause = document.getElementById("chart-overlay-pause");
-      const pauseBadgeText = document.getElementById("pause-badge-text");
-      const bufferCountEl = document.getElementById("buffer-count");
-      const recordCountEl = document.getElementById("record-count");
-      const storageModeText = document.getElementById("storage-mode-text");
+          // Control buttons
+          this.btnStart = document.getElementById("btn-start");
+          this.btnStop = document.getElementById("btn-stop");
+          this.btnPause = document.getElementById("btn-pause");
+          this.btnPauseIcon = document.getElementById("btn-pause-icon");
+          this.btnPauseLabel = document.getElementById("btn-pause-label");
+          this.btnReset = document.getElementById("btn-reset");
+          this.btnSave = document.getElementById("btn-save");
 
-      // Gốc chuyển đổi giữa performance.now() của trang web và thời gian thực hệ thống
-      const bootTime = Date.now() - performance.now();
+          // Record toggle
+          this.allowRecordToggle = document.getElementById("allow-record-toggle");
 
-      // Chuyển đổi timestamp của performance sang đối tượng Date thực tế
-      function getRealTime(perfTime) {
-        return new Date(bootTime + perfTime);
-      }
+          // Heart indicator
+          this.heartIcon = document.getElementById("heart-pulse-icon");
+          this.heartPing = document.getElementById("heart-pulse-ping");
 
-      // Định dạng thời gian thực tế chi tiết y khoa: HH:MM:SS
-      function formatRealTime(date) {
-        const h = String(date.getHours()).padStart(2, "0");
-        const m = String(date.getMinutes()).padStart(2, "0");
-        const s = String(date.getSeconds()).padStart(2, "0");
-        return `${h}:${m}:${s}`;
-      }
+          // Canvas & overlay
+          this.canvas = document.getElementById("ppg-canvas");
+          this.overlayPause = document.getElementById("chart-overlay-pause");
+          this.overlayChartPause = document.getElementById("chart-overlay-chart-pause");
+          this.pauseBadgeText = document.getElementById("pause-badge-text");
 
-      // Định dạng thời gian thực tế chi tiết y khoa kèm mili-giây: HH:MM:SS.mmm (3 chữ số thập phân)
-      function formatRealTimeWithMs(date) {
-        const h = String(date.getHours()).padStart(2, "0");
-        const m = String(date.getMinutes()).padStart(2, "0");
-        const s = String(date.getSeconds()).padStart(2, "0");
-        const ms = String(date.getMilliseconds()).padStart(3, "0");
-        return `${h}:${m}:${s}.${ms}`;
-      }
-
-      // Khởi tạo âm thanh click và beep tương tác nhẹ bằng Web Audio API
-      let audioCtx = null;
-      function playSound(freq, duration, type = "sine") {
-        try {
-          if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          }
-          if (audioCtx.state === "suspended") {
-            audioCtx.resume();
-          }
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-
-          osc.type = type;
-          osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-
-          gain.gain.setValueAtTime(0.08, audioCtx.currentTime); // Âm lượng nhỏ nhẹ tinh tế
-          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
-
-          osc.start();
-          osc.stop(audioCtx.currentTime + duration);
-        } catch (e) {
-          // Tránh lỗi nếu trình duyệt chặn tự động phát âm thanh
-        }
-      }
-
-      // Hàm tạo Toast Notification thay cho alert()
-      function showNotification(message, type = "success") {
-        const container = document.getElementById("toast-container");
-        const toast = document.createElement("div");
-        toast.className = `flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border text-sm transition-all duration-300 transform translate-y-2 opacity-0 pointer-events-auto`;
-
-        if (type === "success") {
-          toast.className += " bg-emerald-950/90 border-emerald-500/30 text-emerald-400";
-          toast.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>${message}</span>`;
-        } else if (type === "warning") {
-          toast.className += " bg-amber-950/90 border-amber-500/30 text-amber-400";
-          toast.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> <span>${message}</span>`;
+          // HUD counters & labels
+          this.bufferCountEl = document.getElementById("buffer-count");
+          this.recordCountEl = document.getElementById("record-count");
+          this.storageModeText = document.getElementById("storage-mode-text");
         }
 
-        container.appendChild(toast);
-
-        // Kích hoạt transition mượt
-        setTimeout(() => {
-          toast.classList.remove("translate-y-2", "opacity-0");
-        }, 10);
-
-        // Tự động đóng sau 4 giây
-        setTimeout(() => {
-          toast.classList.add("translate-y-2", "opacity-0");
+        // --- Counter ---
+        setCounterValue(val) {
+          this.counterDisplay.innerText = val;
+          this.counterDisplay.style.transform = "scale(1.15)";
+          this.counterDisplay.style.transition = "transform 0.05s ease";
           setTimeout(() => {
-            toast.remove();
-          }, 300);
-        }, 4000);
-      }
-
-      // 1. CHỨC NĂNG BỘ ĐẾM (COUNTER BUTTON)
-      let count = 0;
-      btnCount.addEventListener("click", () => {
-        count++;
-        counterDisplay.innerText = count;
-
-        // Hiệu ứng scale nhẹ cho số hiển thị
-        counterDisplay.style.transform = "scale(1.15)";
-        counterDisplay.style.transition = "transform 0.05s ease";
-        setTimeout(() => {
-          counterDisplay.style.transform = "scale(1)";
-        }, 100);
-
-        // Phát âm click dễ chịu
-        playSound(600, 0.08, "sine");
-      });
-
-      // 2. CHỨC NĂNG THANH TRƯỢT TỪ 1-100 (SLIDER)
-      function updateSliderValue(val) {
-        sliderTextValue.innerText = val;
-
-        // Ánh xạ tuyến tính giá trị thanh trượt 1-100 thành Nhịp Tim mô phỏng (30 đến 180 BPM)
-        const bpm = Math.round(30 + (val - 1) * (150 / 99));
-        calculatedBpm.innerText = `${bpm} BPM`;
-
-        // Trả về giá trị bpm để cấu trúc sóng PPG thay đổi tần số
-        return bpm;
-      }
-
-      valueSlider.addEventListener("input", (e) => {
-        updateSliderValue(e.target.value);
-        // Tiếng rào nhẹ cực ngắn khi trượt slider
-        playSound(150 + e.target.value * 2, 0.02, "triangle");
-      });
-
-      // Khởi tạo hiển thị slider ban đầu
-      updateSliderValue(valueSlider.value);
-
-      // 3. HỆ THỐNG MÔ PHỎNG SÓNG PPG VÀ ĐỒ THỊ
-      let isRunning = false;
-      let dataPoints = []; // Mảng vẽ màn hình (chứa data tối đa của vùng đệm hiển thị)
-
-      // --- CẤU HÌNH FILE SYSTEM ACCESS & CHẾ ĐỘ RECORD ---
-      let fileHandle = null;
-      let fileWritableStream = null;
-      let isDirectStreaming = false; // Nhận biết đang ghi trực tiếp xuống ổ cứng hay không
-      let firstTimestamp = null; // Để làm gốc mốc 0.000 giây của tệp tin ghi
-
-      // Cấu hình dự phòng TypedArray phòng trường hợp trình duyệt không hỗ trợ File System Access API
-      let recordedCapacity = 60000;
-      let recordedValues = new Float32Array(recordedCapacity);
-      let recordedTimestamps = new Float64Array(recordedCapacity);
-      let recordedCount = 0; // Đếm tổng số mẫu đo đạc được ghi nhận thực tế
-
-      const viewDurationMs = 10000; // Khung nhìn 10 giây trên đồ thị
-      const sampleRate = 500; // 500 điểm dữ liệu/giây
-      const sampleIntervalMs = 1000 / sampleRate; // ~2ms mỗi mẫu
-
-      let lastDataGenTime = null;
-      let wavePhase = 0; // Pha của nhịp đập tim hiện tại [0.0 - 1.0]
-      let lastSystolicFlash = 0; // Để điều khiển nháy nhịp tim
-
-      // --- CÁC BIẾN TƯƠNG TÁC: HOVER & PAN ---
-      let hoverPoint = null; // Điểm dữ liệu đang được rê chuột trúng
-      let mouseX = null;
-      let mouseY = null;
-
-      let isPanning = false; // Trạng thái đang di chuyển kéo thả chuột
-      let startPanX = 0;
-      let originalViewOffsetMs = 0;
-      let viewOffsetMs = 0; // Độ lệch thời gian khi di chuyển xem lịch sử (mili-giây, luôn <= 0)
-
-      // Bộ sinh hình dạng sóng PPG thực tế (Nhân tỉ lệ 10 để xuất ra thang giá trị thực 0 - 1000)
-      function generatePPGSample(phase) {
-        let signal = 0;
-
-        // Pha 0 -> 1 tương ứng với một chu kỳ tim hoàn chỉnh
-        if (phase < 0.25) {
-          // Nhánh lên nhanh của sóng tâm thu (Systolic peak)
-          signal = Math.sin(((phase / 0.25) * Math.PI) / 2);
-        } else if (phase < 0.38) {
-          // Nhánh giảm ban đầu của sóng tâm thu
-          const p = (phase - 0.25) / 0.13;
-          signal = 1.0 - 0.35 * Math.sin((p * Math.PI) / 2);
-        } else if (phase < 0.45) {
-          // Điểm lõm dicrotic notch (nhấn van động mạch chủ)
-          const p = (phase - 0.38) / 0.07;
-          signal = 0.65 - 0.05 * Math.sin((p * Math.PI) / 2);
-        } else if (phase < 0.6) {
-          // Nhô lên sóng dicrotic phụ (Diastolic peak)
-          const p = (phase - 0.45) / 0.15;
-          signal = 0.6 + 0.12 * Math.sin((p * Math.PI) / 2);
-        } else {
-          // Nhánh suy giảm tâm trương kéo dài
-          const p = (phase - 0.6) / 0.4;
-          signal = 0.72 * Math.cos((p * Math.PI) / 2);
+            this.counterDisplay.style.transform = "scale(1)";
+          }, 100);
         }
 
-        // Thêm chút nhiễu sinh học biên độ rất nhỏ để tăng độ chân thực
-        const noise = (Math.random() - 0.5) * 1.5;
-
-        // Ánh xạ tín hiệu sang biên độ 0-100%
-        let finalValue = signal * 65 + 15 + noise;
-        // Nhân 10 để chuyển đổi sang hệ giá trị thật 0 - 1000
-        return Math.max(0, Math.min(1000, finalValue * 10));
-      }
-
-      // Sinh ra chuỗi dữ liệu dựa trên khoảng thời gian trôi qua thực tế
-      function pushSimulatedData() {
-        if (!isRunning) return;
-
-        const now = performance.now();
-        if (lastDataGenTime === null) {
-          lastDataGenTime = now;
-          return;
+        // --- Slider ---
+        setSliderDisplay(val, bpm) {
+          this.sliderTextValue.innerText = val;
+          this.calculatedBpm.innerText = `${bpm} BPM`;
         }
 
-        const elapsed = now - lastDataGenTime;
-        // Số lượng mẫu cần sản xuất theo tốc độ 500 mẫu/giây
-        const samplesNeeded = Math.floor(elapsed / sampleIntervalMs);
+        // --- HUD counters ---
+        setBufferCount(n) {
+          this.bufferCountEl.innerText = `${n} mẫu`;
+        }
+        setRecordCount(n, enabled) {
+          this.recordCountEl.innerText = enabled ? `${n} mẫu` : "Tắt (Off)";
+        }
 
-        if (samplesNeeded > 0) {
-          const sliderVal = parseInt(valueSlider.value);
-          const bpm = 30 + (sliderVal - 1) * (150 / 99);
-          const bps = bpm / 60; // Beats per second
-          const phaseStepPerSample = bps / sampleRate;
-
-          let chunkText = "";
-
-          if (firstTimestamp === null) {
-            firstTimestamp = lastDataGenTime;
+        // --- Storage mode text ---
+        setStorageMode(mode) {
+          // mode: 'stream' | 'buffer' | 'off' | 'pending'
+          const el = this.storageModeText;
+          el.classList.remove("text-emerald-400", "text-indigo-400", "text-slate-500");
+          switch (mode) {
+            case "stream":
+              el.innerText = "Ghi file: Trực tiếp vào đĩa cứng (Stream)";
+              el.classList.add("text-emerald-400");
+              break;
+            case "buffer":
+              el.innerText = "Ghi file: Sử dụng TypedArray dự phòng";
+              el.classList.add("text-indigo-400");
+              break;
+            case "off":
+              el.innerText = "Ghi file: Đã tắt (Chỉ hiển thị)";
+              el.classList.add("text-slate-500");
+              break;
+            case "pending":
+            default:
+              el.innerText = "Ghi file: Chọn ổ cứng khi Start";
+              el.classList.add("text-indigo-400");
           }
+        }
+
+        // --- Overlay pause badge ---
+        showPauseOverlay(text = "ĐÃ TẠM DỪNG (HOLD)") {
+          this.pauseBadgeText.innerText = text;
+          this.overlayPause.classList.remove("opacity-0", "pointer-events-none");
+        }
+        hidePauseOverlay() {
+          this.overlayPause.classList.add("opacity-0", "pointer-events-none");
+        }
+
+        // --- Button states ---
+        setRunningState(running) {
+          if (running) {
+            this.btnStart.classList.add("opacity-50", "pointer-events-none");
+            this.btnStop.classList.remove("opacity-50", "pointer-events-none");
+            // Pause button becomes available
+            this.btnPause.classList.remove("opacity-50", "pointer-events-none");
+          } else {
+            this.btnStart.classList.remove("opacity-50", "pointer-events-none");
+            this.btnStop.classList.add("opacity-50", "pointer-events-none");
+            // Pause button disabled when not running
+            this.btnPause.classList.add("opacity-50", "pointer-events-none");
+            this.setChartPauseMode(false); // always clear chart-pause badge when stopped
+          }
+        }
+
+        // Chart-pause mode: sim still running, chart frozen
+        setChartPauseMode(paused) {
+          if (paused) {
+            // Switch button to "Continue"
+            this.btnPauseIcon.className = "fa-solid fa-play text-xs";
+            this.btnPauseLabel.innerText = "Continue";
+            this.btnPause.classList.remove(
+              "bg-amber-600",
+              "hover:bg-amber-500",
+              "border-amber-400/25",
+              "shadow-amber-900/20",
+            );
+            this.btnPause.classList.add(
+              "bg-emerald-600",
+              "hover:bg-emerald-500",
+              "border-emerald-400/25",
+              "shadow-emerald-900/20",
+            );
+            this.overlayChartPause.classList.remove("opacity-0", "pointer-events-none");
+          } else {
+            // Switch back to "Pause"
+            this.btnPauseIcon.className = "fa-solid fa-pause text-xs";
+            this.btnPauseLabel.innerText = "Pause";
+            this.btnPause.classList.add(
+              "bg-amber-600",
+              "hover:bg-amber-500",
+              "border-amber-400/25",
+              "shadow-amber-900/20",
+            );
+            this.btnPause.classList.remove(
+              "bg-emerald-600",
+              "hover:bg-emerald-500",
+              "border-emerald-400/25",
+              "shadow-emerald-900/20",
+            );
+            this.overlayChartPause.classList.add("opacity-0", "pointer-events-none");
+          }
+        }
+
+        // --- Heart beat visual ---
+        triggerHeartBeat() {
+          this.heartIcon.classList.add("text-red-500", "scale-125");
+          this.heartIcon.classList.remove("text-slate-500");
+          this.heartPing.style.opacity = "1";
+          this.heartPing.classList.add("animate-ping");
+          setTimeout(() => {
+            this.heartIcon.classList.remove("scale-125");
+            this.heartPing.style.opacity = "0";
+            this.heartPing.classList.remove("animate-ping");
+          }, 150);
+        }
+        setHeartIdle() {
+          this.heartIcon.classList.add("text-slate-500");
+          this.heartPing.style.opacity = "0";
+        }
+
+        // --- Toast Notification ---
+        showNotification(message, type = "success") {
+          const container = document.getElementById("toast-container");
+          const toast = document.createElement("div");
+          toast.className = `flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border text-sm transition-all duration-300 transform translate-y-2 opacity-0 pointer-events-auto`;
+          if (type === "success") {
+            toast.className += " bg-emerald-950/90 border-emerald-500/30 text-emerald-400";
+            toast.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>${message}</span>`;
+          } else {
+            toast.className += " bg-amber-950/90 border-amber-500/30 text-amber-400";
+            toast.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> <span>${message}</span>`;
+          }
+          container.appendChild(toast);
+          setTimeout(() => toast.classList.remove("translate-y-2", "opacity-0"), 10);
+          setTimeout(() => {
+            toast.classList.add("translate-y-2", "opacity-0");
+            setTimeout(() => toast.remove(), 300);
+          }, 4000);
+        }
+      }
+
+      // ============================================================
+      // AudioManager – âm thanh phản hồi (tách ra khỏi UIManager)
+      // ============================================================
+      class AudioManager {
+        constructor() {
+          this._ctx = null;
+        }
+
+        play(freq, duration, type = "sine") {
+          try {
+            if (!this._ctx) this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+            if (this._ctx.state === "suspended") this._ctx.resume();
+            const osc = this._ctx.createOscillator();
+            const gain = this._ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, this._ctx.currentTime);
+            gain.gain.setValueAtTime(0.08, this._ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, this._ctx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(this._ctx.destination);
+            osc.start();
+            osc.stop(this._ctx.currentTime + duration);
+          } catch (_) {}
+        }
+      }
+
+      // ============================================================
+      // PPGSimulation – sinh dữ liệu PPG, phát event ra ngoài
+      // ============================================================
+      class PPGSimulation {
+        constructor({ sampleRate = 500, viewDurationMs = 10000 } = {}) {
+          this.sampleRate = sampleRate;
+          this.sampleIntervalMs = 1000 / sampleRate;
+          this.viewDurationMs = viewDurationMs;
+
+          // Runtime state
+          this.isRunning = false;
+          this.isChartPaused = false; // true = data still flows, chart frozen for panning
+          this.dataPoints = []; // buffer hiển thị (tối đa 30 giây lịch sử)
+          this.lastDataGenTime = null;
+          this.firstTimestamp = null;
+          this.wavePhase = 0;
+          this.lastSystolicFlash = 0;
+
+          // BPM từ slider (1-100 -> 30-180 BPM)
+          this.sliderValue = 50;
+
+          // Callbacks (bên ngoài gán vào)
+          this.onNewSamples = null; // (samples: [{value, timestamp}]) => void
+          this.onHeartBeat = null; // () => void
+          this.onBufferUpdated = null; // (count: number) => void
+        }
+
+        // Ánh xạ slider 1-100 -> BPM 30-180
+        sliderToBpm(val) {
+          return 30 + (val - 1) * (150 / 99);
+        }
+
+        // Sinh một mẫu PPG theo pha [0..1]
+        _generateSample(phase) {
+          let signal = 0;
+          if (phase < 0.25) {
+            signal = Math.sin(((phase / 0.25) * Math.PI) / 2);
+          } else if (phase < 0.38) {
+            const p = (phase - 0.25) / 0.13;
+            signal = 1.0 - 0.35 * Math.sin((p * Math.PI) / 2);
+          } else if (phase < 0.45) {
+            const p = (phase - 0.38) / 0.07;
+            signal = 0.65 - 0.05 * Math.sin((p * Math.PI) / 2);
+          } else if (phase < 0.6) {
+            const p = (phase - 0.45) / 0.15;
+            signal = 0.6 + 0.12 * Math.sin((p * Math.PI) / 2);
+          } else {
+            const p = (phase - 0.6) / 0.4;
+            signal = 0.72 * Math.cos((p * Math.PI) / 2);
+          }
+          const noise = (Math.random() - 0.5) * 1.5;
+          return Math.max(0, Math.min(1000, (signal * 65 + 15 + noise) * 10));
+        }
+
+        // Gọi mỗi animation frame khi isRunning = true
+        tick() {
+          if (!this.isRunning) return;
+
+          const now = performance.now();
+          if (this.lastDataGenTime === null) {
+            this.lastDataGenTime = now;
+            return;
+          }
+
+          const elapsed = now - this.lastDataGenTime;
+          const samplesNeeded = Math.floor(elapsed / this.sampleIntervalMs);
+          if (samplesNeeded <= 0) return;
+
+          const bpm = this.sliderToBpm(this.sliderValue);
+          const bps = bpm / 60;
+          const phaseStep = bps / this.sampleRate;
+          const newSamples = [];
+
+          if (this.firstTimestamp === null) this.firstTimestamp = this.lastDataGenTime;
 
           for (let i = 0; i < samplesNeeded; i++) {
-            wavePhase = (wavePhase + phaseStepPerSample) % 1.0;
+            this.wavePhase = (this.wavePhase + phaseStep) % 1.0;
 
-            // Phát hiện đỉnh tâm thu (systolic peak) ở phase khoảng 0.22 để nháy tim sinh động
-            if (wavePhase > 0.2 && wavePhase < 0.25 && now - lastSystolicFlash > (60000 / bpm) * 0.7) {
-              triggerHeartBeatVisual();
-              lastSystolicFlash = now;
+            // Phát hiện đỉnh tâm thu để nháy tim
+            if (this.wavePhase > 0.2 && this.wavePhase < 0.25 && now - this.lastSystolicFlash > (60000 / bpm) * 0.7) {
+              this.lastSystolicFlash = now;
+              if (this.onHeartBeat) this.onHeartBeat();
             }
 
-            const val = generatePPGSample(wavePhase);
-            // Gán nhãn thời gian thực tế cho điểm dữ liệu
-            const sampleTime = lastDataGenTime + i * sampleIntervalMs;
+            const val = this._generateSample(this.wavePhase);
+            const sampleTime = this.lastDataGenTime + i * this.sampleIntervalMs;
+            const point = { value: val, timestamp: sampleTime };
 
-            const point = {
-              value: val,
-              timestamp: sampleTime,
-            };
-
-            // 1. Thêm vào mảng vẽ màn hình chính
-            dataPoints.push(point);
-
-            // 2. CHỈ GHI DỮ LIỆU NẾU TÙY CHỌN ALLOW RECORD ĐƯỢC BẬT
-            if (allowRecordToggle.checked) {
-              if (isDirectStreaming && fileWritableStream) {
-                const relativeSecs = ((sampleTime - firstTimestamp) / 1000).toFixed(3);
-                const ppgValue = val.toFixed(2);
-                chunkText += `${relativeSecs}, ${ppgValue}\n`;
-                recordedCount++;
-              } else {
-                // Dự phòng bằng TypedArray
-                if (recordedCount >= recordedCapacity) {
-                  const newCapacity = recordedCapacity * 2;
-                  const newValues = new Float32Array(newCapacity);
-                  const newTimestamps = new Float64Array(newCapacity);
-
-                  newValues.set(recordedValues);
-                  newTimestamps.set(recordedTimestamps);
-
-                  recordedValues = newValues;
-                  recordedTimestamps = newTimestamps;
-                  recordedCapacity = newCapacity;
-                }
-
-                recordedValues[recordedCount] = val;
-                recordedTimestamps[recordedCount] = sampleTime;
-                recordedCount++;
-              }
-            }
+            this.dataPoints.push(point);
+            newSamples.push(point);
           }
 
-          // Ghi trực tiếp xuống file ổ cứng nếu chế độ stream bật và có chunk dữ liệu
-          if (allowRecordToggle.checked && isDirectStreaming && fileWritableStream && chunkText) {
-            fileWritableStream.write(chunkText).catch((err) => {
-              console.error("Ghi dữ liệu vào Stream thất bại:", err);
-              isDirectStreaming = false;
-              showNotification("Mất kết nối với Stream ổ cứng! Chuyển sang lưu bộ đệm.", "warning");
-            });
+          // Callback truyền samples mới ra ngoài (SaveFileManager sẽ xử lý)
+          if (this.onNewSamples && newSamples.length > 0) {
+            this.onNewSamples(newSamples);
           }
 
-          // Đồng bộ mốc thời gian cuối cùng đã xử lý
-          lastDataGenTime = lastDataGenTime + samplesNeeded * sampleIntervalMs;
+          this.lastDataGenTime += samplesNeeded * this.sampleIntervalMs;
 
-          // Giới hạn vùng đệm hiển thị tối đa 30 giây lịch sử trên màn hình
+          // Giới hạn buffer hiển thị tối đa 30 giây lịch sử
           const limitThreshold = now - 30000;
-          while (dataPoints.length > 0 && dataPoints[0].timestamp < limitThreshold) {
-            dataPoints.shift();
+          while (this.dataPoints.length > 0 && this.dataPoints[0].timestamp < limitThreshold) {
+            this.dataPoints.shift();
           }
 
-          // Cập nhật số liệu hiển thị lên HUD
-          bufferCountEl.innerText = `${dataPoints.length} mẫu`;
-          recordCountEl.innerText = allowRecordToggle.checked ? `${recordedCount} mẫu` : "Tắt (Off)";
+          if (this.onBufferUpdated) this.onBufferUpdated(this.dataPoints.length);
+        }
+
+        start() {
+          this.isRunning = true;
+          this.isChartPaused = false;
+          this.lastDataGenTime = performance.now();
+        }
+
+        stop() {
+          this.isRunning = false;
+          this.isChartPaused = false;
+        }
+
+        reset() {
+          this.isRunning = false;
+          this.isChartPaused = false;
+          this.dataPoints = [];
+          this.lastDataGenTime = null;
+          this.firstTimestamp = null;
+          this.wavePhase = 0;
+          this.lastSystolicFlash = 0;
         }
       }
 
-      // Nháy nhịp tim sinh học và phát âm "beep" đặc trưng phòng hồi sức
-      function triggerHeartBeatVisual() {
-        heartIcon.classList.add("text-red-500", "scale-125");
-        heartIcon.classList.remove("text-slate-500");
-        heartPing.style.opacity = "1";
-        heartPing.classList.add("animate-ping");
+      // ============================================================
+      // ChartManager – vẽ đồ thị PPG lên Canvas, quản lý hover & pan
+      // ============================================================
+      class ChartManager {
+        constructor(canvasEl, simulation) {
+          this.canvas = canvasEl;
+          this.ctx = canvasEl.getContext("2d");
+          this.simulation = simulation;
 
-        // Âm Beep mô phỏng máy đo nhịp tim
-        playSound(1000, 0.08, "sine");
+          // Margins
+          this.ML = 70;
+          this.MR = 20;
+          this.MT = 30;
+          this.MB = 40;
 
-        setTimeout(() => {
-          heartIcon.classList.remove("scale-125");
-          heartPing.style.opacity = "0";
-          heartPing.classList.remove("animate-ping");
-        }, 150);
-      }
+          // Thời gian boot để ánh xạ performance.now() -> đồng hồ thực
+          this.bootTime = Date.now() - performance.now();
 
-      // 4. KỸ THUẬT VẼ ĐỒ THỊ HIỆU SUẤT CAO TRÊN CANVAS (ĐÃ SỬA LỖI TRÀN BIÊN TRỤC Y & GIỜ HIỂN THỊ TRỢT CHUẨN 1S)
+          // Hover & Pan state
+          this.hoverPoint = null;
+          this.mouseX = null;
+          this.mouseY = null;
+          this.isPanning = false;
+          this.startPanX = 0;
+          this.originalViewOffsetMs = 0;
+          this.viewOffsetMs = 0;
 
-      // Thiết lập lề an toàn (Margins) cho đồ thị để không bị tràn nét vẽ đè chữ
-      const chartMarginLeft = 70; // Đủ rộng để hiển thị nhãn trục tung "1000", "800"...
-      const chartMarginRight = 20; // Chừa khoảng đệm bên phải
-      const chartMarginTop = 30; // Đủ rộng để nhãn "1000" hiển thị trọn vẹn, không dính viền trên
-      const chartMarginBottom = 40; // Đủ rộng để hiển thị thời gian thực HH:MM:SS
+          // Snapshot performance.now() tại thời điểm bấm Pause — dùng làm anchor cố định
+          this.frozenAtTime = null;
 
-      function resizeCanvas() {
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * window.devicePixelRatio;
-        canvas.height = rect.height * window.devicePixelRatio;
-      }
+          // Callback khi bắt đầu kéo lịch sử trong khi đang chạy
+          this.onPanStartWhileRunning = null;
 
-      window.addEventListener("resize", resizeCanvas);
-      resizeCanvas();
-
-      function drawChart() {
-        const width = canvas.width;
-        const height = canvas.height;
-        const dpr = window.devicePixelRatio || 1;
-
-        // Xóa toàn bộ canvas cũ
-        ctx.clearRect(0, 0, width, height);
-
-        // TÍNH TOÁN KHUNG NHÌN THỜI GIAN: ĐÓNG BĂNG CHO ĐẾN KHI NHẤN "START"
-        let now;
-        if (lastDataGenTime === null) {
-          // Nếu chưa bao giờ bấm Start, cố định cửa sổ hiển thị 10 giây ban đầu
-          now = 10000;
-        } else {
-          const baseTime = isRunning ? performance.now() : lastDataGenTime;
-          now = baseTime + viewOffsetMs;
+          this._bindEvents();
+          this._resize();
+          window.addEventListener("resize", () => this._resize());
         }
 
-        const minTime = now - viewDurationMs;
-        const maxTime = now;
-
-        const activeWidth = width - (chartMarginLeft + chartMarginRight) * dpr;
-        const activeHeight = height - (chartMarginTop + chartMarginBottom) * dpr;
-
-        // Hàm chuyển đổi thời gian sang tọa độ X trên Canvas (khớp theo lề an toàn)
-        function getX(timestamp) {
-          return chartMarginLeft * dpr + ((timestamp - minTime) / viewDurationMs) * activeWidth;
+        _resize() {
+          const rect = this.canvas.getBoundingClientRect();
+          const dpr = window.devicePixelRatio || 1;
+          this.canvas.width = rect.width * dpr;
+          this.canvas.height = rect.height * dpr;
         }
 
-        // Hàm chuyển đổi giá trị thật (0 - 1000) sang tọa độ Y trên Canvas (khớp theo lề an toàn)
-        function getY(val) {
-          return height - chartMarginBottom * dpr - (val / 1000) * activeHeight;
+        // --- Thời gian thực ---
+        _getRealTime(perfTime) {
+          return new Date(this.bootTime + perfTime);
         }
 
-        // --- VẼ LƯỚI TỌA ĐỘ VÀ NHÃN CHỈ SỐ Y (ADC: 0 - 1000) ---
-        ctx.lineWidth = 1 * dpr;
-
-        for (let rawVal = 0; rawVal <= 1000; rawVal += 200) {
-          const yPos = getY(rawVal);
-
-          // Vẽ nét lưới đứt mờ ngang
-          ctx.strokeStyle = "rgba(30, 41, 59, 0.5)";
-          ctx.beginPath();
-          ctx.moveTo(chartMarginLeft * dpr, yPos);
-          ctx.lineTo(width - chartMarginRight * dpr, yPos);
-          ctx.stroke();
-
-          // Vẽ chữ số chỉ mục ở bên trái trục tung, căn lề phải để thẳng cột
-          ctx.fillStyle = "rgba(148, 163, 184, 0.9)";
-          ctx.font = `${10 * dpr}px Inter`;
-          ctx.textAlign = "right";
-          ctx.textBaseline = "middle";
-          // Đẩy nhãn lùi ra xa trục tung khoảng 10px
-          ctx.fillText(`${rawVal}`, (chartMarginLeft - 10) * dpr, yPos);
+        _formatRealTime(date) {
+          return [date.getHours(), date.getMinutes(), date.getSeconds()]
+            .map((v) => String(v).padStart(2, "0"))
+            .join(":");
         }
 
-        // --- VẼ LƯỚI TRỢT THỜI GIAN THỰC CHUẨN XÁC MỖI 1 GIÂY (Không bị nhấp nháy chữ) ---
-        ctx.textAlign = "center";
-        ctx.textBaseline = "top";
+        _formatRealTimeWithMs(date) {
+          return this._formatRealTime(date) + "." + String(date.getMilliseconds()).padStart(3, "0");
+        }
 
-        // Chuyển đổi cửa sổ hiển thị (minTime, maxTime) sang Epoch Milliseconds thực tế
-        const minRealTimeMs = bootTime + minTime;
-        const maxRealTimeMs = bootTime + maxTime;
+        // --- Vẽ toàn bộ chart ---
+        draw() {
+          const { canvas, ctx, simulation } = this;
+          const { ML, MR, MT, MB } = this;
+          const width = canvas.width;
+          const height = canvas.height;
+          const dpr = window.devicePixelRatio || 1;
 
-        // Tìm mốc giây nguyên chẵn đầu tiên lớn hơn minRealTimeMs
-        const firstWholeSecMs = Math.ceil(minRealTimeMs / 1000) * 1000;
+          ctx.clearRect(0, 0, width, height);
 
-        // Chạy vòng lặp để vẽ vạch lưới dọc và nhãn thời gian thực chuẩn mỗi 1 giây
-        for (let tMs = firstWholeSecMs; tMs <= maxRealTimeMs; tMs += 1000) {
-          // Ánh xạ mốc thời gian thực này ngược lại mốc performance.now() để lấy tọa độ X chính xác
-          const perfTime = tMs - bootTime;
-          const xPos = getX(perfTime);
-
-          // Chỉ tiến hành vẽ nếu tọa độ X nằm gọn bên trong vùng đồ thị quy định
-          if (xPos >= chartMarginLeft * dpr && xPos <= width - chartMarginRight * dpr) {
-            // Vẽ lưới dọc mờ nhạt
-            ctx.strokeStyle = "rgba(30, 41, 59, 0.4)";
-            ctx.beginPath();
-            ctx.moveTo(xPos, chartMarginTop * dpr);
-            ctx.lineTo(xPos, height - chartMarginBottom * dpr);
-            ctx.stroke();
-
-            // Lấy nhãn định dạng HH:MM:SS chuẩn xác và hoàn toàn không bị thay đổi chữ liên tục
-            const realDate = new Date(tMs);
-            const formattedTime = formatRealTime(realDate);
-
-            ctx.fillStyle = "rgba(148, 163, 184, 0.8)";
-            ctx.font = `${9 * dpr}px Inter`;
-            // Hiển thị nhãn thời gian thực dưới chân trục hoành
-            ctx.fillText(formattedTime, xPos, height - (chartMarginBottom - 8) * dpr);
+          // Khung nhìn thời gian
+          let now;
+          if (simulation.lastDataGenTime === null) {
+            now = 10000;
+          } else {
+            // Khi chart bị pause: dùng frozenAtTime (snapshot cố định), không theo lastDataGenTime
+            const base =
+              simulation.isRunning && !simulation.isChartPaused
+                ? performance.now()
+                : this.frozenAtTime !== null
+                  ? this.frozenAtTime
+                  : simulation.lastDataGenTime;
+            now = base + this.viewOffsetMs;
           }
-        }
+          const minTime = now - simulation.viewDurationMs;
+          const maxTime = now;
 
-        // --- VẼ ĐƯỜNG BIÊN HẠN CHẾ (TRỤC TUNG & TRỤC HOÀNH CHÍNH) ---
-        ctx.strokeStyle = "rgba(51, 65, 85, 0.8)"; // Slate-600
-        ctx.lineWidth = 1.5 * dpr;
+          const activeWidth = width - (ML + MR) * dpr;
+          const activeHeight = height - (MT + MB) * dpr;
 
-        // Vẽ trục Y
-        ctx.beginPath();
-        ctx.moveTo(chartMarginLeft * dpr, chartMarginTop * dpr);
-        ctx.lineTo(chartMarginLeft * dpr, height - chartMarginBottom * dpr);
-        ctx.stroke();
+          const getX = (ts) => ML * dpr + ((ts - minTime) / simulation.viewDurationMs) * activeWidth;
+          const getY = (val) => height - MB * dpr - (val / 1000) * activeHeight;
 
-        // Vẽ trục X
-        ctx.beginPath();
-        ctx.moveTo(chartMarginLeft * dpr, height - chartMarginBottom * dpr);
-        ctx.lineTo(width - chartMarginRight * dpr, height - chartMarginBottom * dpr);
-        ctx.stroke();
-
-        // --- SỬ DỤNG CLIPPING ĐỂ CHỐNG LỖI TRÀN TÍN HIỆU SÓNG QUA TRỤC Y ---
-        ctx.save(); // Lưu trạng thái canvas trước khi clip
-
-        ctx.beginPath();
-        // Khởi tạo vùng vẽ hình chữ nhật an toàn (chỉ cho phép vẽ bên trong vùng giới hạn lưới)
-        ctx.rect(chartMarginLeft * dpr, chartMarginTop * dpr, activeWidth, activeHeight);
-        ctx.clip(); // Kích hoạt vùng chắn tín hiệu tràn
-
-        // Tiến hành vẽ sóng PPG bên trong vùng an toàn đã được giới hạn
-        // Lọc ra dữ liệu thuộc khung nhìn 10 giây hiện thời
-        const visiblePoints = dataPoints.filter((p) => p.timestamp >= minTime && p.timestamp <= maxTime);
-
-        if (visiblePoints.length > 1) {
-          // Tạo một đường dẫn khép kín để đổ gradient nền rực rỡ dưới đáy sóng
-          ctx.beginPath();
-          ctx.moveTo(getX(visiblePoints[0].timestamp), getY(0));
-
-          for (let i = 0; i < visiblePoints.length; i++) {
-            ctx.lineTo(getX(visiblePoints[i].timestamp), getY(visiblePoints[i].value));
-          }
-
-          ctx.lineTo(getX(visiblePoints[visiblePoints.length - 1].timestamp), getY(0));
-          ctx.closePath();
-
-          // Khởi tạo Gradient đổ bóng mượt dưới sóng
-          const fillGrad = ctx.createLinearGradient(0, getY(1000), 0, getY(0));
-          fillGrad.addColorStop(0, "rgba(16, 185, 129, 0.22)"); // Màu ngọc lục bảo mờ đỉnh sóng
-          fillGrad.addColorStop(1, "rgba(16, 185, 129, 0.0)");
-          ctx.fillStyle = fillGrad;
-          ctx.fill();
-
-          // Vẽ đường sóng biên chính sắc nét
-          ctx.beginPath();
-          ctx.moveTo(getX(visiblePoints[0].timestamp), getY(visiblePoints[0].value));
-
-          for (let i = 1; i < visiblePoints.length; i++) {
-            ctx.lineTo(getX(visiblePoints[i].timestamp), getY(visiblePoints[i].value));
-          }
-
-          ctx.strokeStyle = "#10b981"; // Màu xanh ngọc lục bảo
-          ctx.lineWidth = 2.5 * dpr;
-          ctx.lineCap = "round";
-          ctx.lineJoin = "round";
-
-          // Hiệu ứng phát sáng nhẹ
-          ctx.shadowColor = "rgba(16, 185, 129, 0.4)";
-          ctx.shadowBlur = 6 * dpr;
-          ctx.stroke();
-          ctx.shadowBlur = 0; // Tắt đổ bóng sau khi hoàn thành
-        } else {
-          // Đường nằm ngang mặc định khi trống
-          ctx.beginPath();
-          ctx.moveTo(chartMarginLeft * dpr, getY(500));
-          ctx.lineTo(width - chartMarginRight * dpr, getY(500));
-          ctx.strokeStyle = "rgba(16, 185, 129, 0.15)";
+          // --- Lưới Y (ADC 0-1000) ---
           ctx.lineWidth = 1 * dpr;
+          for (let rawVal = 0; rawVal <= 1000; rawVal += 200) {
+            const yPos = getY(rawVal);
+            ctx.strokeStyle = "rgba(30,41,59,0.5)";
+            ctx.beginPath();
+            ctx.moveTo(ML * dpr, yPos);
+            ctx.lineTo(width - MR * dpr, yPos);
+            ctx.stroke();
+            ctx.fillStyle = "rgba(148,163,184,0.9)";
+            ctx.font = `${10 * dpr}px Inter`;
+            ctx.textAlign = "right";
+            ctx.textBaseline = "middle";
+            ctx.fillText(`${rawVal}`, (ML - 10) * dpr, yPos);
+          }
+
+          // --- Lưới X (thời gian thực HH:MM:SS) ---
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          const minRealMs = this.bootTime + minTime;
+          const maxRealMs = this.bootTime + maxTime;
+          const firstWholeSec = Math.ceil(minRealMs / 1000) * 1000;
+          for (let tMs = firstWholeSec; tMs <= maxRealMs; tMs += 1000) {
+            const perfTime = tMs - this.bootTime;
+            const xPos = getX(perfTime);
+            if (xPos >= ML * dpr && xPos <= width - MR * dpr) {
+              ctx.strokeStyle = "rgba(30,41,59,0.4)";
+              ctx.beginPath();
+              ctx.moveTo(xPos, MT * dpr);
+              ctx.lineTo(xPos, height - MB * dpr);
+              ctx.stroke();
+              ctx.fillStyle = "rgba(148,163,184,0.8)";
+              ctx.font = `${9 * dpr}px Inter`;
+              ctx.fillText(this._formatRealTime(new Date(tMs)), xPos, height - (MB - 8) * dpr);
+            }
+          }
+
+          // --- Trục X và Y ---
+          ctx.strokeStyle = "rgba(51,65,85,0.8)";
+          ctx.lineWidth = 1.5 * dpr;
+          ctx.beginPath();
+          ctx.moveTo(ML * dpr, MT * dpr);
+          ctx.lineTo(ML * dpr, height - MB * dpr);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(ML * dpr, height - MB * dpr);
+          ctx.lineTo(width - MR * dpr, height - MB * dpr);
           ctx.stroke();
 
-          ctx.fillStyle = "rgba(148, 163, 184, 0.4)";
-          ctx.font = `${12 * dpr}px Inter`;
-          ctx.textAlign = "center";
-          ctx.fillText(
-            "Nhấn 'Start' để khởi động cảm biến & Vẽ đồ thị",
-            (chartMarginLeft * dpr + width) / 2,
-            height / 2,
-          );
-        }
+          // --- Clip vùng vẽ sóng ---
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(ML * dpr, MT * dpr, activeWidth, activeHeight);
+          ctx.clip();
 
-        ctx.restore(); // Khôi phục lại trạng thái canvas nguyên bản (thoát khỏi chế độ clip)
+          const visiblePoints = simulation.dataPoints.filter((p) => p.timestamp >= minTime && p.timestamp <= maxTime);
 
-        // --- VẼ HOVER TOOLTIP & ĐƯỜNG GIÓNG INTERACTIVE (ĐÃ SỬA ĐỊNH DẠNG TIME HH:MM:SS.mmm) ---
-        if (hoverPoint && mouseX !== null) {
-          const hx = getX(hoverPoint.timestamp);
-          const hy = getY(hoverPoint.value);
-
-          // Chỉ hiển thị tương tác nếu điểm hover nằm trong khung lưới an toàn
-          if (hx >= chartMarginLeft * dpr && hx <= width - chartMarginRight * dpr) {
-            // 1. Đường dóng dọc mảnh
-            ctx.strokeStyle = "rgba(99, 102, 241, 0.4)"; // Indigo mờ
-            ctx.lineWidth = 1 * dpr;
-            ctx.setLineDash([4 * dpr, 4 * dpr]); // Nét đứt
+          if (visiblePoints.length > 1) {
+            // Fill gradient dưới sóng
             ctx.beginPath();
-            ctx.moveTo(hx, chartMarginTop * dpr);
-            ctx.lineTo(hx, height - chartMarginBottom * dpr);
-            ctx.stroke();
-            ctx.setLineDash([]); // Trở lại nét liền
-
-            // 2. Điểm nhấn trên đường sóng
-            ctx.beginPath();
-            ctx.arc(hx, hy, 6 * dpr, 0, Math.PI * 2);
-            ctx.fillStyle = "#6366f1"; // Nút chấm Indigo
-            ctx.strokeStyle = "#ffffff";
-            ctx.lineWidth = 1.5 * dpr;
-            ctx.shadowColor = "rgba(99, 102, 241, 0.6)";
-            ctx.shadowBlur = 6 * dpr;
+            ctx.moveTo(getX(visiblePoints[0].timestamp), getY(0));
+            for (const p of visiblePoints) ctx.lineTo(getX(p.timestamp), getY(p.value));
+            ctx.lineTo(getX(visiblePoints[visiblePoints.length - 1].timestamp), getY(0));
+            ctx.closePath();
+            const fillGrad = ctx.createLinearGradient(0, getY(1000), 0, getY(0));
+            fillGrad.addColorStop(0, "rgba(16,185,129,0.22)");
+            fillGrad.addColorStop(1, "rgba(16,185,129,0.0)");
+            ctx.fillStyle = fillGrad;
             ctx.fill();
+
+            // Đường sóng chính
+            ctx.beginPath();
+            ctx.moveTo(getX(visiblePoints[0].timestamp), getY(visiblePoints[0].value));
+            for (let i = 1; i < visiblePoints.length; i++) {
+              ctx.lineTo(getX(visiblePoints[i].timestamp), getY(visiblePoints[i].value));
+            }
+            ctx.strokeStyle = "#10b981";
+            ctx.lineWidth = 2.5 * dpr;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            ctx.shadowColor = "rgba(16,185,129,0.4)";
+            ctx.shadowBlur = 6 * dpr;
             ctx.stroke();
             ctx.shadowBlur = 0;
-
-            // 3. Hộp thoại thông tin (Tooltip Box) nằm thông minh tránh khuất cạnh
-            const tooltipWidth = 150 * dpr;
-            const tooltipHeight = 55 * dpr;
-
-            let tooltipX = hx + 15 * dpr;
-            let tooltipY = hy - tooltipHeight / 2;
-
-            // Chống Tooltip tràn sang lề phải
-            if (tooltipX + tooltipWidth > width - chartMarginRight * dpr) {
-              tooltipX = hx - tooltipWidth - 15 * dpr;
-            }
-            // Chống Tooltip tràn lên lề trên hoặc lề dưới
-            if (tooltipY < chartMarginTop * dpr) {
-              tooltipY = chartMarginTop * dpr;
-            } else if (tooltipY + tooltipHeight > height - chartMarginBottom * dpr) {
-              tooltipY = height - chartMarginBottom * dpr - tooltipHeight;
-            }
-
-            // Vẽ hộp nền mờ bán trong suốt
-            ctx.fillStyle = "rgba(15, 23, 42, 0.95)"; // Slate-900 siêu tối
-            ctx.strokeStyle = "rgba(99, 102, 241, 0.6)"; // Khung viền Indigo sáng
-            ctx.lineWidth = 1 * dpr;
+          } else {
+            // Trạng thái rỗng
             ctx.beginPath();
-            ctx.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 6 * dpr);
-            ctx.fill();
+            ctx.moveTo(ML * dpr, getY(500));
+            ctx.lineTo(width - MR * dpr, getY(500));
+            ctx.strokeStyle = "rgba(16,185,129,0.15)";
+            ctx.lineWidth = 1 * dpr;
             ctx.stroke();
-
-            // Ghi dữ liệu text lên Tooltip (Hiển thị giá trị thật và HH:MM:SS.mmm)
-            ctx.textAlign = "left";
-            ctx.textBaseline = "top";
-
-            // Biên độ PPG giá trị thật
-            ctx.fillStyle = "#ffffff";
-            ctx.font = `bold ${10 * dpr}px Inter`;
-            ctx.fillText(`PPG: ${hoverPoint.value.toFixed(1)}`, tooltipX + 10 * dpr, tooltipY + 10 * dpr);
-
-            // Mốc thời gian thực tế với đầy đủ 3 chữ số mili-giây
-            const pointRealDate = getRealTime(hoverPoint.timestamp);
-            ctx.fillStyle = "rgba(148, 163, 184, 0.9)";
-            ctx.font = `${9 * dpr}px Inter`;
-            ctx.fillText(`Time: ${formatRealTimeWithMs(pointRealDate)}`, tooltipX + 10 * dpr, tooltipY + 28 * dpr);
+            ctx.fillStyle = "rgba(148,163,184,0.4)";
+            ctx.font = `${12 * dpr}px Inter`;
+            ctx.textAlign = "center";
+            ctx.fillText("Nhấn 'Start' để khởi động cảm biến & Vẽ đồ thị", (ML * dpr + width) / 2, height / 2);
           }
-        }
-      }
 
-      // 5. VÒNG LẶP CHẠY THỜI GIAN THỰC (GAME/ANIMATION LOOP)
-      function animationStep() {
-        // Tạo mẫu giả lập và nạp vào hàng đợi (pushSimulatedData chỉ sinh mảng khi isRunning = true)
-        pushSimulatedData();
-        // Vẽ lại toàn bộ màn hình đồ họa
-        drawChart();
-        // Tiếp tục đệ quy khung hình kế tiếp
-        requestAnimationFrame(animationStep);
-      }
+          ctx.restore();
 
-      // Khởi động vòng lặp render
-      requestAnimationFrame(animationStep);
+          // --- Hover Tooltip ---
+          if (this.hoverPoint && this.mouseX !== null) {
+            const hx = getX(this.hoverPoint.timestamp);
+            const hy = getY(this.hoverPoint.value);
+            if (hx >= ML * dpr && hx <= width - MR * dpr) {
+              // Đường dóng dọc
+              ctx.strokeStyle = "rgba(99,102,241,0.4)";
+              ctx.lineWidth = 1 * dpr;
+              ctx.setLineDash([4 * dpr, 4 * dpr]);
+              ctx.beginPath();
+              ctx.moveTo(hx, MT * dpr);
+              ctx.lineTo(hx, height - MB * dpr);
+              ctx.stroke();
+              ctx.setLineDash([]);
 
-      // 6. XỬ LÝ SỰ KIỆN TƯƠNG TÁC CHUỘT: HOVER & PANNING (DRAG & ZOOM)
+              // Chấm điểm
+              ctx.beginPath();
+              ctx.arc(hx, hy, 6 * dpr, 0, Math.PI * 2);
+              ctx.fillStyle = "#6366f1";
+              ctx.strokeStyle = "#ffffff";
+              ctx.lineWidth = 1.5 * dpr;
+              ctx.shadowColor = "rgba(99,102,241,0.6)";
+              ctx.shadowBlur = 6 * dpr;
+              ctx.fill();
+              ctx.stroke();
+              ctx.shadowBlur = 0;
 
-      // Nhận diện mốc điểm vẽ gần nhất với vị trí con trỏ chuột
-      function updateHoverPoint(clientX, clientY) {
-        const rect = canvas.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
+              // Tooltip box
+              const tw = 150 * dpr,
+                th = 55 * dpr;
+              let tx = hx + 15 * dpr,
+                ty = hy - th / 2;
+              if (tx + tw > width - MR * dpr) tx = hx - tw - 15 * dpr;
+              if (ty < MT * dpr) ty = MT * dpr;
+              else if (ty + th > height - MB * dpr) ty = height - MB * dpr - th;
 
-        // Đưa tọa độ chuột về đúng hệ dpr tương ứng của canvas
-        mouseX = (clientX - rect.left) * dpr;
-        mouseY = (clientY - rect.top) * dpr;
+              ctx.fillStyle = "rgba(15,23,42,0.95)";
+              ctx.strokeStyle = "rgba(99,102,241,0.6)";
+              ctx.lineWidth = 1 * dpr;
+              ctx.beginPath();
+              ctx.roundRect(tx, ty, tw, th, 6 * dpr);
+              ctx.fill();
+              ctx.stroke();
 
-        // Đóng băng hover thời gian nếu đồ thị chưa từng bắt đầu
-        const baseTime = isRunning ? performance.now() : lastDataGenTime || 10000;
-        const now = baseTime + viewOffsetMs;
-        const minTime = now - viewDurationMs;
-        const maxTime = now;
+              ctx.textAlign = "left";
+              ctx.textBaseline = "top";
+              ctx.fillStyle = "#ffffff";
+              ctx.font = `bold ${10 * dpr}px Inter`;
+              ctx.fillText(`PPG: ${this.hoverPoint.value.toFixed(1)}`, tx + 10 * dpr, ty + 10 * dpr);
 
-        const activeWidth = canvas.width - (chartMarginLeft + chartMarginRight) * dpr;
-
-        function getX(timestamp) {
-          return chartMarginLeft * dpr + ((timestamp - minTime) / viewDurationMs) * activeWidth;
-        }
-
-        // Chỉ tìm kiếm điểm gióng khi con trỏ chuột nằm trong lòng khung đồ thị
-        if (mouseX >= chartMarginLeft * dpr && mouseX <= canvas.width - chartMarginRight * dpr) {
-          let minDistance = Infinity;
-          let closest = null;
-          const visiblePoints = dataPoints.filter((p) => p.timestamp >= minTime && p.timestamp <= maxTime);
-
-          // Ngưỡng khoảng cách tối đa theo trục X để bắt dính điểm (30 pixels)
-          const distThreshold = 30 * dpr;
-
-          for (let p of visiblePoints) {
-            const px = getX(p.timestamp);
-            const dist = Math.abs(px - mouseX);
-            if (dist < distThreshold && dist < minDistance) {
-              minDistance = dist;
-              closest = p;
+              const pointDate = this._getRealTime(this.hoverPoint.timestamp);
+              ctx.fillStyle = "rgba(148,163,184,0.9)";
+              ctx.font = `${9 * dpr}px Inter`;
+              ctx.fillText(`Time: ${this._formatRealTimeWithMs(pointDate)}`, tx + 10 * dpr, ty + 28 * dpr);
             }
           }
-          hoverPoint = closest;
-        } else {
-          hoverPoint = null;
+        }
+
+        // --- Hover ---
+        _updateHoverPoint(clientX, clientY) {
+          const rect = this.canvas.getBoundingClientRect();
+          const dpr = window.devicePixelRatio || 1;
+          this.mouseX = (clientX - rect.left) * dpr;
+          this.mouseY = (clientY - rect.top) * dpr;
+
+          const { simulation } = this;
+          const base =
+            simulation.isRunning && !simulation.isChartPaused
+              ? performance.now()
+              : this.frozenAtTime !== null
+                ? this.frozenAtTime
+                : simulation.lastDataGenTime || 10000;
+          const now = base + this.viewOffsetMs;
+          const minTime = now - simulation.viewDurationMs;
+          const maxTime = now;
+          const activeWidth = this.canvas.width - (this.ML + this.MR) * dpr;
+          const getX = (ts) => this.ML * dpr + ((ts - minTime) / simulation.viewDurationMs) * activeWidth;
+
+          if (this.mouseX >= this.ML * dpr && this.mouseX <= this.canvas.width - this.MR * dpr) {
+            const visiblePoints = simulation.dataPoints.filter((p) => p.timestamp >= minTime && p.timestamp <= maxTime);
+            const distThreshold = 30 * dpr;
+            let minDist = Infinity,
+              closest = null;
+            for (const p of visiblePoints) {
+              const dist = Math.abs(getX(p.timestamp) - this.mouseX);
+              if (dist < distThreshold && dist < minDist) {
+                minDist = dist;
+                closest = p;
+              }
+            }
+            this.hoverPoint = closest;
+          } else {
+            this.hoverPoint = null;
+          }
+        }
+
+        // --- Mouse / Touch events ---
+        _bindEvents() {
+          const { canvas, simulation } = this;
+
+          canvas.addEventListener("mousemove", (e) => {
+            if (this.isPanning) {
+              const dpr = window.devicePixelRatio || 1;
+              const activeWidth = canvas.width / dpr - this.ML - this.MR;
+              const msPerPixel = simulation.viewDurationMs / activeWidth;
+              this.viewOffsetMs = this.originalViewOffsetMs - (e.clientX - this.startPanX) * msPerPixel;
+              if (this.viewOffsetMs > 0) this.viewOffsetMs = 0;
+
+              // Giới hạn tua lùi
+              const oldest = simulation.firstTimestamp || simulation.lastDataGenTime || performance.now();
+              const baseTime = simulation.isRunning
+                ? performance.now()
+                : simulation.lastDataGenTime || performance.now();
+              const maxHistOffset = baseTime - oldest - simulation.viewDurationMs;
+              if (this.viewOffsetMs < -maxHistOffset) this.viewOffsetMs = -maxHistOffset;
+
+              this.hoverPoint = null;
+            } else {
+              this._updateHoverPoint(e.clientX, e.clientY);
+            }
+          });
+
+          canvas.addEventListener("mousedown", (e) => {
+            if (simulation.lastDataGenTime === null) return;
+            const rect = canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            const clickX = (e.clientX - rect.left) * dpr;
+            if (clickX >= this.ML * dpr) {
+              this.isPanning = true;
+              this.startPanX = e.clientX;
+              this.originalViewOffsetMs = this.viewOffsetMs;
+              // Chỉ trigger callback khi đang chạy live (không phải đã pause/stop)
+              if (simulation.isRunning && !simulation.isChartPaused && this.onPanStartWhileRunning) {
+                this.onPanStartWhileRunning();
+              }
+            }
+          });
+
+          window.addEventListener("mouseup", () => {
+            this.isPanning = false;
+          });
+
+          canvas.addEventListener("mouseleave", () => {
+            this.hoverPoint = null;
+            this.mouseX = null;
+            this.mouseY = null;
+          });
+        }
+
+        resetView() {
+          this.viewOffsetMs = 0;
+        }
+
+        freezeAt(perfTime) {
+          this.frozenAtTime = perfTime;
+          this.viewOffsetMs = 0;
+        }
+
+        unfreeze() {
+          this.frozenAtTime = null;
+          this.viewOffsetMs = 0; // nhảy về hiện tại
         }
       }
 
-      // Mouse Move Listener
-      canvas.addEventListener("mousemove", (e) => {
-        if (isPanning) {
-          // XỬ LÝ KÉO DI CHUYỂN BẢN ĐỒ (PANNING)
-          const deltaX = e.clientX - startPanX;
-          const dpr = window.devicePixelRatio || 1;
-          const activeWidth = canvas.width / dpr - chartMarginLeft - chartMarginRight;
+      // ============================================================
+      // SaveFileManager – quản lý ghi file từ dữ liệu simulation
+      // ============================================================
+      class SaveFileManager {
+        constructor() {
+          this.fileHandle = null;
+          this.fileWritableStream = null;
+          this.isDirectStreaming = false;
+          this.firstTimestamp = null;
 
-          // Đổi 1 pixel dịch chuyển chuột tương ứng với bao nhiêu mili-giây trên biểu đồ 10s
-          const msPerPixel = viewDurationMs / activeWidth;
+          // Fallback TypedArray buffer
+          this.recordedCapacity = 60000;
+          this.recordedValues = new Float32Array(this.recordedCapacity);
+          this.recordedTimestamps = new Float64Array(this.recordedCapacity);
+          this.recordedCount = 0;
 
-          // Kéo sang phải (deltaX > 0) -> Lùi về quá khứ (offset tăng theo chiều âm)
-          // Kéo sang trái (deltaX < 0) -> Tiến tới tương lai (offset tiệm cận mốc 0)
-          viewOffsetMs = originalViewOffsetMs - deltaX * msPerPixel;
-
-          // KHÔNG cho phép xem tương lai (offset tối đa bằng 0)
-          if (viewOffsetMs > 0) viewOffsetMs = 0;
-
-          // Giới hạn tua lùi tối đa không vượt quá mốc điểm đầu tiên được ghi nhận
-          const oldestTime =
-            recordedCount > 0
-              ? isDirectStreaming
-                ? firstTimestamp
-                : recordedTimestamps[0]
-              : lastDataGenTime || performance.now();
-          const baseTime = isRunning ? performance.now() : lastDataGenTime || performance.now();
-          const maxHistoryOffset = baseTime - oldestTime - viewDurationMs;
-
-          if (viewOffsetMs < -maxHistoryOffset) {
-            viewOffsetMs = -maxHistoryOffset;
-          }
-
-          hoverPoint = null; // Tắt tooltip khi đang drag xem lịch sử
-        } else {
-          // Xử lý đọc điểm tọa độ rê chuột bình thường
-          updateHoverPoint(e.clientX, e.clientY);
+          // Callback ra ngoài
+          this.onCountUpdated = null; // (count: number) => void
         }
-      });
 
-      // Mouse Down (Bắt đầu click kéo thả)
-      canvas.addEventListener("mousedown", (e) => {
-        // Chống drag kéo bản đồ khi đồ thị chưa từng chạy
-        if (lastDataGenTime === null) return;
+        get count() {
+          return this.recordedCount;
+        }
 
-        const rect = canvas.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
-        const clickX = (e.clientX - rect.left) * dpr;
-
-        // Chỉ cho phép drag khi kích hoạt từ vùng trong biểu đồ (bên phải trục tung)
-        if (clickX >= chartMarginLeft * dpr) {
-          isPanning = true;
-          startPanX = e.clientX;
-          originalViewOffsetMs = viewOffsetMs;
-
-          // Nếu đang hoạt động trực tiếp, tự động chuyển sang trạng thái dừng hình tạm thời để rà soát
-          if (isRunning) {
-            isRunning = false;
-            overlayPause.classList.remove("opacity-0", "pointer-events-none");
-            pauseBadgeText.innerText = "LỊCH SỬ (HISTORICAL VIEW)";
-
-            // Làm sáng lại bộ nút điều khiển để người dùng nhấn Start để tiếp tục
-            btnStart.classList.remove("opacity-50", "pointer-events-none");
-            btnStop.classList.add("opacity-50", "pointer-events-none");
-
-            // Mở lại khóa tùy chọn ghi file khi dừng hẳn
-            allowRecordToggle.disabled = false;
-
-            showNotification("Đang mở chế độ xem lại lịch sử. Kéo chuột để dịch chuyển biểu đồ!", "warning");
+        async openFileForWriting() {
+          if (!("showSaveFilePicker" in window)) return false;
+          try {
+            const ts = new Date().toISOString().replace(/T/, "_").slice(0, 19).replace(/:/g, "-");
+            this.fileHandle = await window.showSaveFilePicker({
+              suggestedName: `ppg_recording_${ts}.txt`,
+              types: [{ description: "Tệp Văn Bản (.txt)", accept: { "text/plain": [".txt"] } }],
+            });
+            this.fileWritableStream = await this.fileHandle.createWritable();
+            await this.fileWritableStream.write("=== DỮ LIỆU ĐO PPG CHUẨN CAO TRỰC TIẾP (500Hz) ===\n");
+            await this.fileWritableStream.write(`Thời gian ghi nhận: ${new Date().toLocaleString("vi-VN")}\n`);
+            await this.fileWritableStream.write("Chế độ lưu trữ: File System Access API (Stream to Disk)\n");
+            await this.fileWritableStream.write("----------------------------------------\n");
+            await this.fileWritableStream.write("Thời gian (s), Giá trị PPG (ADC)\n");
+            this.isDirectStreaming = true;
+            return true;
+          } catch (err) {
+            if (err.name === "AbortError") throw err; // propagate abort
+            console.error("Lỗi khởi tạo lưu trữ:", err);
+            this.isDirectStreaming = false;
+            return false;
           }
         }
-      });
 
-      // Mouse Up / Leave (Kết thúc click kéo)
-      window.addEventListener("mouseup", () => {
-        isPanning = false;
-      });
+        // Nhận batch samples mới từ simulation
+        writeSamples(samples, firstTimestamp) {
+          if (this.firstTimestamp === null) this.firstTimestamp = firstTimestamp;
+          const startT = this.firstTimestamp;
 
-      canvas.addEventListener("mouseleave", () => {
-        hoverPoint = null;
-        mouseX = null;
-        mouseY = null;
-      });
-
-      // 7. XỬ LÝ SỰ KIỆN CÁC NÚT ĐIỀU KHIỂN ĐỒ THỊ
-      // Nút Bắt đầu (START)
-      btnStart.addEventListener("click", async () => {
-        if (isRunning) return;
-
-        // Khi bấm Start trực tiếp, tự động reset mốc thời gian xem history về hiện tại
-        viewOffsetMs = 0;
-
-        // Vô hiệu hóa tùy chọn Ghi file khi đang chạy để đảm bảo tính an toàn dữ liệu
-        allowRecordToggle.disabled = true;
-
-        const allowRecord = allowRecordToggle.checked;
-        isDirectStreaming = false;
-        fileWritableStream = null;
-        fileHandle = null;
-
-        if (allowRecord) {
-          // CHỈ KÍCH HOẠT ĐĂNG KÝ FILE NẾU ĐƯỢC CHO PHÉP (ALLOW RECORD = ON)
-          const isSupported = "showSaveFilePicker" in window;
-          if (isSupported) {
-            try {
-              const options = {
-                suggestedName: `ppg_recording_${new Date().toISOString().replace(/T/, "_").slice(0, 19).replace(/:/g, "-")}.txt`,
-                types: [
-                  {
-                    description: "Tệp Văn Bản (.txt)",
-                    accept: { "text/plain": [".txt"] },
-                  },
-                ],
-              };
-
-              fileHandle = await window.showSaveFilePicker(options);
-              fileWritableStream = await fileHandle.createWritable();
-
-              // Ghi Header tệp tin ban đầu
-              await fileWritableStream.write("=== DỮ LIỆU ĐO PPG CHUẨN CAO TRỰC TIẾP (500Hz) ===\n");
-              await fileWritableStream.write(`Thời gian ghi nhận: ${new Date().toLocaleString("vi-VN")}\n`);
-              await fileWritableStream.write("Chế độ lưu trữ: File System Access API (Stream to Disk)\n");
-              await fileWritableStream.write("----------------------------------------\n");
-              await fileWritableStream.write("Thời gian (s), Giá trị PPG (ADC)\n");
-
-              isDirectStreaming = true;
-              storageModeText.innerText = "Ghi file: Trực tiếp vào đĩa cứng (Stream)";
-              storageModeText.classList.replace("text-indigo-400", "text-emerald-400");
-              storageModeText.classList.remove("text-slate-500");
-              showNotification("Đã thiết lập file lưu trữ! Bắt đầu ghi trực tiếp vào ổ cứng...", "success");
-            } catch (err) {
-              if (err.name === "AbortError") {
-                showNotification("Bạn đã hủy chọn file ghi. Thiết bị đo chưa khởi động.", "warning");
-                playSound(250, 0.1, "sawtooth");
-                allowRecordToggle.disabled = false; // Trả tự do cho công tắc
-                return;
-              }
-              console.error("Lỗi khởi tạo lưu trữ trực tiếp: ", err);
-              showNotification("Lỗi kết nối đĩa. Chuyển sang lưu trữ đệm (TypedArray).", "warning");
+          if (this.isDirectStreaming && this.fileWritableStream) {
+            let chunk = "";
+            for (const { value, timestamp } of samples) {
+              chunk += `${((timestamp - startT) / 1000).toFixed(3)}, ${value.toFixed(2)}\n`;
+              this.recordedCount++;
+            }
+            if (chunk) {
+              this.fileWritableStream.write(chunk).catch((err) => {
+                console.error("Ghi stream thất bại:", err);
+                this.isDirectStreaming = false;
+              });
             }
           } else {
-            storageModeText.innerText = "Ghi file: Sử dụng TypedArray dự phòng";
-            storageModeText.classList.replace("text-emerald-400", "text-indigo-400");
-            storageModeText.classList.remove("text-slate-500");
-            showNotification("Trình duyệt không hỗ trợ Direct Write. Chuyển sang lưu bộ đệm TypedArray.", "warning");
-          }
-
-          // Thiết lập lại mảng bộ nhớ TypedArray nếu không stream trực tiếp được
-          if (!isDirectStreaming) {
-            if (recordedCapacity > 60000) {
-              recordedCapacity = 60000;
-              recordedValues = new Float32Array(recordedCapacity);
-              recordedTimestamps = new Float64Array(recordedCapacity);
+            for (const { value, timestamp } of samples) {
+              if (this.recordedCount >= this.recordedCapacity) {
+                const newCap = this.recordedCapacity * 2;
+                const newVals = new Float32Array(newCap);
+                const newTs = new Float64Array(newCap);
+                newVals.set(this.recordedValues);
+                newTs.set(this.recordedTimestamps);
+                this.recordedValues = newVals;
+                this.recordedTimestamps = newTs;
+                this.recordedCapacity = newCap;
+              }
+              this.recordedValues[this.recordedCount] = value;
+              this.recordedTimestamps[this.recordedCount] = timestamp;
+              this.recordedCount++;
             }
           }
-        } else {
-          // ALLOW RECORD = OFF (CHỈ VẼ ĐỒ THỊ, KHÔNG LƯU DỮ LIỆU CHẬY HOÀN TOÀN NHẸ NHÀNG)
-          storageModeText.innerText = "Ghi file: Đã tắt (Chỉ hiển thị)";
-          storageModeText.classList.remove("text-emerald-400", "text-indigo-400");
-          storageModeText.classList.add("text-slate-500");
-          showNotification("Khởi chạy đồ thị thời gian thực (Chỉ vẽ, không lưu trữ).", "success");
+
+          if (this.onCountUpdated) this.onCountUpdated(this.recordedCount);
         }
 
-        // Đặt lại số lượng mẫu về 0 cho tệp ghi mới
-        recordedCount = 0;
-        dataPoints = []; // Làm sạch màn hình vẽ
-        firstTimestamp = null; // Reset mốc thời gian zero
-
-        isRunning = true;
-        lastDataGenTime = performance.now();
-        overlayPause.classList.add("opacity-0", "pointer-events-none");
-
-        // Làm sáng các nút
-        btnStart.classList.add("opacity-50", "pointer-events-none");
-        btnStop.classList.remove("opacity-50", "pointer-events-none");
-
-        // Âm báo bíp khởi động hệ thống
-        playSound(523.25, 0.1, "triangle"); // Đốt đô C5
-        setTimeout(() => playSound(659.25, 0.15, "triangle"), 80); // Nốt mi E5
-      });
-
-      // Nút Tạm dừng (STOP)
-      btnStop.addEventListener("click", async () => {
-        if (!isRunning) return;
-
-        // 1. NGAY LẬP TỨC ĐÓNG BĂNG HỆ THỐNG VÀ CẬP NHẬT UI ĐỒNG BỘ (Tránh hiện tượng lag/kẹt nút)
-        isRunning = false;
-        overlayPause.classList.remove("opacity-0", "pointer-events-none");
-        pauseBadgeText.innerText = "ĐÃ TẠM DỪNG (HOLD)";
-
-        btnStart.classList.remove("opacity-50", "pointer-events-none");
-        btnStop.classList.add("opacity-50", "pointer-events-none");
-
-        // Mở khóa cho phép người dùng thay đổi tùy chọn Allow Record khi đã dừng hoạt động
-        allowRecordToggle.disabled = false;
-
-        // Âm báo dừng lập tức
-        playSound(329.63, 0.2, "sawtooth"); // Nốt mi thấp E4
-
-        // 2. XỬ LÝ ĐÓNG STREAM AN TOÀN TRONG NỀN (BẤT ĐỒNG BỘ)
-        if (isDirectStreaming && fileWritableStream) {
-          const tempStream = fileWritableStream;
-          fileWritableStream = null; // Gỡ bỏ tham chiếu ngay lập tức
-
-          try {
-            await tempStream.close();
-            showNotification(`Đã kết thúc phiên ghi! Lưu thành công ${recordedCount} mẫu thẳng vào ổ cứng.`, "success");
-          } catch (err) {
-            console.error("Lỗi khi đóng stream:", err);
-            showNotification("Có lỗi xảy ra khi đóng và lưu file ghi đĩa.", "warning");
+        async closeStream() {
+          if (this.fileWritableStream) {
+            const tmp = this.fileWritableStream;
+            this.fileWritableStream = null;
+            await tmp.close();
+            return true;
           }
-        } else if (allowRecordToggle.checked) {
-          showNotification("Đã tạm dừng. Dữ liệu hiện có được lưu tạm thời trên bộ đệm.", "warning");
-        } else {
-          showNotification("Đã tạm dừng hiển thị đồ thị.", "warning");
-        }
-      });
-
-      // Nút Đặt lại / Xóa (RESET)
-      btnReset.addEventListener("click", async () => {
-        // Đóng stream đang chạy dở dang (nếu có)
-        if (fileWritableStream) {
-          try {
-            await fileWritableStream.close();
-          } catch (e) {}
-          fileWritableStream = null;
-        }
-        fileHandle = null;
-        isDirectStreaming = false;
-        viewOffsetMs = 0; // Reset độ dốc lịch sử
-
-        // Giải phóng khóa toggle
-        allowRecordToggle.disabled = false;
-
-        // Xóa sạch dữ liệu hiển thị và dữ liệu ghi file
-        dataPoints = [];
-        recordedCount = 0;
-        lastDataGenTime = null;
-        firstTimestamp = null;
-        wavePhase = 0;
-
-        // Giải phóng dung lượng cực lớn để đưa bộ nhớ về mặc định ban đầu
-        if (recordedCapacity > 60000) {
-          recordedCapacity = 60000;
-          recordedValues = new Float32Array(recordedCapacity);
-          recordedTimestamps = new Float64Array(recordedCapacity);
+          return false;
         }
 
-        bufferCountEl.innerText = "0 mẫu";
-        recordCountEl.innerText = allowRecordToggle.checked ? "0 mẫu" : "Tắt (Off)";
-
-        if (allowRecordToggle.checked) {
-          storageModeText.innerText = "Ghi file: Chọn ổ cứng khi Start";
-          storageModeText.classList.remove("text-emerald-400", "text-slate-500");
-          storageModeText.classList.add("text-indigo-400");
-        } else {
-          storageModeText.innerText = "Ghi file: Đã tắt (Chỉ hiển thị)";
-          storageModeText.classList.remove("text-emerald-400", "text-indigo-400");
-          storageModeText.classList.add("text-slate-500");
+        reset() {
+          this.fileHandle = null;
+          this.fileWritableStream = null;
+          this.isDirectStreaming = false;
+          this.firstTimestamp = null;
+          this.recordedCount = 0;
+          if (this.recordedCapacity > 60000) {
+            this.recordedCapacity = 60000;
+            this.recordedValues = new Float32Array(this.recordedCapacity);
+            this.recordedTimestamps = new Float64Array(this.recordedCapacity);
+          }
+          if (this.onCountUpdated) this.onCountUpdated(0);
         }
 
-        // Trả nút Start và Stop về trạng thái mặc định
-        btnStart.classList.remove("opacity-50", "pointer-events-none");
-        btnStop.classList.add("opacity-50", "pointer-events-none");
-        overlayPause.classList.add("opacity-0", "pointer-events-none");
+        // Tải file dự phòng qua Blob
+        downloadFallback() {
+          const startT = this.recordedTimestamps[0];
+          let txt = "=== DỮ LIỆU ĐO PPG CHUẨN CAO LŨY KẾ (500Hz) - DỰ PHÒNG TYPEDARRAY ===\n";
+          txt += `Thời gian xuất: ${new Date().toLocaleString("vi-VN")}\n`;
+          txt += `Tổng số mẫu ghi nhận: ${this.recordedCount}\n`;
+          txt += `Thời gian đo liên tục: ${((this.recordedCount * (1000 / 500)) / 1000).toFixed(2)} giây\n`;
+          txt += "----------------------------------------\n";
+          txt += "Thời gian (s), Giá trị PPG (ADC)\n";
+          for (let i = 0; i < this.recordedCount; i++) {
+            txt += `${((this.recordedTimestamps[i] - startT) / 1000).toFixed(3)}, ${this.recordedValues[i].toFixed(2)}\n`;
+          }
+          const blob = new Blob([txt], { type: "text/plain;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          const ts = new Date().toISOString().replace(/T/, "_").slice(0, 19).replace(/:/g, "-");
+          a.href = url;
+          a.download = `ppg_fallback_session_${ts}.txt`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
+      }
 
-        // Nếu đang tạm dừng vẽ thì vẽ lại để cập nhật canvas trống liền
-        if (!isRunning) {
-          drawChart();
+      // ============================================================
+      // App – wires everything together
+      // ============================================================
+      class App {
+        constructor() {
+          this.ui = new UIManager();
+          this.audio = new AudioManager();
+          this.sim = new PPGSimulation();
+          this.chart = new ChartManager(this.ui.canvas, this.sim);
+          this.saver = new SaveFileManager();
+
+          // Counter state
+          this._count = 0;
+
+          this._wireSimulation();
+          this._wireUIEvents();
+          this._startLoop();
+
+          // Initial state
+          this.ui.setRunningState(false);
+          this.ui.setHeartIdle();
+          this._updateSliderDisplay(parseInt(this.ui.valueSlider.value));
         }
 
-        // Âm báo reset
-        playSound(220, 0.3, "sine"); // Nốt la thấp A3
+        // --- Simulation callbacks ---
+        _wireSimulation() {
+          // Mỗi batch sample mới -> gửi đến SaveFileManager nếu ghi được
+          this.sim.onNewSamples = (samples) => {
+            if (this.ui.allowRecordToggle.checked) {
+              this.saver.writeSamples(samples, this.sim.firstTimestamp);
+            }
+          };
 
-        showNotification("Đã xóa sạch dữ liệu đồ thị và giải phóng phiên ghi cũ.", "success");
-      });
+          // Heartbeat visual + âm thanh
+          this.sim.onHeartBeat = () => {
+            this.ui.triggerHeartBeat();
+            this.audio.play(1000, 0.08, "sine");
+          };
 
-      // Nút Lưu dữ liệu (SAVE DATA)
-      btnSave.addEventListener("click", () => {
-        if (!allowRecordToggle.checked) {
-          showNotification(
-            "Tính năng ghi file đang TẮT. Hãy bật công tắc 'Cho phép ghi' và nhấn Start để thu thập dữ liệu!",
-            "warning",
-          );
-          playSound(250, 0.15, "sawtooth");
-          return;
+          // Cập nhật HUD buffer count
+          this.sim.onBufferUpdated = (count) => {
+            this.ui.setBufferCount(count);
+            this.ui.setRecordCount(this.saver.count, this.ui.allowRecordToggle.checked);
+          };
+
+          // SaveFile count callback
+          this.saver.onCountUpdated = (count) => {
+            this.ui.setRecordCount(count, this.ui.allowRecordToggle.checked);
+          };
+
+          // Khi drag lịch sử trong lúc đang chạy live → tự động pause chart (data vẫn ghi)
+          this.chart.onPanStartWhileRunning = () => {
+            sim.isChartPaused = true;
+            chart.freezeAt(performance.now());
+            ui.setChartPauseMode(true);
+            ui.showNotification("Đồ thị tạm dừng do kéo xem lịch sử. Data vẫn ghi trong nền.", "warning");
+          };
         }
 
-        if (recordedCount === 0) {
-          showNotification("Không có dữ liệu trong tệp ghi hiện thời để xuất!", "warning");
-          playSound(250, 0.15, "sawtooth");
-          return;
+        // --- UI event bindings ---
+        _wireUIEvents() {
+          const { ui, audio, sim, chart, saver } = this;
+
+          // Counter button
+          ui.btnCount.addEventListener("click", () => {
+            this._count++;
+            ui.setCounterValue(this._count);
+            audio.play(600, 0.08, "sine");
+          });
+
+          // BPM Slider
+          ui.valueSlider.addEventListener("input", (e) => {
+            const val = parseInt(e.target.value);
+            sim.sliderValue = val;
+            this._updateSliderDisplay(val);
+            audio.play(150 + val * 2, 0.02, "triangle");
+          });
+
+          // Toggle record (khi đang dừng)
+          ui.allowRecordToggle.addEventListener("change", () => {
+            if (sim.isRunning) return;
+            ui.setStorageMode(ui.allowRecordToggle.checked ? "pending" : "off");
+            ui.setRecordCount(saver.count, ui.allowRecordToggle.checked);
+          });
+
+          // --- PAUSE / CONTINUE ---
+          ui.btnPause.addEventListener("click", () => {
+            if (!sim.isRunning) return;
+
+            if (!sim.isChartPaused) {
+              // === PAUSE CHART ===
+              sim.isChartPaused = true;
+              chart.freezeAt(performance.now()); // snapshot ngay lập tức
+              ui.setChartPauseMode(true);
+              audio.play(440, 0.12, "triangle");
+              if (ui.allowRecordToggle.checked) {
+                ui.showNotification("Đồ thị đã tạm dừng. Data vẫn đang ghi vào buffer trong nền.", "warning");
+              } else {
+                ui.showNotification("Đồ thị đã tạm dừng. Kéo chuột để xem lịch sử.", "warning");
+              }
+            } else {
+              // === CONTINUE CHART ===
+              sim.isChartPaused = false;
+              chart.unfreeze(); // xóa snapshot, nhảy về hiện tại
+              ui.setChartPauseMode(false);
+              audio.play(523.25, 0.1, "triangle");
+              setTimeout(() => audio.play(659.25, 0.12, "triangle"), 60);
+              ui.showNotification("Tiếp tục vẽ đồ thị theo data mới nhất.", "success");
+            }
+          });
+          ui.btnStart.addEventListener("click", async () => {
+            if (sim.isRunning) return;
+
+            chart.resetView();
+            ui.allowRecordToggle.disabled = true;
+
+            const allowRecord = ui.allowRecordToggle.checked;
+            saver.reset();
+            sim.reset();
+
+            if (allowRecord) {
+              const isSupported = "showSaveFilePicker" in window;
+              if (isSupported) {
+                try {
+                  const ok = await saver.openFileForWriting();
+                  if (ok) {
+                    ui.setStorageMode("stream");
+                    ui.showNotification("Đã thiết lập file lưu trữ! Bắt đầu ghi trực tiếp vào ổ cứng...", "success");
+                  } else {
+                    ui.setStorageMode("buffer");
+                    ui.showNotification("Lỗi kết nối đĩa. Chuyển sang lưu trữ đệm (TypedArray).", "warning");
+                  }
+                } catch (err) {
+                  if (err.name === "AbortError") {
+                    ui.showNotification("Bạn đã hủy chọn file ghi. Thiết bị đo chưa khởi động.", "warning");
+                    audio.play(250, 0.1, "sawtooth");
+                    ui.allowRecordToggle.disabled = false;
+                    return;
+                  }
+                  ui.setStorageMode("buffer");
+                  ui.showNotification("Lỗi kết nối đĩa. Chuyển sang lưu trữ đệm (TypedArray).", "warning");
+                }
+              } else {
+                ui.setStorageMode("buffer");
+                ui.showNotification(
+                  "Trình duyệt không hỗ trợ Direct Write. Chuyển sang lưu bộ đệm TypedArray.",
+                  "warning",
+                );
+              }
+            } else {
+              ui.setStorageMode("off");
+              ui.showNotification("Khởi chạy đồ thị thời gian thực (Chỉ vẽ, không lưu trữ).", "success");
+            }
+
+            sim.sliderValue = parseInt(ui.valueSlider.value);
+            sim.start();
+            ui.setRunningState(true);
+            ui.hidePauseOverlay();
+
+            audio.play(523.25, 0.1, "triangle");
+            setTimeout(() => audio.play(659.25, 0.15, "triangle"), 80);
+          });
+
+          // --- STOP ---
+          ui.btnStop.addEventListener("click", async () => {
+            if (!sim.isRunning) return;
+
+            sim.stop();
+            chart.unfreeze();
+            ui.setRunningState(false);
+            ui.setChartPauseMode(false);
+            ui.showPauseOverlay("ĐÃ TẠM DỪNG (HOLD)");
+            ui.allowRecordToggle.disabled = false;
+
+            audio.play(329.63, 0.2, "sawtooth");
+
+            if (saver.isDirectStreaming) {
+              try {
+                await saver.closeStream();
+                ui.showNotification(
+                  `Đã kết thúc phiên ghi! Lưu thành công ${saver.count} mẫu thẳng vào ổ cứng.`,
+                  "success",
+                );
+              } catch (_) {
+                ui.showNotification("Có lỗi xảy ra khi đóng và lưu file ghi đĩa.", "warning");
+              }
+            } else if (ui.allowRecordToggle.checked) {
+              ui.showNotification("Đã tạm dừng. Dữ liệu hiện có được lưu tạm thời trên bộ đệm.", "warning");
+            } else {
+              ui.showNotification("Đã tạm dừng hiển thị đồ thị.", "warning");
+            }
+          });
+
+          // --- RESET ---
+          ui.btnReset.addEventListener("click", async () => {
+            if (saver.fileWritableStream) {
+              try {
+                await saver.closeStream();
+              } catch (_) {}
+            }
+            sim.reset();
+            saver.reset();
+            chart.resetView();
+
+            ui.allowRecordToggle.disabled = false;
+            ui.setBufferCount(0);
+            ui.setRecordCount(0, ui.allowRecordToggle.checked);
+            ui.setStorageMode(ui.allowRecordToggle.checked ? "pending" : "off");
+            ui.setRunningState(false);
+            ui.setChartPauseMode(false);
+            ui.hidePauseOverlay();
+
+            audio.play(220, 0.3, "sine");
+            ui.showNotification("Đã xóa sạch dữ liệu đồ thị và giải phóng phiên ghi cũ.", "success");
+          });
+
+          // --- SAVE DATA ---
+          ui.btnSave.addEventListener("click", () => {
+            if (!ui.allowRecordToggle.checked) {
+              ui.showNotification(
+                "Tính năng ghi file đang TẮT. Hãy bật công tắc 'Cho phép ghi' và nhấn Start để thu thập dữ liệu!",
+                "warning",
+              );
+              audio.play(250, 0.15, "sawtooth");
+              return;
+            }
+            if (saver.count === 0) {
+              ui.showNotification("Không có dữ liệu trong tệp ghi hiện thời để xuất!", "warning");
+              audio.play(250, 0.15, "sawtooth");
+              return;
+            }
+            if (saver.isDirectStreaming) {
+              ui.showNotification(
+                "Dữ liệu đang được ghi trực tiếp vào đường dẫn bạn đã chọn khi nhấn Start!",
+                "success",
+              );
+              audio.play(880, 0.12, "sine");
+              return;
+            }
+            if (!saver.isDirectStreaming && saver.fileHandle) {
+              ui.showNotification("Tệp dữ liệu của bạn đã được kết xuất trực tiếp vào đĩa cứng thành công!", "success");
+              audio.play(880, 0.12, "sine");
+              return;
+            }
+            // Fallback blob download
+            saver.downloadFallback();
+            audio.play(880, 0.12, "sine");
+            setTimeout(() => audio.play(1046.5, 0.15, "sine"), 70);
+            ui.showNotification("Đã tải xuống thành công tệp dự phòng!", "success");
+          });
         }
 
-        // Nếu đang chạy chế độ Direct Streaming, báo cho người dùng biết file đã được tự động ghi
-        if (isDirectStreaming) {
-          showNotification("Dữ liệu đang được ghi trực tiếp vào đường dẫn bạn đã chọn khi nhấn Start!", "success");
-          playSound(880, 0.12, "sine");
-          return;
+        _updateSliderDisplay(val) {
+          const bpm = Math.round(30 + (val - 1) * (150 / 99));
+          this.ui.setSliderDisplay(val, bpm);
         }
 
-        if (!isDirectStreaming && fileHandle) {
-          showNotification("Tệp dữ liệu của bạn đã được kết xuất trực tiếp vào đĩa cứng thành công!", "success");
-          playSound(880, 0.12, "sine");
-          return;
+        // --- Animation loop ---
+        _startLoop() {
+          const loop = () => {
+            this.sim.tick();
+            this.chart.draw();
+            requestAnimationFrame(loop);
+          };
+          requestAnimationFrame(loop);
         }
+      }
 
-        // PHƯƠNG ÁN DỰ PHÒNG: Tải file qua blob nếu trình duyệt không hỗ trợ stream đĩa
-        let txtContent = "=== DỮ LIỆU ĐO PPG CHUẨN CAO LŨY KẾ (500Hz) - DỰ PHÒNG TYPEDARRAY ===\n";
-        txtContent += `Thời gian xuất: ${new Date().toLocaleString("vi-VN")}\n`;
-        txtContent += `Tổng số mẫu ghi nhận: ${recordedCount}\n`;
-        txtContent += `Thời gian đo liên tục: ${((recordedCount * sampleIntervalMs) / 1000).toFixed(2)} giây\n`;
-        txtContent += "----------------------------------------\n";
-        txtContent += "Thời gian (s), Giá trị PPG (ADC)\n";
-
-        // Thời mốc bắt đầu của phiên ghi (làm mốc 0.000s)
-        const startT = recordedTimestamps[0];
-
-        for (let i = 0; i < recordedCount; i++) {
-          const relativeSecs = ((recordedTimestamps[i] - startT) / 1000).toFixed(3);
-          const ppgValue = recordedValues[i].toFixed(2);
-          txtContent += `${relativeSecs}, ${ppgValue}\n`;
-        }
-
-        // Tạo Blob dữ liệu tải xuống
-        const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-
-        const downloadLink = document.createElement("a");
-        downloadLink.href = url;
-
-        const fileTimestamp = new Date().toISOString().replace(/T/, "_").slice(0, 19).replace(/:/g, "-");
-        downloadLink.download = `ppg_fallback_session_${fileTimestamp}.txt`;
-
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
-
-        URL.revokeObjectURL(url);
-
-        playSound(880, 0.12, "sine");
-        setTimeout(() => playSound(1046.5, 0.15, "sine"), 70);
-
-        showNotification("Đã tải xuống thành công tệp dự phòng!", "success");
-      });
-
-      // Đồng bộ nhãn HUD khi thay đổi công tắc ghi ở trạng thái tĩnh
-      allowRecordToggle.addEventListener("change", () => {
-        if (isRunning) return;
-        const allow = allowRecordToggle.checked;
-        if (allow) {
-          storageModeText.innerText = "Ghi file: Chọn ổ cứng khi Start";
-          storageModeText.classList.remove("text-slate-500");
-          storageModeText.classList.add("text-indigo-400");
-          recordCountEl.innerText = "0 mẫu";
-        } else {
-          storageModeText.innerText = "Ghi file: Đã tắt (Chỉ hiển thị)";
-          storageModeText.classList.remove("text-indigo-400", "text-emerald-400");
-          storageModeText.classList.add("text-slate-500");
-          recordCountEl.innerText = "Tắt (Off)";
-        }
-      });
-
-      // Đặt trạng thái ban đầu của nút stop vì chưa chạy
-      btnStop.classList.add("opacity-50", "pointer-events-none");
-      heartIcon.classList.add("text-slate-500");
-      heartPing.style.opacity = "0";
+      // ============================================================
+      // Bootstrap
+      // ============================================================
+      const app = new App();
     </script>
   </body>
 </html>
