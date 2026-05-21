@@ -1,0 +1,1305 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hệ Thống Mô Phỏng Tín Hiệu PPG Chuẩn Cao</title>
+    <!-- Tailwind CSS để tạo giao diện hiện đại -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter cho nét chữ sắc sảo -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Font Awesome cho các icon điều khiển -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #0b0f19;
+      }
+      /* Tùy chỉnh thanh trượt slider đẹp mắt */
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #10b981;
+        cursor: pointer;
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        transition: all 0.15s ease-in-out;
+      }
+      input[type="range"]::-webkit-slider-thumb:hover {
+        background: #34d399;
+        transform: scale(1.2);
+        box-shadow: 0 0 15px rgba(52, 211, 153, 0.8);
+      }
+      /* Hiệu ứng nhịp đập tim */
+      @keyframes heartPulse {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 0.3;
+        }
+        50% {
+          transform: scale(1.25);
+          opacity: 1;
+          filter: drop-shadow(0 0 8px #ef4444);
+        }
+      }
+      .heart-beat {
+        animation: heartPulse 0.6s ease-out infinite;
+      }
+    </style>
+  </head>
+  <body class="text-slate-100 min-h-screen flex flex-col justify-between select-none">
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur px-6 py-4 sticky top-0 z-50">
+      <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div class="flex items-center gap-3">
+          <div class="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-emerald-400">
+            <i class="fa-solid fa-wave-square text-2xl animate-pulse"></i>
+          </div>
+          <div>
+            <h1
+              class="font-bold text-xl tracking-wide bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent"
+            >
+              PPG BIOMETRIC MONITOR
+            </h1>
+            <p class="text-xs text-slate-400">Hệ thống phân tích và mô phỏng tín hiệu thể tích mạch đồ 500Hz</p>
+          </div>
+        </div>
+        <!-- Status Badges -->
+        <div class="flex gap-3 text-xs">
+          <div class="flex items-center gap-2 bg-slate-800/60 px-3 py-1.5 rounded-full border border-slate-700/50">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+            <span class="text-slate-300 font-medium">Hệ thống: Sẵn sàng</span>
+          </div>
+          <div class="flex items-center gap-2 bg-slate-800/60 px-3 py-1.5 rounded-full border border-slate-700/50">
+            <span class="text-slate-400">Tần số:</span>
+            <span class="text-emerald-400 font-bold">500 Hz</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
+      <!-- Dashboard Grid Layout -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left Side Controls Panel (1 Col) -->
+        <div class="lg:col-span-1 flex flex-col gap-6">
+          <!-- Card 1: Bộ đếm tương tác (Counter) -->
+          <div
+            class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur flex flex-col justify-between shadow-xl relative overflow-hidden group"
+          >
+            <div
+              class="absolute -right-10 -top-10 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl group-hover:bg-indigo-500/10 transition-all duration-500"
+            ></div>
+            <div>
+              <div class="flex justify-between items-center mb-4">
+                <span class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Bộ Đếm Tương Tác</span>
+                <span
+                  class="px-2.5 py-1 text-xs font-bold rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                  >Click Counter</span
+                >
+              </div>
+              <div class="flex items-center justify-between my-2">
+                <div class="text-xs text-slate-400">Giá trị đếm hiện tại:</div>
+                <div
+                  id="counter-display"
+                  class="text-5xl font-black text-indigo-400 tracking-tight drop-shadow-[0_0_15px_rgba(129,140,248,0.3)]"
+                >
+                  0
+                </div>
+              </div>
+            </div>
+            <button
+              id="btn-count"
+              class="w-full mt-4 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:shadow-indigo-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 border border-indigo-400/25"
+            >
+              <i class="fa-solid fa-plus-circle"></i>
+              <span>Tăng Biến Đếm</span>
+            </button>
+          </div>
+
+          <!-- Card 2: Thanh trượt tần số (Slider 1-100) -->
+          <div
+            class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur shadow-xl relative overflow-hidden group"
+          >
+            <div
+              class="absolute -right-10 -top-10 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-all duration-500"
+            ></div>
+            <div class="flex justify-between items-center mb-4">
+              <span class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Thanh Trượt Biến Thiên</span>
+              <span
+                class="px-2.5 py-1 text-xs font-bold rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                >Nhịp Tim BPM</span
+              >
+            </div>
+            <div class="space-y-4">
+              <div class="flex justify-between items-center">
+                <label for="value-slider" class="text-xs text-slate-400">Giá trị thanh trượt (1 - 100):</label>
+                <span
+                  id="slider-text-value"
+                  class="text-2xl font-black text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.3)]"
+                  >50</span
+                >
+              </div>
+              <input
+                type="range"
+                id="value-slider"
+                min="1"
+                max="100"
+                value="50"
+                class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+              />
+              <div class="flex justify-between text-[10px] text-slate-500 font-medium px-1">
+                <span>1 (Rất chậm)</span>
+                <span>Mặc định (50)</span>
+                <span>100 (Cực nhanh)</span>
+              </div>
+              <!-- Phản hồi giá trị mô phỏng -->
+              <div class="bg-slate-950/50 rounded-xl p-3 border border-slate-800/80 flex justify-between items-center">
+                <span class="text-xs text-slate-400">Nhịp tim tương ứng:</span>
+                <span id="calculated-bpm" class="text-sm font-bold text-slate-200">105 BPM</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Trạng thái & Hướng dẫn nhanh -->
+          <div
+            class="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 backdrop-blur shadow-xl text-xs space-y-3 text-slate-400"
+          >
+            <h3 class="font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <i class="fa-solid fa-circle-info text-blue-400"></i> Tính năng nâng cao mới
+            </h3>
+            <p>
+              • <b class="text-slate-300">Không tràn trục Y:</b> Hệ thống sử dụng thuật toán chặn vùng vẽ an toàn, bảo
+              vệ chỉ số trục tung khỏi nét sóng chồng lấn.
+            </p>
+            <p>
+              • <b class="text-slate-300">Giá trị thật (0 - 1000):</b> Trục tung hiển thị giá trị thô thực tế thay vì
+              phần trăm, phù hợp thông số ADC thực tế.
+            </p>
+            <p>
+              • <b class="text-slate-300">Tĩnh khi khởi động:</b> Đồ thị hoàn toàn đứng yên cho đến khi nhấn nút
+              <b>Start</b> để bắt đầu vẽ và dịch chuyển dòng thời gian thực.
+            </p>
+            <p>
+              • <b class="text-slate-300">Trục thời gian trượt (Lưới 1s):</b> Các vạch lưới giây nguyên trượt nhịp nhàng
+              mượt mà, không nhấp nháy chữ.
+            </p>
+          </div>
+        </div>
+
+        <!-- Right Side Chart Panel (2 Cols) -->
+        <div class="lg:col-span-2 flex flex-col gap-6">
+          <!-- Monitor Console Wrapper -->
+          <div
+            class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur shadow-xl flex flex-col gap-4 relative"
+          >
+            <!-- Monitor Header Status Bar -->
+            <div class="flex flex-wrap justify-between items-center gap-3 pb-4 border-b border-slate-800/80">
+              <div class="flex items-center gap-3">
+                <div class="relative flex items-center justify-center">
+                  <span
+                    class="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-25 animate-ping"
+                    id="heart-pulse-ping"
+                  ></span>
+                  <i class="fa-solid fa-heart text-red-500 text-lg relative" id="heart-pulse-icon"></i>
+                </div>
+                <div>
+                  <span class="text-xs text-slate-400 uppercase font-medium tracking-wider">Kênh giám sát: CH1</span>
+                  <h2 class="text-sm font-bold text-slate-200">ĐỒ THỊ PPG WAVEFORM</h2>
+                </div>
+              </div>
+
+              <!-- Mini Vital Stats -->
+              <div class="flex gap-4">
+                <div class="text-right">
+                  <span class="text-[10px] text-slate-500 block uppercase font-semibold">Tốc độ vẽ</span>
+                  <span id="monitor-speed" class="text-xs font-bold text-teal-400">500 Mẫu/giây</span>
+                </div>
+                <div class="text-right border-l border-slate-800 pl-4">
+                  <span class="text-[10px] text-slate-500 block uppercase font-semibold">Đã vẽ (Màn hình)</span>
+                  <span id="buffer-count" class="text-xs font-bold text-slate-300">0 mẫu</span>
+                </div>
+                <div class="text-right border-l border-slate-800 pl-4">
+                  <span class="text-[10px] text-slate-500 block uppercase font-semibold">Đã ghi (File)</span>
+                  <span id="record-count" class="text-xs font-bold text-indigo-400">0 mẫu</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Canvas Đồ Thị -->
+            <div
+              class="relative bg-slate-950/80 border border-slate-900 rounded-xl overflow-hidden aspect-[16/9] md:aspect-[21/9] lg:aspect-[16/9] flex items-center justify-center"
+            >
+              <!-- Lưới đồ thị tĩnh / Canvas động -->
+              <canvas
+                id="ppg-canvas"
+                class="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"
+              ></canvas>
+
+              <!-- Overlay/Badge khi dừng vẽ -->
+              <div
+                id="chart-overlay-pause"
+                class="absolute top-4 right-4 bg-slate-900/95 border border-amber-500/40 text-amber-400 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-lg shadow-black/50 opacity-0 pointer-events-none transition-opacity duration-300 z-10"
+              >
+                <i class="fa-solid fa-circle-pause text-xs animate-pulse text-amber-400"></i>
+                <span class="text-xs font-bold tracking-wider uppercase" id="pause-badge-text">ĐÃ TẠM DỪNG (HOLD)</span>
+              </div>
+            </div>
+
+            <!-- Chart Controls Toolbar -->
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4 pt-2">
+              <!-- Nhóm nút chính -->
+              <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                <!-- Nút START -->
+                <button
+                  id="btn-start"
+                  class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 px-6 rounded-xl shadow-lg shadow-emerald-900/20 active:scale-95 transition-all flex items-center justify-center gap-2 border border-emerald-400/25"
+                >
+                  <i class="fa-solid fa-play text-xs"></i>
+                  <span>Start</span>
+                </button>
+
+                <!-- Nút STOP -->
+                <button
+                  id="btn-stop"
+                  class="flex-1 sm:flex-none bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2.5 px-6 rounded-xl border border-slate-700 hover:border-slate-600 active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  <i class="fa-solid fa-stop text-xs"></i>
+                  <span>Stop</span>
+                </button>
+
+                <!-- Nút RESET -->
+                <button
+                  id="btn-reset"
+                  class="flex-1 sm:flex-none bg-rose-950/30 hover:bg-rose-900/30 text-rose-400 border border-rose-900/40 hover:border-rose-800 py-2.5 px-6 rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  <i class="fa-solid fa-rotate-left text-xs"></i>
+                  <span>Reset</span>
+                </button>
+
+                <!-- Nút SAVE DATA -->
+                <button
+                  id="btn-save"
+                  class="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 px-6 rounded-xl shadow-lg shadow-indigo-900/20 active:scale-95 transition-all flex items-center justify-center gap-2 border border-indigo-400/25"
+                >
+                  <i class="fa-solid fa-download text-xs"></i>
+                  <span>Save Data</span>
+                </button>
+              </div>
+
+              <!-- Chỉ số hệ thống trực quan -->
+              <div class="flex items-center gap-4 text-xs text-slate-400 w-full sm:w-auto justify-end">
+                <div class="flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                  <span>Trục tung: 0 - 1000 (ADC)</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                  <span id="storage-mode-text">Ghi file: Chọn ổ cứng khi Start</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-900 bg-slate-950/40 py-4 text-center text-xs text-slate-500">
+      <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row justify-between items-center gap-2">
+        <p>© 2026 PPG Monitor Simulator. Thiết kế mượt mà với hiệu suất tối ưu 500Hz.</p>
+        <div class="flex gap-4">
+          <a href="#" class="hover:text-slate-400 transition-colors">Điều khoản</a>
+          <a href="#" class="hover:text-slate-400 transition-colors">Báo cáo lỗi</a>
+        </div>
+      </div>
+    </footer>
+
+    <!-- JS CHỨC NĂNG -->
+    <script>
+      // Khởi tạo các phần tử DOM quan trọng
+      const btnCount = document.getElementById("btn-count");
+      const counterDisplay = document.getElementById("counter-display");
+      const valueSlider = document.getElementById("value-slider");
+      const sliderTextValue = document.getElementById("slider-text-value");
+      const calculatedBpm = document.getElementById("calculated-bpm");
+
+      const btnStart = document.getElementById("btn-start");
+      const btnStop = document.getElementById("btn-stop");
+      const btnReset = document.getElementById("btn-reset");
+      const btnSave = document.getElementById("btn-save");
+
+      const heartIcon = document.getElementById("heart-pulse-icon");
+      const heartPing = document.getElementById("heart-pulse-ping");
+      const canvas = document.getElementById("ppg-canvas");
+      const ctx = canvas.getContext("2d");
+      const overlayPause = document.getElementById("chart-overlay-pause");
+      const pauseBadgeText = document.getElementById("pause-badge-text");
+      const bufferCountEl = document.getElementById("buffer-count");
+      const recordCountEl = document.getElementById("record-count");
+      const storageModeText = document.getElementById("storage-mode-text");
+
+      // Gốc chuyển đổi giữa performance.now() của trang web và thời gian thực hệ thống
+      const bootTime = Date.now() - performance.now();
+
+      // Chuyển đổi timestamp của performance sang đối tượng Date thực tế
+      function getRealTime(perfTime) {
+        return new Date(bootTime + perfTime);
+      }
+
+      // Định dạng thời gian thực tế chi tiết y khoa: HH:MM:SS
+      function formatRealTime(date) {
+        const h = String(date.getHours()).padStart(2, "0");
+        const m = String(date.getMinutes()).padStart(2, "0");
+        const s = String(date.getSeconds()).padStart(2, "0");
+        return `${h}:${m}:${s}`;
+      }
+
+      // Định dạng thời gian thực tế chi tiết y khoa kèm mili-giây: HH:MM:SS.mmm (3 chữ số thập phân)
+      function formatRealTimeWithMs(date) {
+        const h = String(date.getHours()).padStart(2, "0");
+        const m = String(date.getMinutes()).padStart(2, "0");
+        const s = String(date.getSeconds()).padStart(2, "0");
+        const ms = String(date.getMilliseconds()).padStart(3, "0");
+        return `${h}:${m}:${s}.${ms}`;
+      }
+
+      // Khởi tạo âm thanh click và beep tương tác nhẹ bằng Web Audio API
+      let audioCtx = null;
+      function playSound(freq, duration, type = "sine") {
+        try {
+          if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          }
+          if (audioCtx.state === "suspended") {
+            audioCtx.resume();
+          }
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+          gain.gain.setValueAtTime(0.08, audioCtx.currentTime); // Âm lượng nhỏ nhẹ tinh tế
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc.start();
+          osc.stop(audioCtx.currentTime + duration);
+        } catch (e) {
+          // Tránh lỗi nếu trình duyệt chặn tự động phát âm thanh
+        }
+      }
+
+      // Hàm tạo Toast Notification thay cho alert()
+      function showNotification(message, type = "success") {
+        const container = document.getElementById("toast-container");
+        const toast = document.createElement("div");
+        toast.className = `flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border text-sm transition-all duration-300 transform translate-y-2 opacity-0 pointer-events-auto`;
+
+        if (type === "success") {
+          toast.className += " bg-emerald-950/90 border-emerald-500/30 text-emerald-400";
+          toast.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>${message}</span>`;
+        } else if (type === "warning") {
+          toast.className += " bg-amber-950/90 border-amber-500/30 text-amber-400";
+          toast.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> <span>${message}</span>`;
+        }
+
+        container.appendChild(toast);
+
+        // Kích hoạt transition mượt
+        setTimeout(() => {
+          toast.classList.remove("translate-y-2", "opacity-0");
+        }, 10);
+
+        // Tự động đóng sau 4 giây
+        setTimeout(() => {
+          toast.classList.add("translate-y-2", "opacity-0");
+          setTimeout(() => {
+            toast.remove();
+          }, 300);
+        }, 4000);
+      }
+
+      // 1. CHỨC NĂNG BỘ ĐẾM (COUNTER BUTTON)
+      let count = 0;
+      btnCount.addEventListener("click", () => {
+        count++;
+        counterDisplay.innerText = count;
+
+        // Hiệu ứng scale nhẹ cho số hiển thị
+        counterDisplay.style.transform = "scale(1.15)";
+        counterDisplay.style.transition = "transform 0.05s ease";
+        setTimeout(() => {
+          counterDisplay.style.transform = "scale(1)";
+        }, 100);
+
+        // Phát âm click dễ chịu
+        playSound(600, 0.08, "sine");
+      });
+
+      // 2. CHỨC NĂNG THANH TRƯỢT TỪ 1-100 (SLIDER)
+      function updateSliderValue(val) {
+        sliderTextValue.innerText = val;
+
+        // Ánh xạ tuyến tính giá trị thanh trượt 1-100 thành Nhịp Tim mô phỏng (30 đến 180 BPM)
+        const bpm = Math.round(30 + (val - 1) * (150 / 99));
+        calculatedBpm.innerText = `${bpm} BPM`;
+
+        // Trả về giá trị bpm để cấu trúc sóng PPG thay đổi tần số
+        return bpm;
+      }
+
+      valueSlider.addEventListener("input", (e) => {
+        updateSliderValue(e.target.value);
+        // Tiếng rào nhẹ cực ngắn khi trượt slider
+        playSound(150 + e.target.value * 2, 0.02, "triangle");
+      });
+
+      // Khởi tạo hiển thị slider ban đầu
+      updateSliderValue(valueSlider.value);
+
+      // 3. HỆ THỐNG MÔ PHỎNG SÓNG PPG VÀ ĐỒ THỊ
+      let isRunning = false;
+      let dataPoints = []; // Mảng vẽ màn hình (chứa data tối đa của vùng đệm hiển thị)
+
+      // --- CẤU HÌNH FILE SYSTEM ACCESS & CHẾ ĐỘ RECORD ---
+      let fileHandle = null;
+      let fileWritableStream = null;
+      let isDirectStreaming = false; // Nhận biết đang ghi trực tiếp xuống ổ cứng hay không
+      let firstTimestamp = null; // Để làm gốc mốc 0.000 giây của tệp tin ghi
+
+      // Cấu hình dự phòng TypedArray phòng trường hợp trình duyệt không hỗ trợ File System Access API
+      let recordedCapacity = 60000;
+      let recordedValues = new Float32Array(recordedCapacity);
+      let recordedTimestamps = new Float64Array(recordedCapacity);
+      let recordedCount = 0; // Đếm tổng số mẫu đo đạc được ghi nhận thực tế
+
+      const viewDurationMs = 10000; // Khung nhìn 10 giây trên đồ thị
+      const sampleRate = 500; // 500 điểm dữ liệu/giây
+      const sampleIntervalMs = 1000 / sampleRate; // ~2ms mỗi mẫu
+
+      let lastDataGenTime = null;
+      let wavePhase = 0; // Pha của nhịp đập tim hiện tại [0.0 - 1.0]
+      let lastSystolicFlash = 0; // Để điều khiển nháy nhịp tim
+
+      // --- CÁC BIẾN TƯƠNG TÁC: HOVER & PAN ---
+      let hoverPoint = null; // Điểm dữ liệu đang được rê chuột trúng
+      let mouseX = null;
+      let mouseY = null;
+
+      let isPanning = false; // Trạng thái đang di chuyển kéo thả chuột
+      let startPanX = 0;
+      let originalViewOffsetMs = 0;
+      let viewOffsetMs = 0; // Độ lệch thời gian khi di chuyển xem lịch sử (mili-giây, luôn <= 0)
+
+      // Bộ sinh hình dạng sóng PPG thực tế (Nhân tỉ lệ 10 để xuất ra thang giá trị thực 0 - 1000)
+      function generatePPGSample(phase) {
+        let signal = 0;
+
+        // Pha 0 -> 1 tương ứng với một chu kỳ tim hoàn chỉnh
+        if (phase < 0.25) {
+          // Nhánh lên nhanh của sóng tâm thu (Systolic peak)
+          signal = Math.sin(((phase / 0.25) * Math.PI) / 2);
+        } else if (phase < 0.38) {
+          // Nhánh giảm ban đầu của sóng tâm thu
+          const p = (phase - 0.25) / 0.13;
+          signal = 1.0 - 0.35 * Math.sin((p * Math.PI) / 2);
+        } else if (phase < 0.45) {
+          // Điểm lõm dicrotic notch (nhấn van động mạch chủ)
+          const p = (phase - 0.38) / 0.07;
+          signal = 0.65 - 0.05 * Math.sin((p * Math.PI) / 2);
+        } else if (phase < 0.6) {
+          // Nhô lên sóng dicrotic phụ (Diastolic peak)
+          const p = (phase - 0.45) / 0.15;
+          signal = 0.6 + 0.12 * Math.sin((p * Math.PI) / 2);
+        } else {
+          // Nhánh suy giảm tâm trương kéo dài
+          const p = (phase - 0.6) / 0.4;
+          signal = 0.72 * Math.cos((p * Math.PI) / 2);
+        }
+
+        // Thêm chút nhiễu sinh học biên độ rất nhỏ để tăng độ chân thực
+        const noise = (Math.random() - 0.5) * 1.5;
+
+        // Ánh xạ tín hiệu sang biên độ 0-100%
+        let finalValue = signal * 65 + 15 + noise;
+        // Nhân 10 để chuyển đổi sang hệ giá trị thật 0 - 1000
+        return Math.max(0, Math.min(1000, finalValue * 10));
+      }
+
+      // Sinh ra chuỗi dữ liệu dựa trên khoảng thời gian trôi qua thực tế
+      function pushSimulatedData() {
+        if (!isRunning) return;
+
+        const now = performance.now();
+        if (lastDataGenTime === null) {
+          lastDataGenTime = now;
+          return;
+        }
+
+        const elapsed = now - lastDataGenTime;
+        // Số lượng mẫu cần sản xuất theo tốc độ 500 mẫu/giây
+        const samplesNeeded = Math.floor(elapsed / sampleIntervalMs);
+
+        if (samplesNeeded > 0) {
+          const sliderVal = parseInt(valueSlider.value);
+          const bpm = 30 + (sliderVal - 1) * (150 / 99);
+          const bps = bpm / 60; // Beats per second
+          const phaseStepPerSample = bps / sampleRate;
+
+          let chunkText = "";
+
+          if (firstTimestamp === null) {
+            firstTimestamp = lastDataGenTime;
+          }
+
+          for (let i = 0; i < samplesNeeded; i++) {
+            wavePhase = (wavePhase + phaseStepPerSample) % 1.0;
+
+            // Phát hiện đỉnh tâm thu (systolic peak) ở phase khoảng 0.22 để nháy tim sinh động
+            if (wavePhase > 0.2 && wavePhase < 0.25 && now - lastSystolicFlash > (60000 / bpm) * 0.7) {
+              triggerHeartBeatVisual();
+              lastSystolicFlash = now;
+            }
+
+            const val = generatePPGSample(wavePhase);
+            // Gán nhãn thời gian thực tế cho điểm dữ liệu
+            const sampleTime = lastDataGenTime + i * sampleIntervalMs;
+
+            const point = {
+              value: val,
+              timestamp: sampleTime,
+            };
+
+            // 1. Thêm vào mảng vẽ màn hình chính
+            dataPoints.push(point);
+
+            // 2. KIỂM TRA CHẾ ĐỘ LƯU TRỮ VÀ GHI
+            if (isDirectStreaming && fileWritableStream) {
+              // Thiết lập văn bản ghi thẳng xuống stream ổ cứng để tránh chiếm dụng RAM
+              const relativeSecs = ((sampleTime - firstTimestamp) / 1000).toFixed(3);
+              const ppgValue = val.toFixed(2);
+              chunkText += `${relativeSecs}, ${ppgValue}\n`;
+              recordedCount++;
+            } else {
+              // Dự phòng bằng TypedArray nếu không dùng Direct Streaming
+              if (recordedCount >= recordedCapacity) {
+                const newCapacity = recordedCapacity * 2;
+                const newValues = new Float32Array(newCapacity);
+                const newTimestamps = new Float64Array(newCapacity);
+
+                newValues.set(recordedValues);
+                newTimestamps.set(recordedTimestamps);
+
+                recordedValues = newValues;
+                recordedTimestamps = newTimestamps;
+                recordedCapacity = newCapacity;
+              }
+
+              recordedValues[recordedCount] = val;
+              recordedTimestamps[recordedCount] = sampleTime;
+              recordedCount++;
+            }
+          }
+
+          // GHI CHUNK TRỰC TIẾP XUỐNG Ổ CỨNG TRÁNH TÍCH LŨY TRÊN RAM
+          if (isDirectStreaming && fileWritableStream && chunkText) {
+            fileWritableStream.write(chunkText).catch((err) => {
+              console.error("Ghi dữ liệu vào Stream thất bại:", err);
+              isDirectStreaming = false;
+              showNotification("Mất kết nối với Stream ổ cứng! Chuyển sang lưu bộ đệm.", "warning");
+            });
+          }
+
+          // Đồng bộ mốc thời gian cuối cùng đã xử lý
+          lastDataGenTime = lastDataGenTime + samplesNeeded * sampleIntervalMs;
+
+          // Giới hạn vùng đệm hiển thị tối đa 30 giây lịch sử để tối ưu hiệu năng vẽ, cho phép người dùng drag kéo thả mượt
+          const limitThreshold = now - 30000;
+          while (dataPoints.length > 0 && dataPoints[0].timestamp < limitThreshold) {
+            dataPoints.shift();
+          }
+
+          // Cập nhật số liệu hiển thị lên HUD
+          bufferCountEl.innerText = `${dataPoints.length} mẫu`;
+          recordCountEl.innerText = `${recordedCount} mẫu`;
+        }
+      }
+
+      // Nháy nhịp tim sinh học và phát âm "beep" đặc trưng phòng hồi sức
+      function triggerHeartBeatVisual() {
+        heartIcon.classList.add("text-red-500", "scale-125");
+        heartIcon.classList.remove("text-slate-500");
+        heartPing.style.opacity = "1";
+        heartPing.classList.add("animate-ping");
+
+        // Âm Beep mô phỏng máy đo nhịp tim
+        playSound(1000, 0.08, "sine");
+
+        setTimeout(() => {
+          heartIcon.classList.remove("scale-125");
+          heartPing.style.opacity = "0";
+          heartPing.classList.remove("animate-ping");
+        }, 150);
+      }
+
+      // 4. KỸ THUẬT VẼ ĐỒ THỊ HIỆU SUẤT CAO TRÊN CANVAS (ĐÃ SỬA LỖI TRÀN BIÊN TRỤC Y & GIỜ HIỂN THỊ TRỢT CHUẨN 1S)
+
+      // Thiết lập lề an toàn (Margins) cho đồ thị để không bị tràn nét vẽ đè chữ
+      const chartMarginLeft = 70; // Đủ rộng để hiển thị nhãn trục tung "1000", "800"...
+      const chartMarginRight = 20; // Chừa khoảng đệm bên phải
+      const chartMarginTop = 30; // Đủ rộng để nhãn "1000" hiển thị trọn vẹn, không dính viền trên
+      const chartMarginBottom = 40; // Đủ rộng để hiển thị thời gian thực HH:MM:SS
+
+      function resizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * window.devicePixelRatio;
+        canvas.height = rect.height * window.devicePixelRatio;
+      }
+
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+
+      function drawChart() {
+        const width = canvas.width;
+        const height = canvas.height;
+        const dpr = window.devicePixelRatio || 1;
+
+        // Xóa toàn bộ canvas cũ
+        ctx.clearRect(0, 0, width, height);
+
+        // TÍNH TOÁN KHUNG NHÌN THỜI GIAN: ĐÓNG BĂNG CHO ĐẾN KHI NHẤN "START"
+        let now;
+        if (lastDataGenTime === null) {
+          // Nếu chưa bao giờ bấm Start, cố định cửa sổ hiển thị 10 giây ban đầu
+          now = 10000;
+        } else {
+          const baseTime = isRunning ? performance.now() : lastDataGenTime;
+          now = baseTime + viewOffsetMs;
+        }
+
+        const minTime = now - viewDurationMs;
+        const maxTime = now;
+
+        const activeWidth = width - (chartMarginLeft + chartMarginRight) * dpr;
+        const activeHeight = height - (chartMarginTop + chartMarginBottom) * dpr;
+
+        // Hàm chuyển đổi thời gian sang tọa độ X trên Canvas (khớp theo lề an toàn)
+        function getX(timestamp) {
+          return chartMarginLeft * dpr + ((timestamp - minTime) / viewDurationMs) * activeWidth;
+        }
+
+        // Hàm chuyển đổi giá trị thật (0 - 1000) sang tọa độ Y trên Canvas (khớp theo lề an toàn)
+        function getY(val) {
+          return height - chartMarginBottom * dpr - (val / 1000) * activeHeight;
+        }
+
+        // --- VẼ LƯỚI TỌA ĐỘ VÀ NHÃN CHỈ SỐ Y (ADC: 0 - 1000) ---
+        ctx.lineWidth = 1 * dpr;
+
+        for (let rawVal = 0; rawVal <= 1000; rawVal += 200) {
+          const yPos = getY(rawVal);
+
+          // Vẽ nét lưới đứt mờ ngang
+          ctx.strokeStyle = "rgba(30, 41, 59, 0.5)";
+          ctx.beginPath();
+          ctx.moveTo(chartMarginLeft * dpr, yPos);
+          ctx.lineTo(width - chartMarginRight * dpr, yPos);
+          ctx.stroke();
+
+          // Vẽ chữ số chỉ mục ở bên trái trục tung, căn lề phải để thẳng cột
+          ctx.fillStyle = "rgba(148, 163, 184, 0.9)";
+          ctx.font = `${10 * dpr}px Inter`;
+          ctx.textAlign = "right";
+          ctx.textBaseline = "middle";
+          // Đẩy nhãn lùi ra xa trục tung khoảng 10px
+          ctx.fillText(`${rawVal}`, (chartMarginLeft - 10) * dpr, yPos);
+        }
+
+        // --- VẼ LƯỚI TRỢT THỜI GIAN THỰC CHUẨN XÁC MỖI 1 GIÂY (Không bị nhấp nháy chữ) ---
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+
+        // Chuyển đổi cửa sổ hiển thị (minTime, maxTime) sang Epoch Milliseconds thực tế
+        const minRealTimeMs = bootTime + minTime;
+        const maxRealTimeMs = bootTime + maxTime;
+
+        // Tìm mốc giây nguyên chẵn đầu tiên lớn hơn minRealTimeMs
+        const firstWholeSecMs = Math.ceil(minRealTimeMs / 1000) * 1000;
+
+        // Chạy vòng lặp để vẽ vạch lưới dọc và nhãn thời gian thực chuẩn mỗi 1 giây
+        for (let tMs = firstWholeSecMs; tMs <= maxRealTimeMs; tMs += 1000) {
+          // Ánh xạ mốc thời gian thực này ngược lại mốc performance.now() để lấy tọa độ X chính xác
+          const perfTime = tMs - bootTime;
+          const xPos = getX(perfTime);
+
+          // Chỉ tiến hành vẽ nếu tọa độ X nằm gọn bên trong vùng đồ thị quy định
+          if (xPos >= chartMarginLeft * dpr && xPos <= width - chartMarginRight * dpr) {
+            // Vẽ lưới dọc mờ nhạt
+            ctx.strokeStyle = "rgba(30, 41, 59, 0.4)";
+            ctx.beginPath();
+            ctx.moveTo(xPos, chartMarginTop * dpr);
+            ctx.lineTo(xPos, height - chartMarginBottom * dpr);
+            ctx.stroke();
+
+            // Lấy nhãn định dạng HH:MM:SS chuẩn xác và hoàn toàn không bị thay đổi chữ liên tục
+            const realDate = new Date(tMs);
+            const formattedTime = formatRealTime(realDate);
+
+            ctx.fillStyle = "rgba(148, 163, 184, 0.8)";
+            ctx.font = `${9 * dpr}px Inter`;
+            // Hiển thị nhãn thời gian thực dưới chân trục hoành
+            ctx.fillText(formattedTime, xPos, height - (chartMarginBottom - 8) * dpr);
+          }
+        }
+
+        // --- VẼ ĐƯỜNG BIÊN HẠN CHẾ (TRỤC TUNG & TRỤC HOÀNH CHÍNH) ---
+        ctx.strokeStyle = "rgba(51, 65, 85, 0.8)"; // Slate-600
+        ctx.lineWidth = 1.5 * dpr;
+
+        // Vẽ trục Y
+        ctx.beginPath();
+        ctx.moveTo(chartMarginLeft * dpr, chartMarginTop * dpr);
+        ctx.lineTo(chartMarginLeft * dpr, height - chartMarginBottom * dpr);
+        ctx.stroke();
+
+        // Vẽ trục X
+        ctx.beginPath();
+        ctx.moveTo(chartMarginLeft * dpr, height - chartMarginBottom * dpr);
+        ctx.lineTo(width - chartMarginRight * dpr, height - chartMarginBottom * dpr);
+        ctx.stroke();
+
+        // --- SỬ DỤNG CLIPPING ĐỂ CHỐNG LỖI TRÀN TÍN HIỆU SÓNG QUA TRỤC Y ---
+        ctx.save(); // Lưu trạng thái canvas trước khi clip
+
+        ctx.beginPath();
+        // Khởi tạo vùng vẽ hình chữ nhật an toàn (chỉ cho phép vẽ bên trong vùng giới hạn lưới)
+        ctx.rect(chartMarginLeft * dpr, chartMarginTop * dpr, activeWidth, activeHeight);
+        ctx.clip(); // Kích hoạt vùng chắn tín hiệu tràn
+
+        // Tiến hành vẽ sóng PPG bên trong vùng an toàn đã được giới hạn
+        // Lọc ra dữ liệu thuộc khung nhìn 10 giây hiện thời
+        const visiblePoints = dataPoints.filter((p) => p.timestamp >= minTime && p.timestamp <= maxTime);
+
+        if (visiblePoints.length > 1) {
+          // Tạo một đường dẫn khép kín để đổ gradient nền rực rỡ dưới đáy sóng
+          ctx.beginPath();
+          ctx.moveTo(getX(visiblePoints[0].timestamp), getY(0));
+
+          for (let i = 0; i < visiblePoints.length; i++) {
+            ctx.lineTo(getX(visiblePoints[i].timestamp), getY(visiblePoints[i].value));
+          }
+
+          ctx.lineTo(getX(visiblePoints[visiblePoints.length - 1].timestamp), getY(0));
+          ctx.closePath();
+
+          // Khởi tạo Gradient đổ bóng mượt dưới sóng
+          const fillGrad = ctx.createLinearGradient(0, getY(1000), 0, getY(0));
+          fillGrad.addColorStop(0, "rgba(16, 185, 129, 0.22)"); // Màu ngọc lục bảo mờ đỉnh sóng
+          fillGrad.addColorStop(1, "rgba(16, 185, 129, 0.0)");
+          ctx.fillStyle = fillGrad;
+          ctx.fill();
+
+          // Vẽ đường sóng biên chính sắc nét
+          ctx.beginPath();
+          ctx.moveTo(getX(visiblePoints[0].timestamp), getY(visiblePoints[0].value));
+
+          for (let i = 1; i < visiblePoints.length; i++) {
+            ctx.lineTo(getX(visiblePoints[i].timestamp), getY(visiblePoints[i].value));
+          }
+
+          ctx.strokeStyle = "#10b981"; // Màu xanh ngọc lục bảo
+          ctx.lineWidth = 2.5 * dpr;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+
+          // Hiệu ứng phát sáng nhẹ
+          ctx.shadowColor = "rgba(16, 185, 129, 0.4)";
+          ctx.shadowBlur = 6 * dpr;
+          ctx.stroke();
+          ctx.shadowBlur = 0; // Tắt đổ bóng sau khi hoàn thành
+        } else {
+          // Đường nằm ngang mặc định khi trống
+          ctx.beginPath();
+          ctx.moveTo(chartMarginLeft * dpr, getY(500));
+          ctx.lineTo(width - chartMarginRight * dpr, getY(500));
+          ctx.strokeStyle = "rgba(16, 185, 129, 0.15)";
+          ctx.lineWidth = 1 * dpr;
+          ctx.stroke();
+
+          ctx.fillStyle = "rgba(148, 163, 184, 0.4)";
+          ctx.font = `${12 * dpr}px Inter`;
+          ctx.textAlign = "center";
+          ctx.fillText(
+            "Nhấn 'Start' để lựa chọn file ghi & Khởi động cảm biến",
+            (chartMarginLeft * dpr + width) / 2,
+            height / 2,
+          );
+        }
+
+        ctx.restore(); // Khôi phục lại trạng thái canvas nguyên bản (thoát khỏi chế độ clip)
+
+        // --- VẼ HOVER TOOLTIP & ĐƯỜNG GIÓNG INTERACTIVE (ĐÃ SỬA ĐỊNH DẠNG TIME HH:MM:SS.mmm) ---
+        if (hoverPoint && mouseX !== null) {
+          const hx = getX(hoverPoint.timestamp);
+          const hy = getY(hoverPoint.value);
+
+          // Chỉ hiển thị tương tác nếu điểm hover nằm trong khung lưới an toàn
+          if (hx >= chartMarginLeft * dpr && hx <= width - chartMarginRight * dpr) {
+            // 1. Đường dóng dọc mảnh
+            ctx.strokeStyle = "rgba(99, 102, 241, 0.4)"; // Indigo mờ
+            ctx.lineWidth = 1 * dpr;
+            ctx.setLineDash([4 * dpr, 4 * dpr]); // Nét đứt
+            ctx.beginPath();
+            ctx.moveTo(hx, chartMarginTop * dpr);
+            ctx.lineTo(hx, height - chartMarginBottom * dpr);
+            ctx.stroke();
+            ctx.setLineDash([]); // Trở lại nét liền
+
+            // 2. Điểm nhấn trên đường sóng
+            ctx.beginPath();
+            ctx.arc(hx, hy, 6 * dpr, 0, Math.PI * 2);
+            ctx.fillStyle = "#6366f1"; // Nút chấm Indigo
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 1.5 * dpr;
+            ctx.shadowColor = "rgba(99, 102, 241, 0.6)";
+            ctx.shadowBlur = 6 * dpr;
+            ctx.fill();
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // 3. Hộp thoại thông tin (Tooltip Box) nằm thông minh tránh khuất cạnh
+            const tooltipWidth = 150 * dpr;
+            const tooltipHeight = 55 * dpr;
+
+            let tooltipX = hx + 15 * dpr;
+            let tooltipY = hy - tooltipHeight / 2;
+
+            // Chống Tooltip tràn sang lề phải
+            if (tooltipX + tooltipWidth > width - chartMarginRight * dpr) {
+              tooltipX = hx - tooltipWidth - 15 * dpr;
+            }
+            // Chống Tooltip tràn lên lề trên hoặc lề dưới
+            if (tooltipY < chartMarginTop * dpr) {
+              tooltipY = chartMarginTop * dpr;
+            } else if (tooltipY + tooltipHeight > height - chartMarginBottom * dpr) {
+              tooltipY = height - chartMarginBottom * dpr - tooltipHeight;
+            }
+
+            // Vẽ hộp nền mờ bán trong suốt
+            ctx.fillStyle = "rgba(15, 23, 42, 0.95)"; // Slate-900 siêu tối
+            ctx.strokeStyle = "rgba(99, 102, 241, 0.6)"; // Khung viền Indigo sáng
+            ctx.lineWidth = 1 * dpr;
+            ctx.beginPath();
+            ctx.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 6 * dpr);
+            ctx.fill();
+            ctx.stroke();
+
+            // Ghi dữ liệu text lên Tooltip (Hiển thị giá trị thật và HH:MM:SS.mmm)
+            ctx.textAlign = "left";
+            ctx.textBaseline = "top";
+
+            // Biên độ PPG giá trị thật
+            ctx.fillStyle = "#ffffff";
+            ctx.font = `bold ${10 * dpr}px Inter`;
+            ctx.fillText(`PPG: ${hoverPoint.value.toFixed(1)}`, tooltipX + 10 * dpr, tooltipY + 10 * dpr);
+
+            // Mốc thời gian thực tế với đầy đủ 3 chữ số mili-giây
+            const pointRealDate = getRealTime(hoverPoint.timestamp);
+            ctx.fillStyle = "rgba(148, 163, 184, 0.9)";
+            ctx.font = `${9 * dpr}px Inter`;
+            ctx.fillText(`Time: ${formatRealTimeWithMs(pointRealDate)}`, tooltipX + 10 * dpr, tooltipY + 28 * dpr);
+          }
+        }
+      }
+
+      // 5. VÒNG LẶP CHẠY THỜI GIAN THỰC (GAME/ANIMATION LOOP)
+      function animationStep() {
+        // Tạo mẫu giả lập và nạp vào hàng đợi (pushSimulatedData chỉ sinh mảng khi isRunning = true)
+        pushSimulatedData();
+        // Vẽ lại toàn bộ màn hình đồ họa
+        drawChart();
+        // Tiếp tục đệ quy khung hình kế tiếp
+        requestAnimationFrame(animationStep);
+      }
+
+      // Khởi động vòng lặp render
+      requestAnimationFrame(animationStep);
+
+      // 6. XỬ LÝ SỰ KIỆN TƯƠNG TÁC CHUỘT: HOVER & PANNING (DRAG & ZOOM)
+
+      // Nhận diện mốc điểm vẽ gần nhất với vị trí con trỏ chuột
+      function updateHoverPoint(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+
+        // Đưa tọa độ chuột về đúng hệ dpr tương ứng của canvas
+        mouseX = (clientX - rect.left) * dpr;
+        mouseY = (clientY - rect.top) * dpr;
+
+        // Đóng băng hover thời gian nếu đồ thị chưa từng bắt đầu
+        const baseTime = isRunning ? performance.now() : lastDataGenTime || 10000;
+        const now = baseTime + viewOffsetMs;
+        const minTime = now - viewDurationMs;
+        const maxTime = now;
+
+        const activeWidth = canvas.width - (chartMarginLeft + chartMarginRight) * dpr;
+
+        function getX(timestamp) {
+          return chartMarginLeft * dpr + ((timestamp - minTime) / viewDurationMs) * activeWidth;
+        }
+
+        // Chỉ tìm kiếm điểm gióng khi con trỏ chuột nằm trong lòng khung đồ thị
+        if (mouseX >= chartMarginLeft * dpr && mouseX <= canvas.width - chartMarginRight * dpr) {
+          let minDistance = Infinity;
+          let closest = null;
+          const visiblePoints = dataPoints.filter((p) => p.timestamp >= minTime && p.timestamp <= maxTime);
+
+          // Ngưỡng khoảng cách tối đa theo trục X để bắt dính điểm (30 pixels)
+          const distThreshold = 30 * dpr;
+
+          for (let p of visiblePoints) {
+            const px = getX(p.timestamp);
+            const dist = Math.abs(px - mouseX);
+            if (dist < distThreshold && dist < minDistance) {
+              minDistance = dist;
+              closest = p;
+            }
+          }
+          hoverPoint = closest;
+        } else {
+          hoverPoint = null;
+        }
+      }
+
+      // Mouse Move Listener
+      canvas.addEventListener("mousemove", (e) => {
+        if (isPanning) {
+          // XỬ LÝ KÉO DI CHUYỂN BẢN ĐỒ (PANNING)
+          const deltaX = e.clientX - startPanX;
+          const dpr = window.devicePixelRatio || 1;
+          const activeWidth = canvas.width / dpr - chartMarginLeft - chartMarginRight;
+
+          // Đổi 1 pixel dịch chuyển chuột tương ứng với bao nhiêu mili-giây trên biểu đồ 10s
+          const msPerPixel = viewDurationMs / activeWidth;
+
+          // Kéo sang phải (deltaX > 0) -> Lùi về quá khứ (offset tăng theo chiều âm)
+          // Kéo sang trái (deltaX < 0) -> Tiến tới tương lai (offset tiệm cận mốc 0)
+          viewOffsetMs = originalViewOffsetMs - deltaX * msPerPixel;
+
+          // KHÔNG cho phép xem tương lai (offset tối đa bằng 0)
+          if (viewOffsetMs > 0) viewOffsetMs = 0;
+
+          // Giới hạn tua lùi tối đa không vượt quá mốc điểm đầu tiên được ghi nhận
+          const oldestTime =
+            recordedCount > 0
+              ? isDirectStreaming
+                ? firstTimestamp
+                : recordedTimestamps[0]
+              : lastDataGenTime || performance.now();
+          const baseTime = isRunning ? performance.now() : lastDataGenTime || performance.now();
+          const maxHistoryOffset = baseTime - oldestTime - viewDurationMs;
+
+          if (viewOffsetMs < -maxHistoryOffset) {
+            viewOffsetMs = -maxHistoryOffset;
+          }
+
+          hoverPoint = null; // Tắt tooltip khi đang drag xem lịch sử
+        } else {
+          // Xử lý đọc điểm tọa độ rê chuột bình thường
+          updateHoverPoint(e.clientX, e.clientY);
+        }
+      });
+
+      // Mouse Down (Bắt đầu click kéo thả)
+      canvas.addEventListener("mousedown", (e) => {
+        // Chống drag kéo bản đồ khi đồ thị chưa từng chạy
+        if (lastDataGenTime === null) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        const clickX = (e.clientX - rect.left) * dpr;
+
+        // Chỉ cho phép drag khi kích hoạt từ vùng trong biểu đồ (bên phải trục tung)
+        if (clickX >= chartMarginLeft * dpr) {
+          isPanning = true;
+          startPanX = e.clientX;
+          originalViewOffsetMs = viewOffsetMs;
+
+          // Nếu đang hoạt động trực tiếp, tự động chuyển sang trạng thái dừng hình tạm thời để rà soát
+          if (isRunning) {
+            isRunning = false;
+            overlayPause.classList.remove("opacity-0", "pointer-events-none");
+            pauseBadgeText.innerText = "LỊCH SỬ (HISTORICAL VIEW)";
+
+            // Làm sáng lại bộ nút điều khiển để người dùng nhấn Start để tiếp tục
+            btnStart.classList.remove("opacity-50", "pointer-events-none");
+            btnStop.classList.add("opacity-50", "pointer-events-none");
+
+            showNotification("Đang mở chế độ xem lại lịch sử. Kéo chuột để dịch chuyển biểu đồ!", "warning");
+          }
+        }
+      });
+
+      // Mouse Up / Leave (Kết thúc click kéo)
+      window.addEventListener("mouseup", () => {
+        isPanning = false;
+      });
+
+      canvas.addEventListener("mouseleave", () => {
+        hoverPoint = null;
+        mouseX = null;
+        mouseY = null;
+      });
+
+      // 7. XỬ LÝ SỰ KIỆN CÁC NÚT ĐIỀU KHIỂN ĐỒ THỊ
+      // Nút Bắt đầu (START)
+      btnStart.addEventListener("click", async () => {
+        if (isRunning) return;
+
+        // Khi bấm Start trực tiếp, tự động reset mốc thời gian xem history về hiện tại
+        viewOffsetMs = 0;
+
+        // KIỂM TRA HỖ TRỢ FILE SYSTEM ACCESS API
+        const isSupported = "showSaveFilePicker" in window;
+        isDirectStreaming = false;
+        fileWritableStream = null;
+        fileHandle = null;
+
+        if (isSupported) {
+          try {
+            // Cấu hình lựa chọn file save trên đĩa cứng cục bộ
+            const options = {
+              suggestedName: `ppg_recording_${new Date().toISOString().replace(/T/, "_").slice(0, 19).replace(/:/g, "-")}.txt`,
+              types: [
+                {
+                  description: "Tệp Văn Bản (.txt)",
+                  accept: { "text/plain": [".txt"] },
+                },
+              ],
+            };
+
+            fileHandle = await window.showSaveFilePicker(options);
+            fileWritableStream = await fileHandle.createWritable();
+
+            // Ghi Header tệp tin ban đầu
+            await fileWritableStream.write("=== DỮ LIỆU ĐO PPG CHUẨN CAO TRỰC TIẾP (500Hz) ===\n");
+            await fileWritableStream.write(`Thời gian ghi nhận: ${new Date().toLocaleString("vi-VN")}\n`);
+            await fileWritableStream.write("Chế độ lưu trữ: File System Access API (Stream to Disk)\n");
+            await fileWritableStream.write("----------------------------------------\n");
+            await fileWritableStream.write("Thời gian (s), Giá trị PPG (ADC)\n");
+
+            isDirectStreaming = true;
+            storageModeText.innerText = "Ghi file: Trực tiếp vào đĩa cứng (Stream)";
+            storageModeText.classList.replace("text-indigo-400", "text-emerald-400");
+            showNotification("Đã thiết lập file lưu trữ! Bắt đầu ghi trực tiếp vào ổ cứng...", "success");
+          } catch (err) {
+            // Trường hợp người dùng chủ động nhấn Hủy/Cancel hộp thoại chọn file
+            if (err.name === "AbortError") {
+              showNotification("Bạn đã hủy chọn file ghi. Thiết bị đo chưa khởi động.", "warning");
+              playSound(250, 0.1, "sawtooth");
+              return;
+            }
+            console.error("Lỗi khởi tạo lưu trữ trực tiếp: ", err);
+            showNotification("Lỗi kết nối đĩa. Chuyển sang lưu trữ đệm (TypedArray).", "warning");
+          }
+        } else {
+          // Trình duyệt không hỗ trợ File System Access API (Safari, Firefox, Mobile)
+          storageModeText.innerText = "Ghi file: Sử dụng TypedArray dự phòng";
+          storageModeText.classList.replace("text-emerald-400", "text-indigo-400");
+          showNotification("Trình duyệt không hỗ trợ Direct Write. Chuyển sang lưu bộ đệm TypedArray.", "warning");
+        }
+
+        // Đặt lại số lượng mẫu về 0 cho tệp ghi mới
+        recordedCount = 0;
+        dataPoints = []; // Làm sạch màn hình vẽ
+        firstTimestamp = null; // Reset mốc thời gian zero
+
+        if (!isDirectStreaming) {
+          // Khởi tạo/Giải phóng dung lượng TypedArray dự phòng
+          if (recordedCapacity > 60000) {
+            recordedCapacity = 60000;
+            recordedValues = new Float32Array(recordedCapacity);
+            recordedTimestamps = new Float64Array(recordedCapacity);
+          }
+        }
+
+        isRunning = true;
+        lastDataGenTime = performance.now();
+        overlayPause.classList.add("opacity-0", "pointer-events-none");
+
+        // Làm sáng các nút
+        btnStart.classList.add("opacity-50", "pointer-events-none");
+        btnStop.classList.remove("opacity-50", "pointer-events-none");
+
+        // Âm báo bíp khởi động hệ thống
+        playSound(523.25, 0.1, "triangle"); // Đốt đô C5
+        setTimeout(() => playSound(659.25, 0.15, "triangle"), 80); // Nốt mi E5
+      });
+
+      // Nút Tạm dừng (STOP) - ĐÃ ĐƯỢC TỐI ƯU HOÁ ĐỒNG BỘ ĐỂ TRÁNH LỖI TREO UI
+      btnStop.addEventListener("click", async () => {
+        if (!isRunning) return;
+
+        // 1. NGAY LẬP TỨC ĐÓNG BĂNG HỆ THỐNG VÀ CẬP NHẬT UI ĐỒNG BỘ (Tránh hiện tượng lag/kẹt nút)
+        isRunning = false;
+        overlayPause.classList.remove("opacity-0", "pointer-events-none");
+        pauseBadgeText.innerText = "ĐÃ TẠM DỪNG (HOLD)";
+
+        btnStart.classList.remove("opacity-50", "pointer-events-none");
+        btnStop.classList.add("opacity-50", "pointer-events-none");
+
+        // Âm báo dừng lập tức
+        playSound(329.63, 0.2, "sawtooth"); // Nốt mi thấp E4
+
+        // 2. XỬ LÝ ĐÓNG STREAM AN TOÀN TRONG NỀN (BẤT ĐỒNG BỘ)
+        if (isDirectStreaming && fileWritableStream) {
+          const tempStream = fileWritableStream;
+          fileWritableStream = null; // Gỡ bỏ tham chiếu ngay lập tức
+
+          try {
+            await tempStream.close();
+            showNotification(`Đã kết thúc phiên ghi! Lưu thành công ${recordedCount} mẫu thẳng vào ổ cứng.`, "success");
+          } catch (err) {
+            console.error("Lỗi khi đóng stream:", err);
+            showNotification("Có lỗi xảy ra khi đóng và lưu file ghi đĩa.", "warning");
+          }
+        } else {
+          showNotification("Đã tạm dừng. Dữ liệu hiện có được lưu tạm thời trên bộ đệm.", "warning");
+        }
+      });
+
+      // Nút Đặt lại / Xóa (RESET)
+      btnReset.addEventListener("click", async () => {
+        // Đóng stream đang chạy dở dang (nếu có)
+        if (fileWritableStream) {
+          try {
+            await fileWritableStream.close();
+          } catch (e) {}
+          fileWritableStream = null;
+        }
+        fileHandle = null;
+        isDirectStreaming = false;
+        viewOffsetMs = 0; // Reset độ dốc lịch sử
+
+        // Xóa sạch dữ liệu hiển thị và dữ liệu ghi file
+        dataPoints = [];
+        recordedCount = 0;
+        lastDataGenTime = null;
+        firstTimestamp = null;
+        wavePhase = 0;
+
+        // Giải phóng dung lượng cực lớn để đưa bộ nhớ về mặc định ban đầu
+        if (recordedCapacity > 60000) {
+          recordedCapacity = 60000;
+          recordedValues = new Float32Array(recordedCapacity);
+          recordedTimestamps = new Float64Array(recordedCapacity);
+        }
+
+        bufferCountEl.innerText = "0 mẫu";
+        recordCountEl.innerText = "0 mẫu";
+        storageModeText.innerText = "Ghi file: Chọn ổ cứng khi Start";
+        storageModeText.classList.remove("text-emerald-400");
+        storageModeText.classList.add("text-indigo-400");
+
+        // Trả nút Start và Stop về trạng thái mặc định
+        btnStart.classList.remove("opacity-50", "pointer-events-none");
+        btnStop.classList.add("opacity-50", "pointer-events-none");
+        overlayPause.classList.add("opacity-0", "pointer-events-none");
+
+        // Nếu đang tạm dừng vẽ thì vẽ lại để cập nhật canvas trống liền
+        if (!isRunning) {
+          drawChart();
+        }
+
+        // Âm báo reset
+        playSound(220, 0.3, "sine"); // Nốt la thấp A3
+
+        showNotification("Đã xóa sạch dữ liệu đồ thị và giải phóng phiên ghi cũ.", "success");
+      });
+
+      // Nút Lưu dữ liệu (SAVE DATA)
+      btnSave.addEventListener("click", () => {
+        if (recordedCount === 0) {
+          showNotification("Không có dữ liệu trong tệp ghi hiện thời để xuất!", "warning");
+          playSound(250, 0.15, "sawtooth");
+          return;
+        }
+
+        // Nếu đang chạy chế độ Direct Streaming, báo cho người dùng biết file đã được tự động ghi
+        if (isDirectStreaming) {
+          showNotification("Dữ liệu đang được ghi trực tiếp vào đường dẫn bạn đã chọn khi nhấn Start!", "success");
+          playSound(880, 0.12, "sine");
+          return;
+        }
+
+        if (!isDirectStreaming && fileHandle) {
+          // Đã hoàn tất file stream từ trước
+          showNotification("Tệp dữ liệu của bạn đã được kết xuất trực tiếp vào đĩa cứng thành công!", "success");
+          playSound(880, 0.12, "sine");
+          return;
+        }
+
+        // PHƯƠNG ÁN DỰ PHÒNG: Tải file qua blob nếu trình duyệt không hỗ trợ stream đĩa
+        let txtContent = "=== DỮ LIỆU ĐO PPG CHUẨN CAO LŨY KẾ (500Hz) - DỰ PHÒNG TYPEDARRAY ===\n";
+        txtContent += `Thời gian xuất: ${new Date().toLocaleString("vi-VN")}\n`;
+        txtContent += `Tổng số mẫu ghi nhận: ${recordedCount}\n`;
+        txtContent += `Thời gian đo liên tục: ${((recordedCount * sampleIntervalMs) / 1000).toFixed(2)} giây\n`;
+        txtContent += "----------------------------------------\n";
+        txtContent += "Thời gian (s), Giá trị PPG (ADC)\n";
+
+        // Thời mốc bắt đầu của phiên ghi (làm mốc 0.000s)
+        const startT = recordedTimestamps[0];
+
+        for (let i = 0; i < recordedCount; i++) {
+          const relativeSecs = ((recordedTimestamps[i] - startT) / 1000).toFixed(3);
+          const ppgValue = recordedValues[i].toFixed(2);
+          txtContent += `${relativeSecs}, ${ppgValue}\n`;
+        }
+
+        // Tạo Blob dữ liệu tải xuống
+        const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+
+        // Tạo thẻ link ẩn để tải trực tiếp
+        const downloadLink = document.createElement("a");
+        downloadLink.href = url;
+
+        // Tên file chứa mốc thời gian chi tiết
+        const fileTimestamp = new Date().toISOString().replace(/T/, "_").slice(0, 19).replace(/:/g, "-");
+        downloadLink.download = `ppg_fallback_session_${fileTimestamp}.txt`;
+
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+
+        // Giải phóng vùng nhớ
+        URL.revokeObjectURL(url);
+
+        // Âm thanh báo xuất thành công
+        playSound(880, 0.12, "sine"); // A5 sáng sủa
+        setTimeout(() => playSound(1046.5, 0.15, "sine"), 70); // C6 tươi vui
+
+        showNotification("Đã tải xuống thành công tệp dự phòng!", "success");
+      });
+
+      // Đặt trạng thái ban đầu của nút stop vì chưa chạy
+      btnStop.classList.add("opacity-50", "pointer-events-none");
+      heartIcon.classList.add("text-slate-500");
+      heartPing.style.opacity = "0";
+    </script>
+  </body>
+</html>
