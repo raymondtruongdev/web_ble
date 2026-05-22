@@ -7,14 +7,22 @@ class UIManager {
   init() {
     // Chỉ lấy elements khi DOM đã sẵn sàng
     this.elements = {
+      // Device  panel
+      devicePanel: document.getElementById("devicePanel"),
+      deviceName: document.getElementById("deviceName"),
+      btnSyncTime: document.getElementById("btnSyncTime"),
+      btnSyncTimezone: document.getElementById("btnSyncTimezone"),
+      btnGetDate: document.getElementById("btnGetDate"),
+      btnGetMTU: document.getElementById("btnGetMTU"),
+
+      // BLE control panel
       statusBLEIcon: document.getElementById("statusBLEIcon"),
       statusBLEText: document.getElementById("statusBLEText"),
       connectBLEBtn: document.getElementById("connectBLEBtn"),
       disconnectBLEBtn: document.getElementById("disconnectBLEBtn"),
+
+      // Terminal
       terminalOutput: document.getElementById("terminal"),
-      devicePanel: document.getElementById("devicePanel"),
-      deviceMac: document.getElementById("deviceMacDisplay"),
-      rssi: document.getElementById("rssiValue"),
       terminalInput: document.getElementById("terminal-input"),
       clearTerminalBtn: document.getElementById("clearTerminalBtn"),
       sendTerminalBtn: document.getElementById("sendTerminalBtn"),
@@ -34,44 +42,42 @@ class UIManager {
       stopFileBtn: document.getElementById("stopFileBtn"),
 
       fileStatus: document.getElementById("fileStatus"),
-      progressContainer: document.getElementById('progressContainer'),
-      progressBar: document.getElementById('progressBar'),
-      progressText: document.getElementById('progressText'),
-
+      progressContainer: document.getElementById("progressContainer"),
+      progressBar: document.getElementById("progressBar"),
+      progressText: document.getElementById("progressText"),
     };
   }
 
   // Cập nhật trạng thái kết nối Bluetooth (BLE)
-  updateConnectionBLEStatus(isConnected, deviceName = "",deviceId = "") {
+  updateDeviceStatus(isConnected,deviceName = "") {
+    if (isConnected) {
+      this.elements.deviceName.textContent = deviceName;
+    } else {
+      this.elements.deviceName.textContent = "------";
+    }
+  }
+
+  // Cập nhật trạng thái kết nối Bluetooth (BLE)
+  updateConnectionBLEStatus(isConnected, deviceName = "", deviceId = "") {
+    this.updateDeviceStatus(isConnected,deviceName);
     this.elements.connectBLEBtn.classList.toggle("hidden", isConnected);
     this.elements.disconnectBLEBtn.classList.toggle("hidden", !isConnected);
-
     if (isConnected) {
       this.elements.statusBLEIcon.className = "status-dot bg-green-500";
       this.elements.statusBLEText.classList.replace("text-gray-300", "text-green-400");
       this.elements.statusBLEText.textContent = "ONLINE";
-      document.getElementById("deviceNameDisplay").textContent = deviceName || "Connected";
-      this.elements.devicePanel.classList.remove("hidden");
-      this.updateDeviceBLEInfo(deviceId, "N/A");
     } else {
       this.elements.statusBLEIcon.className = "status-dot bg-gray-500";
       this.elements.statusBLEText.classList.replace("text-green-400", "text-gray-300");
       this.elements.statusBLEText.textContent = "OFFLINE";
-      this.elements.devicePanel.classList.add("hidden");
-      this.updateDeviceBLEInfo("Searching...", "--");
     }
   }
 
-  // Cập nhật thông tin chi tiết thiết bị BLE (MAC và RSSI)
-  updateDeviceBLEInfo(id, rssi) {
-    this.elements.deviceMac.textContent = id || "Unknown";
-    this.elements.rssi.textContent = rssi ? `${rssi} dBm` : "-- dBm";
-  }
   // Cập nhật trạng thái kết nối SERIAL (UART)
   updateConnectionUartStatus(isConnected) {
+    this.updateDeviceStatus(isConnected,"UART Device");
     this.elements.connectUartBtn.classList.toggle("hidden", isConnected);
     this.elements.disconnectUartBtn.classList.toggle("hidden", !isConnected);
-
     if (isConnected) {
       this.elements.statusUartIcon.className = "status-dot bg-green-500";
       this.elements.statusUartText.classList.replace("text-gray-300", "text-green-400");

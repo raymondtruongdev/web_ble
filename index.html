@@ -43,6 +43,22 @@
     ::-webkit-scrollbar-thumb:hover {
       background: #7a818a;
     }
+
+    .button-info {
+      background-color: #2563eb;
+      color: white;
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.5rem;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      transition: all 0.2s;
+      box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+    }
+
+    .button-info:hover {
+      background-color: #3b82f6;
+    }
   </style>
 </head>
 
@@ -120,34 +136,41 @@
     <!-- Left Container Connection và File Transfer -->
     <aside class="min-w-[300px] px-2 gap-3 flex flex-col">
 
-
-      <div id="devicePanel" class=" w-full  border border-[#30363d] bg-[#0d1117] p-3 rounded-xl space-y-2">
-        <div class="flex items-center space-x-2 text-blue-400">
-          <i data-lucide="smartphone" class="w-4 h-4"></i>
-          <span id="deviceNameDisplay" class="font-bold text-[13px] truncate">Device Name</span>
-        </div>
-        <div class="text-[10px] space-y-1">
-          <div class="flex justify-between text-gray-500">
-            <span>ID:</span>
-            <span id="deviceMacDisplay" class="text-gray-300 font-mono italic">------</span>
+      <!--Device Information Section -->
+      <section id="devicePanel" class="bg-white rounded-2xl shadow-sm  flex-col items-center">
+        <h2 id="device-info-title" class="w-full p-2 text-lg font-semibold flex items-center">
+          <i data-lucide="smartphone" class="w-6 h-6 text-blue-600 mr-2"></i>
+          <span class="truncate">DEVICE INFORMATION</span>
+        </h2>
+        <div id="device-status"
+          class="flex-1 w-full p-3 flex flex-col items-start   justify-center gap-3 rounded-b-2xl bg-[#0d1117]">
+          <div class="w-full flex items-center justify-start gap-2">
+            <span class="font-bold text-[12px] text-blue-400 truncate uppercase">DEVICE NAME: </span>
+            <div id="deviceName" class="font-bold uppercase text-[14px] text-gray-200 italic">
+              <span>------</span>
+            </div>
           </div>
-          <div class="flex justify-between text-gray-500">
-            <span>RSSI:</span>
-            <span id="rssiValue" class="text-green-500 font-bold">-- dBm</span>
+
+          <div id="device-info-button-group" class="w-full grid grid-cols-2 gap-2">
+            <button id="btnSyncTime" class="button-info">
+              Sync Time
+            </button>
+            <button id="btnSyncTimezone" class="button-info">
+              Sync Timezone
+            </button>
+            <button id="btnGetDate" class="button-info">
+              Get Date
+            </button>
+            <button id="btnGetMTU" class="button-info">
+              Get BLE MTU
+            </button>
           </div>
-        </div>
-
-      </div>
-
+      </section>
       <!-- BLE Connection Section -->
-      <section id="ble-connection-section"
-        class=" bg-white rounded-2xl shadow-sm h-[150px] flex flex-col items-center ">
+      <section id="ble-connection-section" class="bg-white rounded-2xl shadow-sm h-[150px] flex flex-col items-center">
         <h2 id="ble-connection-title" class="w-full p-2 text-lg font-semibold flex items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24"
-            stroke="currentColor">
-            <path d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          <span class="truncate">BLE Connection</span>
+          <i data-lucide="bluetooth" class="w-6 h-6 text-blue-600 mr-2"></i>
+          <span class="truncate">BLE CONNECTION</span>
         </h2>
 
         <div id="ble-status"
@@ -176,14 +199,10 @@
 
 
       <!-- UART Connection Section -->
-      <section id="uart-connection-section"
-        class=" bg-white rounded-2xl shadow-sm h-[150px] flex flex-col items-center ">
+      <section id="uart-connection-section" class="bg-white rounded-2xl shadow-sm h-[150px] flex flex-col items-center">
         <h2 id="uart-connection-title" class="w-full p-2 text-lg font-semibold flex items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24"
-            stroke="currentColor">
-            <path d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          <span class="truncate">UART Connection</span>
+          <i data-lucide="cable" class="w-6 h-6 text-blue-600 mr-2"></i>
+          <span class="truncate">UART CONNECTION</span>
         </h2>
 
         <div id="uart-status" class=" w-full flex-1 px-3 py-3 grid gap-3 place-items-center rounded-b-2xl bg-[#0d1117]">
@@ -210,20 +229,17 @@
       </section>
 
 
-      <!-- File Transfer Section -->
+
       <!-- File Transfer Section -->
       <section id="file-transfer-section" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-
-        <!-- H2 ĐÃ ĐƯỢC ĐỔI NỀN XANH FULL WIDTH HEIGHT 50PX -->
         <h2 class="text-lg font-semibold flex items-center bg-blue-600 text-white w-full h-[50px] px-4 mb-4">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-white" fill="none" viewBox="0 0 24 24"
             stroke="currentColor">
             <path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
           </svg>
-          <span class="truncate">File Transfer</span>
+          <span class="truncate">FILE TRANSFER</span>
         </h2>
 
-        <!-- Thêm px-4 ở đây để nội dung bên trong không bị dính sát lề -->
         <div class="space-y-4 px-4 pb-4">
           <div>
             <label class="block text-sm font-medium text-gray-500 mb-1 uppercase">
@@ -299,10 +315,10 @@
             </section>
           </div>
         </div>
-      </section>
+
     </aside>
 
-    <!-- CỘT PHẢI (Tự động giãn rộng trên Desktop) -->
+    <!-- CỘT PHẢI -->
     <aside class=" flex-1 flex flex-col gap-6 px-2">
       <!-- Terminal Section -->
       <section id="terminal-section" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -352,7 +368,7 @@
   <script>
     window.onload = () => {
       lucide.createIcons();
-    }
+    };
   </script>
   <script type="module" src="./js/app.js"></script>
 

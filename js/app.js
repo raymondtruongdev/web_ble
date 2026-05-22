@@ -14,6 +14,10 @@ function terminal_send(cmd) {
   UI.elements.terminalInput.value = ""; // Clear terminal input
   logger.log("default", `> ${cmd}`); // In ra terminal output
 
+  if (AppState.connectionType === CONNECTION_TYPE.NONE) {
+    logger.log("warning", "No device connected. Please connect to a device first.");
+    return;
+  }
   const parts = cmd.split(/\s+/);
   const cmd_1 = parts[0].toLowerCase();
 
@@ -233,5 +237,32 @@ window.addEventListener("DOMContentLoaded", () => {
     UART.sendFrame(cmd, payload);
   });
 
+  //================= DEVICE INFO PANEL =================
+  if (UI.elements.btnSyncTime) {
+    UI.elements.btnSyncTime.onclick = () => {
+      const now = Math.floor(Date.now() / 1000);
+      const cmd_set_current_time = `date -s @${now}`;
+      terminal_send(cmd_set_current_time);
+    };
+  }
+  if (UI.elements.btnSyncTimezone) {
+    UI.elements.btnSyncTimezone.onclick = () => {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const offsetMinutes = -new Date().getTimezoneOffset();
+      const cmd_set_timezone = `timedatectl set-timezone @${offsetMinutes}`;
+      terminal_send(cmd_set_timezone);
+    };
+  }
+
+  if (UI.elements.btnGetDate) {
+    UI.elements.btnGetDate.onclick = () => {
+      terminal_send("date");
+    };
+  }
+  if (UI.elements.btnGetMTU) {
+    UI.elements.btnGetMTU.onclick = () => {
+      terminal_send("ble");
+    };
+  }
   // END
 });

@@ -72,7 +72,7 @@ class BLEManager {
 
       this.server = await this.device.gatt.connect();
       this.updateConnectionStatus(true);
-      this.onMessageNotify("success", "BLE Connected UART ✅");
+      this.onMessageNotify("success", "BLE Connected ✅");
       
 
       if (this.device.name && this.device.name.includes("T2D OS")) {
