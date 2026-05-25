@@ -209,31 +209,28 @@ class UARTManager {
 
     // Parse frame structure
     const command = frame[1]; // Command code
-    const ack = frame[2]; // ACK status code
-    const lenL = frame[3];
-    const lenH = frame[4];
+    const lenL = frame[2];
+    const lenH = frame[3];
     const payloadLen = (lenH << 8) | lenL;
+    // const ack = frame[4]; // ACK status code
+    const payload = frame.slice(4, 4 + payloadLen);
 
-    // Validate frame length
-    // Total: start(1) + command(1) + ack(1) + len(2) + payload(payloadLen) + crc(2) + stop(1)
-    const expectedTotal = 1 + 1 + 1 + 2 + payloadLen + 2 + 1;
+    console.log("Payload length:", `0x${payloadLen.toString(16).padStart(2, "0")}`);
+    const expectedTotal = 1 + 1 + 2 + payloadLen + 2 + 1;
     if (frame.length !== expectedTotal) {
       console.warn("Frame length mismatch. Expected:", expectedTotal, "Got:", frame.length);
       return;
     }
 
-    // Extract payload
-    const payload = frame.slice(5, 5 + payloadLen);
-
     // Extract CRC
-    const crcIndex = 5 + payloadLen;
+    const crcIndex = 4 + payloadLen;
     const crcL = frame[crcIndex];
     const crcH = frame[crcIndex + 1];
     const receivedCrc = (crcH << 8) | crcL;
 
     // Calculate CRC from command to end of payload
     // CRC range: frame[1] (command) to frame[4 + payloadLen] (last payload byte)
-    const crcData = frame.slice(1, 5 + payloadLen);
+    const crcData = frame.slice(1, 4 + payloadLen);
     const crcCalc = this.calculateCRC16(crcData);
     const crcOk = (crcCalc & 0xffff) === (receivedCrc & 0xffff);
 
@@ -244,7 +241,7 @@ class UARTManager {
         .join(" "),
     );
     console.log("RX Command:", `0x${command.toString(16).padStart(2, "0")}`);
-    console.log("RX ACK:", `0x${ack.toString(16).padStart(2, "0")}`);
+    // console.log("RX ACK:", `0x${ack.toString(16).padStart(2, "0")}`);
     console.log("RX Payload length:", payloadLen);
     console.log(
       "RX CRC:",
@@ -252,10 +249,16 @@ class UARTManager {
       `(calc: 0x${crcCalc.toString(16).padStart(4, "0")}, recv: 0x${receivedCrc.toString(16).padStart(4, "0")})`,
     );
 
+    // Match firmware struct file_transfer_send_2_web_t ack layout:
+    // ACK frame payload format from device is [code][data0][data1][data2][data3] for ACK type,
+    // or raw payload for DATA type. We expose both cmd and command for compatibility.
     const info = {
+      cmd: command,
       command,
-      ack,
+      // code: ack,
+      // ack,
       data: payload,
+      data_len: payloadLen,
       crcOk,
     };
 
@@ -293,13 +296,22 @@ class UARTManager {
             buffer.push(byte);
 
             // Once we have 5 bytes, calculate expected total length
-            // Frame: [0x01][command][ack][lenL][lenH][payload...][crcL][crcH][0x04]
-            if (buffer.length === 5 && expectedLength === null) {
-              const lenL = buffer[3];
-              const lenH = buffer[4];
+            // Frame: [0x01][command][lenL][lenH][payload...][crcL][crcH][0x04]
+            if (buffer.length === 4 && expectedLength === null) {
+              const lenL = buffer[2];
+              const lenH = buffer[3];
               const payloadLen = (lenH << 8) | lenL;
+
+              if (payloadLen > 8185 || payloadLen === 0) {
+                console.warn("Invalid payload length:", payloadLen, "Resetting frame buffer");
+                buffer = [];
+                inFrame = false;
+                expectedLength = null;
+                continue;
+              }
+
               // Total: start(1) + command(1) + ack(1) + len(2) + payload(payloadLen) + crc(2) + stop(1)
-              expectedLength = 1 + 1 + 1 + 2 + payloadLen + 2 + 1;
+              expectedLength = 1 + 1 + 2 + payloadLen + 2 + 1;
 
               // Validate expected length (min 8 bytes, max 8192 bytes)
               if (expectedLength < 8 || expectedLength > 8192) {

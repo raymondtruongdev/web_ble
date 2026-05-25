@@ -8,6 +8,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <style>
     .status-dot {
       height: 18px;
@@ -59,17 +60,37 @@
     .button-info:hover {
       background-color: #3b82f6;
     }
+
+    .btn-chart {
+      display: flex;
+      flex: 1 1 0%;
+      padding: 0.625rem 1.5rem;
+      border-radius: 0.75rem;
+      color: white;
+      font-weight: 600;
+      transition: all 0.2s;
+      border-width: 1px;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+
+    }
+
+    .btn-chart:active {
+      transform: scale(0.95);
+    }
   </style>
 </head>
 
 
 <body class="bg-gray-200 min-h-screen flex flex-col">
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- Header -->
-  <header id="header-component"
-    class="w-full max-w-7xl mx-auto bg-gradient-to-r from-blue-900 to-blue-700 rounded-t-2xl shadow-sm">
+  <header id="header-component" class="w-full bg-gradient-to-r from-blue-900 to-blue-700 shadow-sm">
 
-    <nav class=" py-3 px-4 flex items-center justify-between relative z-30">
+    <nav class="max-w-7xl mx-auto py-3 px-4 flex items-center justify-between relative z-30">
       <!-- Logo -->
       <section class="flex items-center gap-3">
         <a href="https://t2dtech.io.vn/" target="_blank" class="flex items-center gap-3">
@@ -132,9 +153,9 @@
   <!-- Green Bar -->
   <div class="w-full h-3 bg-green-600"></div>
   <!-- Main Content -->
-  <main class="w-full max-w-7xl mx-auto flex-1 flex py-4 gap-2">
+  <main class="w-full max-w-7xl mx-auto flex-1 flex flex-row py-4 px-2 gap-4 overflow-x-auto custom-scrollbar">
     <!-- Left Container Connection và File Transfer -->
-    <aside class="min-w-[300px] px-2 gap-3 flex flex-col">
+    <aside id="left-container" class="w-[320px] flex-shrink-0 gap-3 flex flex-col">
 
       <!--Device Information Section -->
       <section id="devicePanel" class="bg-white rounded-2xl shadow-sm  flex-col items-center">
@@ -246,10 +267,15 @@
               Send File
             </label>
 
+            <div class="flex space-x-2 pb-1">
+              <input id="remoteSendDir" type="text" value="/home/Downloads/" placeholder="/home/Downloads/"
+                class="flex-1 text-[14px] bg-gray-50 border  border-gray-400 px-2 rounded-lg  truncate text-left py-2">
+            </div>
+
             <div class="flex items-center gap-2">
               <!-- Custom File Input -->
               <label for="fileInput"
-                class="flex-1 flex items-center border border-gray-400 rounded-lg overflow-hidden cursor-pointer bg-gray-50 h-[45px]">
+                class="flex-1 flex items-center border border-gray-400 rounded-lg overflow-hidden cursor-pointer bg-gray-50 h-[52px]">
                 <span id="fileName" class=" px-2 text-gray-500 text-sm truncate">
                   Choose here
                 </span>
@@ -258,7 +284,7 @@
               <input type="file" id="fileInput" class="hidden" />
               <!-- Send Button -->
               <button id="sendFileBtn"
-                class="w-[60px] h-[56px] flex flex-col items-center justify-center bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition shadow-sm">
+                class="w-[60px] flex flex-col items-center justify-center bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition shadow-sm">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
                   stroke="currentColor">
                   <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -315,23 +341,88 @@
             </section>
           </div>
         </div>
+      </section>
+
+      <!-- FILE LOGGING  PANEL -->
+      <section id="file-logging-section" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <h2 class="text-lg font-semibold flex items-center bg-blue-600 text-white w-full h-[50px] px-4 mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-white" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor">
+            <path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+          </svg>
+          <span class="truncate">FILE LOGGING</span>
+        </h2>
+
+        <div class="space-y-4 px-4 pb-4">
+
+
+          <!-- Toggle Switch -->
+          <div class="w-full flex items-center justify-between">
+            <div class="flex flex-col">
+              <span class="text-xs font-bold text-slate-500">ALLOW FILE LOGGING</span>
+            </div>
+
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="file-logging-toggle" class="sr-only peer" />
+              <div
+                class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-400 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 peer-checked:after:bg-white">
+              </div>
+            </label>
+          </div>
+
+          <!-- Hidden Config Area (Appears when ON) -->
+          <div id="logging-config-panel" class=" hidden flex flex-col gap-3  border-t border-slate-300 pt-2">
+
+            <!-- Select File Button -->
+            <button id="set-file-logging-btn"
+              class=" w-full flex flex-col items-center justify-center bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition shadow-sm">
+              <span>SET FILE LOGGING</span>
+            </button>
+
+            <!-- Path Display Box -->
+            <div id="path-logging-display" class=" flex items-start gap-2 bg-gray-50 px-2 rounded-lg text-left">
+              <span id="path-logging-text"
+                class="text-[14px] text-gray-400 italic py-2 break-words whitespace-normal line-clamp-3">
+                No location selected...
+              </span>
+            </div>
+            <!-- Start Logging File Button -->
+            <button id="start-file-logging-btn"
+              class="w-full flex flex-col items-center justify-center bg-green-600 text-white p-2 rounded-lg hover:bg-green-700 transition shadow-sm">
+              <span>START LOGGING</span>
+            </button>
+
+            <!-- Finish Button -->
+            <button id="finish-file-logging-btn"
+              class=" w-full py-2 items-center justify-center bg-red-600 text-white p-2 rounded-lg hover:bg-red-400 transition shadow-sm">
+              FINISH & SAVE
+            </button>
+
+          </div>
+
+        </div>
+
+        </div>
+      </section>
+
+
 
     </aside>
 
     <!-- CỘT PHẢI -->
-    <aside class=" flex-1 flex flex-col gap-6 px-2">
+    <section id="right-container" class="min-w-[450px] flex-1 flex flex-col gap-6">
       <!-- Terminal Section -->
       <section id="terminal-section" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="px-6 py-4  flex justify-between items-center bg-gray-800">
           <h2 class="text-sm font-bold uppercase tracking-wider text-gray-200">Terminal Output</h2>
         </div>
         <div id="terminal"
-          class="terminal-bg h-[350px]  p-4 text-green-400 text-sm overflow-y-auto custom-scrollbar leading-relaxed font-mono">
+          class="terminal-bg h-[300px] md:h-[350px] p-4 text-green-400 text-sm overflow-y-auto custom-scrollbar leading-relaxed font-mono">
         </div>
         <div class="p-3 bg-gray-800 flex space-x-2">
           <span class="text-gray-500 font-mono pl-2 py-1">$</span>
           <input id="terminal-input" type="text" placeholder="Enter command..."
-            class="flex-1 border-none text-black text-sm outline-none font-mono px-2">
+            class="flex-1 border-none text-black text-sm outline-none font-mono px-2 rounded">
           <button id="sendTerminalBtn"
             class="bg-blue-600 text-white px-4 py-1 rounded text-xs font-bold uppercase">Send</button>
           <button id="clearTerminalBtn"
@@ -340,24 +431,46 @@
       </section>
       <!-- Chart Section -->
       <section id="chart-section"
-        class="flex-1 flex flex-col bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        class="flex-1 flex flex-col bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 ">
         <!-- Chart Header -->
         <div class="flex justify-between items-center mb-6">
-          <h2 class="text-sm font-bold uppercase tracking-wider text-gray-500">Real-time Data</h2>
-          <div class="flex space-x-4">
-            <span class="flex items-center text-[10px] text-gray-500 font-bold uppercase"><span
-                class="w-2 h-2 bg-blue-500 rounded-full mr-1"></span> Sensor A</span>
-            <span class="flex items-center text-[10px] text-gray-500 font-bold uppercase"><span
-                class="w-2 h-2 bg-red-500 rounded-full mr-1"></span> Sensor B</span>
-          </div>
+          <h2 class="text-sm font-bold uppercase tracking-wider text-white">Real-time Data</h2>
         </div>
         <!-- Chart Container -->
-        <div class="flex-1 min-h-0 bg-gray-50 rounded-xl border border-gray-100 p-2">
-          <canvas id="dataChart" class="w-full h-full"></canvas>
-        </div>
-      </section>
+        <div
+          class="relative bg-slate-950/80 border border-slate-900 rounded-xl overflow-hidden aspect-[16/9] md:aspect-[21/9] lg:aspect-[16/9] flex-1 items-center justify-center">
+          <!-- Lưới đồ thị tĩnh / Canvas động -->
+          <canvas id="chart-canvas" class="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"></canvas>
 
-    </aside>
+          <!-- Overlay/Badge khi dừng vẽ -->
+          <div id="chart-overlay-bagde"
+            class="absolute top-1 right-1 bg-slate-900/95 border border-amber-500/40 text-amber-400 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-lg shadow-black/50 opacity-0 pointer-events-none transition-opacity duration-300 z-10">
+            <i class="fa-solid fa-video text-xs animate-pulse text-green-400"></i>
+            <span class="text-xs font-bold tracking-wider uppercase" id="pause-badge-text">RUN</span>
+          </div>
+        </div>
+
+        <!-- Chart Controls Toolbar -->
+        <div class="w-full grid grid-cols-1 sm:grid-cols-3 gap-3 py-3">
+          <!-- START -->
+          <button id="btn-start-chart" class="btn-chart bg-emerald-600 hover:bg-emerald-500 border-emerald-400/25">
+            <i class="fa-solid fa-play text-xs"></i><span>START</span>
+          </button>
+
+          <!-- STOP -->
+          <button id="btn-stop-chart" class="btn-chart bg-red-500 hover:bg-red-400 border-red-400/25">
+            <i class="fa-solid fa-rotate-left text-xs"></i><span>STOP</span>
+          </button>
+
+          <!-- RESET -->
+          <button id="btn-reset-chart" class="btn-chart bg-indigo-800 hover:bg-indigo-700 border-indigo-700 ">
+            <i class="fa-solid fa-stop text-xs"></i><span>RESET</span>
+          </button>
+
+        </div>
+
+      </section>
+    </section>
   </main>
 
   <footer

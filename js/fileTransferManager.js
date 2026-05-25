@@ -1,5 +1,8 @@
 class FileTransfer {
   constructor() {
+    // ---------------------------------------------------------------------
+    // UI callbacks (injected by caller)
+    // ---------------------------------------------------------------------
     /**
      *  Callback to update the notification message UI
      * @param {string} text - content to display in notification area
@@ -14,7 +17,7 @@ class FileTransfer {
     this.onUpdateProgress = () => {};
 
     /**
-     *  Callback to update the UART connection status UI
+     *  Callback to update Transfer status to UI
      * @param {boolean} value - The connection status (true:  transfering / false: not transfering)
      */
     this.onStatusChange = () => {};
@@ -26,324 +29,412 @@ class FileTransfer {
      */
     this.onSendCommand = () => {}; // Function to send a command to the device
 
-    // ==================== Define init variables ====================
-
-    this.maxChunkSize = 8185; // per spec
+    // ---------------------------------------------------------------------
+    // Common transfer state
+    // ---------------------------------------------------------------------
+    this.maxChunkSize = 228; // Must match device-side chunk size
     this.fileName = "";
     this.fileView = null;
     this.currentIndex = 0;
     this.sending = false;
-    this.startTime = 0; // ★ NEW
-    this.totalBytes = 0; // ★ NEW
+    this.stopRequested = false;
+    this.startTime = 0;
+    this.totalBytes = 0;
 
+    // ---------------------------------------------------------------------
+    // Upload state (WebUI -> Device)
+    // ---------------------------------------------------------------------
+    this.uploadChunkId = 0;
+    this.uploadTotalChunks = 0;
+    this.uploadCrc = 0;
+    this.no_free_chunks = 0;
+
+    // "Monitor thread" style waiter for final upload result from device.
+    // Device reports final write result by cmd 0x83.
+    this.uploadFinalAckResolve = null;
+    this.uploadFinalAckReject = null;
+    this.uploadFinalAckTimer = null;
+
+    // ---------------------------------------------------------------------
+    // Download state (Device -> WebUI)
+    // ---------------------------------------------------------------------
+    this.downloadExpectedChunkId = 0;
+    this.downloadBuffer = null;
+    this.downloadFileHandle = null;
+    this.downloadRemotePath = "";
+    this.downloadResolve = null;
+    this.downloadReject = null;
+
+    // ---------------------------------------------------------------------
+    // Generic single-command waiter
+    // Used by start/stop/crc commands (0x82/0x84/0x86/0x87/0x88, etc.)
+    // ---------------------------------------------------------------------
     this.ackTimer = null;
     this.waitingAckResolve = null;
     this.waitingAckReject = null;
 
-    this.value_progress = "0 %";
-    this.text_progress = "Progress: 0% | Speed: 0 KB/s | ETA: 0s";
+    // ---------------------------------------------------------------------
+    // Progress UI text
+    // ---------------------------------------------------------------------
+    this.value_progress = "0%";
+    this.text_progress = "";
 
-    // ACK status codes mapping
+    // ---------------------------------------------------------------------
+    // Device status code map
+    // ---------------------------------------------------------------------
     this.statusMap = {
-      0x00: { text: "OK", action: "continue" },
-      0x01: { text: "CRC Error", action: "stop" },
-      0x02: { text: "Invalid Length", action: "stop" },
-      0x03: { text: "Create File Failure", action: "stop" },
-      0x04: { text: "File already exists", action: "stop" },
-      0x05: { text: "Write Error", action: "stop" },
-      0x06: { text: "State is incorrect", action: "stop" },
-      0x07: { text: "Failure to open file", action: "stop" },
-      0x08: { text: "Failure to jump to end of file", action: "stop" },
-      0x09: { text: "File not exist", action: "stop" },
-      0x0a: { text: "Prepare data failure", action: "stop" },
+      0x00: "OK",
+      0x01: "IS_BUSY",
+      0x02: "INV_INPUT_DATA",
+      0x03: "FREE_SPACE_NOT_ENOUGH",
+      0x04: "CREATE_PATH_FAILURE",
+      0x05: "CREATE_FILE_FAILURE",
+      0x06: "FILE_NOT_EXISTED",
+      0x07: "PREPARE_MEMORY_FAILURE",
+      0x08: "MISSING_DATA_CHUNK",
+      0x09: "OPEN_FILE_FAILURE",
+      0x0a: "WRITE_FILE_FAILURE",
+      0x0b: "READ_FILE_FAILURE",
+      0x0c: "CRC_FAILURE",
     };
   }
 
-  // ==================== FUNCTIONS ====================
+  // Enable/disable STOP button in UI
   enableStop(enable) {
     this.onStatusChange(enable);
   }
 
+  // Reset progress text for a new transfer
   resetProgress() {
     this.value_progress = "0%";
     this.text_progress = "";
     this.onUpdateProgress(this.value_progress, this.text_progress);
   }
 
+  // Update progress/speed/ETA from current counters
   updateProgress() {
-    const sent = this.currentIndex;
-    const total = this.totalBytes;
-    const percent = (sent / total) * 100;
+    const done = this.currentIndex;
+    const total = this.totalBytes || 1;
+    const percent = (done / total) * 100;
 
-    const elapsedMs = performance.now() - this.startTime;
-    const speedKB = (sent / elapsedMs).toFixed(2);
-    const remainBytes = total - sent;
-    const remainMs = remainBytes / (sent / elapsedMs);
-    const remainSec = (remainMs / 1000).toFixed(2);
+    const elapsedMs = Math.max(1, performance.now() - this.startTime);
+    const speedKBs = done / 1024 / (elapsedMs / 1000);
+    const remainBytes = Math.max(0, this.totalBytes - done);
+    const remainSec = speedKBs > 0 ? remainBytes / 1024 / speedKBs : 0;
 
-    this.value_progress = percent + "%";
-    this.text_progress = `Progress: ${percent.toFixed(1)}% | Speed: ${speedKB} KB/s | ETA: ${remainSec}s`;
+    this.value_progress = `${percent.toFixed(1)}%`;
+    this.text_progress = `Progress: ${percent.toFixed(1)}% | Speed: ${speedKBs.toFixed(2)} KB/s | ETA: ${remainSec.toFixed(1)}s`;
     this.onUpdateProgress(this.value_progress, this.text_progress);
   }
 
-  /* ---------------- Send File to Device ---------------- */
-
-  sendFile = async (file) => {
-    if (!file) {
-      this.onMessageNotify("⚠️ Please select a file first.");
-      return;
+  // CRC32 helper (same polynomial expected by firmware side)
+  crc32(data) {
+    let crc = 0xffffffff;
+    for (let i = 0; i < data.length; i++) {
+      crc ^= data[i];
+      for (let j = 0; j < 8; j++) {
+        const mask = -(crc & 1);
+        crc = (crc >>> 1) ^ (0xedb88320 & mask);
+      }
     }
+    return (crc ^ 0xffffffff) >>> 0;
+  }
 
-    // Validate filename size (max 100 bytes)
-    if (file.name.length > 100) {
-      this.onMessageNotify("⚠️ Filename too long (max 100 bytes)");
+  // Read ACK code from device response payload: data[0]
+  getAckFromInfo(info) {
+    const data = info?.data;
+    if (!data || data.length < 1) return null;
+    return data[0];
+  }
+
+  // -----------------------------------------------------------------------
+  // Upload flow (WebUI -> Device)
+  // 1) Send cmd 0x02 (start + path + total_chunks)
+  // 2) Stream cmd 0x03 chunks continuously (no per-chunk wait)
+  // 3) Wait final cmd 0x83 from device workqueue (OK/error)
+  // 4) If final ACK OK -> send cmd 0x06 CRC compare (expect 0x86)
+  // -----------------------------------------------------------------------
+  async sendFile(file, remoteDir = "") {
+    if (!file) {
+      this.onMessageNotify("Please select a file first.");
       return;
     }
 
     this.stopRequested = false;
     this.enableStop(true);
+    this.resetProgress();
 
     this.fileName = file.name;
-    const fileNameBytes = new TextEncoder().encode(this.fileName);
+    const normalizedDir = (remoteDir || "").trim();
+    const fullRemotePath = normalizedDir ? `${normalizedDir.replace(/\/+$/, "")}/${this.fileName}` : this.fileName;
 
-    if (fileNameBytes.length > 256) {
-      this.onMessageNotify("❌ File name too long (max 256 bytes).");
+    const pathBytes = new TextEncoder().encode(fullRemotePath);
+    if (pathBytes.length > 255) {
+      this.transferFailed("Remote path too long.");
       return;
     }
 
     const buf = await file.arrayBuffer();
     this.fileView = new Uint8Array(buf);
-    this.currentIndex = 0;
     this.totalBytes = this.fileView.length;
+    this.currentIndex = 0;
+    this.uploadChunkId = 0;
+    this.uploadTotalChunks = Math.ceil(this.totalBytes / this.maxChunkSize);
+    this.uploadCrc = this.crc32(this.fileView);
     this.sending = true;
 
     try {
-      // Step 1: Send filename (command 0x02)
-      await this.onSendCommand(0x02, fileNameBytes);
+      // Build upload start payload: [path bytes][chunk_count_u32_le]
+      const startPayload = new Uint8Array(pathBytes.length + 4);
+      startPayload.set(pathBytes, 0);
+      const n = this.totalBytes >>> 0;
+      startPayload[pathBytes.length + 0] = n & 0xff;
+      startPayload[pathBytes.length + 1] = (n >>> 8) & 0xff;
+      startPayload[pathBytes.length + 2] = (n >>> 16) & 0xff;
+      startPayload[pathBytes.length + 3] = (n >>> 24) & 0xff;
 
-      const ack = await this.waitForAck(3000);
-      if (!this.validateResponse(ack, "filename")) {
-        return;
-      }
-      this.totalBytes = this.fileView.length;
+      // Step 1: start upload
+      await this.onSendCommand(0x02, startPayload);
+      const startResp = await this.waitForCmd(0x82, 5000);
+      if (!this.ensureAckOk(startResp, "upload start")) return;
+
       this.startTime = performance.now();
-      this.onMessageNotify(`Sending "${this.fileName}" file data (${this.totalBytes} bytes)...`);
-      // Step 2: Send file data in chunks
-      await this.sendFileData();
-    } catch (e) {
-      if (e === "timeout") {
-        this.transferFailed("⏱ Timeout waiting for device response");
-      } else {
-        this.transferFailed("❌ Transfer error: " + e.message);
+      this.onMessageNotify(`Uploading: ${fullRemotePath}`);
+
+      // Start background-style final ACK monitor (cmd 0x83)
+      const finalAckPromise = this.waitForUploadFinalAck();
+      finalAckPromise.catch(() => {}); // Prevent "Uncaught (in promise)" if we return before awaiting this promise
+
+      console.log("Total chunks of file:", `0x${this.uploadTotalChunks.toString(16).padStart(2, "0")}`);
+      file_transfer_data_loop: while (
+        this.uploadChunkId < this.uploadTotalChunks &&
+        !this.stopRequested &&
+        this.sending
+      ) {
+        // Step 2: Get free chunk count from device and start streaming chunks without waiting ACK for each chunk
+        await this.onSendCommand(0x08, startPayload);
+        const startResp = await this.waitForCmd(0x88, 5000);
+        if (!this.ensureAckOk(startResp, "upload start")) return;
+        if (startResp.data.length < 2) {
+          this.transferFailed("Invalid download start response");
+          return;
+        }
+        var send_chunk_cnt = 0;
+        this.no_free_chunks = startResp.data[1];
+
+        console.log("no_free_chunks:", `0x${this.no_free_chunks.toString(16).padStart(2, "0")}`);
+        if (this.no_free_chunks === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 50)); // Avoid busy loop when device has no free chunk
+          continue;
+        } else {
+          while (send_chunk_cnt < this.no_free_chunks) {
+            const offset = this.uploadChunkId * this.maxChunkSize;
+            const chunk = this.fileView.slice(offset, Math.min(offset + this.maxChunkSize, this.totalBytes));
+
+            // cmd 0x03 payload: [chunk_id_u16_le][chunk_data]
+            const payload = new Uint8Array(2 + chunk.length);
+            payload[0] = this.uploadChunkId & 0xff;
+            payload[1] = (this.uploadChunkId >>> 8) & 0xff;
+            payload.set(chunk, 2);
+
+            console.log("Chunk ID:", `0x${this.uploadChunkId.toString(16).padStart(2, "0")}`);
+            await this.onSendCommand(0x03, payload);
+
+            send_chunk_cnt += 1;
+            this.uploadChunkId += 1;
+            this.currentIndex = Math.min(this.totalBytes, this.uploadChunkId * this.maxChunkSize);
+            this.updateProgress();
+            if (this.uploadChunkId === this.uploadTotalChunks || this.stopRequested || !this.sending) {
+              break file_transfer_data_loop; // Break inner loop to check free chunk count again before sending more chunks
+            }
+          }
+        }
       }
-    }
-  };
+      console.log("Finish to send file. with size", `${this.totalBytes}`);
+      if (this.stopRequested || !this.sending) return;
 
-  async sendFileData() {
-    while (this.currentIndex < this.totalBytes && !this.stopRequested) {
-      const remaining = this.totalBytes - this.currentIndex;
-      const chunkSize = Math.min(remaining, this.maxChunkSize);
-      const chunk = this.fileView.slice(this.currentIndex, this.currentIndex + chunkSize);
-
-      // Determine command: 0x04 for last chunk, 0x03 for others
-      const isLastChunk = this.currentIndex + chunkSize >= this.totalBytes;
-      const command = isLastChunk ? 0x04 : 0x03;
-
-      await this.onSendCommand(command, chunk);
-
-      const ack = await this.waitForAck(3000);
-      console.log(`Data chunk ACK (index ${this.currentIndex}):`, ack);
-      if (!this.validateResponse(ack, "data chunk")) {
+      // Step 3: wait final cmd 0x83 from device workqueue
+      try {
+        const finalInfo = await finalAckPromise;
+        const finalAck = this.getAckFromInfo(finalInfo);
+        if (finalAck === null) {
+          this.transferFailed("Invalid upload final ACK payload");
+          this.stopTransfer();
+          return;
+        }
+        if (finalAck !== 0x00) {
+          this.transferFailed(`Upload write failed: ${this.statusMap[finalAck] || `0x${finalAck.toString(16)}`}`);
+          this.stopTransfer();
+          return;
+        }
+      } catch (e) {
+        if (e === "stopped") return;
+        this.transferFailed(
+          e === "timeout" ? "Timeout waiting for upload final ACK" : `Upload error: ${e?.message || e}`,
+        );
+        this.stopTransfer();
         return;
       }
 
-      this.currentIndex += chunkSize;
-      this.updateProgress();
-    }
+      // Step 4: final ACK OK -> CRC compare cmd 0x06 / resp 0x86
+      const crcPayload = new Uint8Array(4);
+      crcPayload[0] = this.uploadCrc & 0xff;
+      crcPayload[1] = (this.uploadCrc >>> 8) & 0xff;
+      crcPayload[2] = (this.uploadCrc >>> 16) & 0xff;
+      crcPayload[3] = (this.uploadCrc >>> 24) & 0xff;
+      await this.onSendCommand(0x06, crcPayload);
+      const crcResp = await this.waitForCmd(0x86, 5000);
+      if (!this.ensureAckOk(crcResp, "check integrity")) return;
 
-    if (this.currentIndex >= this.totalBytes) {
-      this.finishTransfer();
+      this.finishTransfer(`Upload completed: ${this.fileName}`);
+    } catch (e) {
+      if (e === "stopped" || this.stopRequested) return;
+      this.transferFailed(e === "timeout" ? "Timeout waiting device response" : `Upload error: ${e?.message || e}`);
     }
   }
 
-  finishTransfer() {
-    this.sending = false;
-    this.enableStop(false);
-    this.updateProgress();
-
-    const sec = ((performance.now() - this.startTime) / 1000).toFixed(2);
-    this.onMessageNotify(`✅ Transfer completed in ${sec}s (${this.totalBytes} bytes)`);
-    alert(`Transfer complete!\nFile: ${this.fileName}\nSize: ${this.totalBytes} bytes\nTime: ${sec}s`);
-  }
-
-  /* ---------------- Get File from Device ---------------- */
-
-  getFile = async (fileName, fileHandle) => {
+  // -----------------------------------------------------------------------
+  // Download flow (Device -> WebUI)
+  // 1) Send cmd 0x04 start request
+  // 2) Receive cmd 0x85 chunks and assemble local buffer
+  // 3) Send cmd 0x06 CRC compare and verify cmd 0x86
+  // 4) Save buffer to user-selected file handle
+  // -----------------------------------------------------------------------
+  async getFile(fileName, fileHandle) {
     if (!fileName) {
-      this.onMessageNotify("⚠️ Enter device file path/name");
+      this.onMessageNotify("Enter remote file path/name");
       return;
     }
-
-    // Validate filename size
-    if (fileName.length > 100) {
-      this.onMessageNotify("⚠️ Filename too long (max 100 bytes)");
-      return;
-    }
-
     if (!fileHandle) {
-      this.onMessageNotify("❌ Không tìm thấy vị trí lưu file hợp lệ.");
+      this.onMessageNotify("Invalid local save location.");
       return;
     }
 
-    this.enableStop(true);
     this.stopRequested = false;
     this.sending = true;
+    this.enableStop(true);
     this.resetProgress();
     this.startTime = performance.now();
-    this.onMessageNotify(`Requesting file info for "${fileName}"...`);
+
+    this.downloadExpectedChunkId = 0;
+    this.downloadRemotePath = fileName;
+    this.downloadFileHandle = fileHandle;
 
     try {
-      // Step 1: Verify file exists (command 0x06)
-      await this.onSendCommand(0x06, new TextEncoder().encode(fileName));
+      // Step 1: request download start
+      await this.onSendCommand(0x04, new TextEncoder().encode(fileName));
+      const startResp = await this.waitForCmd(0x84, 5000);
+      if (!this.ensureAckOk(startResp, "download start")) return;
 
-      const fileInfo = await this.waitForAck(3000);
-
-      if (!fileInfo || fileInfo.ack !== 0x00) {
-        const entry = this.statusMap[fileInfo ? fileInfo.ack : 0x09];
-        this.transferFailed(`❌ ${entry ? entry.text : "Unknown error"}`);
+      // startResp payload: [ack][file_size_u32_le]
+      if (!startResp.data || startResp.data.length < 5) {
+        this.transferFailed("Invalid download start response");
         return;
       }
 
-      // Validate CRC
-      if (!fileInfo.crcOk) {
-        this.transferFailed("❌ CRC validation failed on file info");
-        return;
-      }
+      this.totalBytes =
+        startResp.data[1] | (startResp.data[2] << 8) | (startResp.data[3] << 16) | (startResp.data[4] << 24);
+      console.log(
+        "Total bytes to download:",
+        `${this.totalBytes} (0x${this.totalBytes.toString(16).padStart(8, "0")})`,
+      );
+      this.onMessageNotify(`Downloading: ${fileName}`);
 
-      // Parse file size (4 bytes, little-endian)
-      if (!fileInfo.data || fileInfo.data.length < 4) {
-        this.transferFailed("❌ Invalid file size data");
-        return;
-      }
-
-      const sizeBytes = fileInfo.data;
-      const fileSize = sizeBytes[0] | (sizeBytes[1] << 8) | (sizeBytes[2] << 16) | (sizeBytes[3] << 24);
-
-      this.totalBytes = fileSize;
       this.currentIndex = 0;
-      const downloadBuffer = new Uint8Array(fileSize);
+      this.downloadBuffer = new Uint8Array(this.totalBytes);
 
-      this.onMessageNotify(`Receiving "${fileName}" (${fileSize} bytes)...`);
+      // Step 2: wait until handleDeviceResponse() receives all 0x85 chunks
+      await new Promise((resolve, reject) => {
+        this.downloadResolve = resolve;
+        this.downloadReject = reject;
+      });
 
-      // Step 2: Request file data chunks (command 0x07)
-      while (this.currentIndex < this.totalBytes && !this.stopRequested) {
-        await this.onSendCommand(0x07, new Uint8Array());
+      // Step 3: CRC compare
+      const localCrc = this.crc32(this.downloadBuffer);
+      const crcPayload = new Uint8Array(4);
+      crcPayload[0] = localCrc & 0xff;
+      crcPayload[1] = (localCrc >>> 8) & 0xff;
+      crcPayload[2] = (localCrc >>> 16) & 0xff;
+      crcPayload[3] = (localCrc >>> 24) & 0xff;
+      await this.onSendCommand(0x06, crcPayload);
+      const crcResp = await this.waitForCmd(0x86, 5000);
+      if (!this.ensureAckOk(crcResp, "check integrity")) return;
 
-        const chunkInfo = await this.waitForAck(3000);
+      // Step 4: save to local file
+      const writable = await fileHandle.createWritable();
+      await writable.write(this.downloadBuffer);
+      await writable.close();
 
-        if (!chunkInfo) {
-          this.transferFailed("❌ No chunk response from device");
-          return;
-        }
-
-        // Check ACK code
-        if (chunkInfo.ack !== 0x00) {
-          const entry = this.statusMap[chunkInfo.ack];
-          this.transferFailed(`❌ Device error: ${entry ? entry.text : "Unknown"}`);
-          return;
-        }
-
-        // Validate CRC
-        if (!chunkInfo.crcOk) {
-          this.transferFailed("❌ CRC validation failed on data chunk");
-          return;
-        }
-
-        // Append data to buffer
-        const data = chunkInfo.data || new Uint8Array();
-        downloadBuffer.set(data, this.currentIndex);
-        this.currentIndex += data.length;
-
-        this.updateProgress();
-      }
-
-      // Step 3: Download complete - save to pre-selected location
-      if (this.currentIndex === this.totalBytes) {
-        const sec = ((performance.now() - this.startTime) / 1000).toFixed(2);
-        this.onMessageNotify(`✅ Download completed in ${sec}s (${this.totalBytes} bytes)`);
-
-        // Save file to pre-selected location
-        try {
-          const writable = await fileHandle.createWritable();
-          await writable.write(downloadBuffer);
-          await writable.close();
-
-          const originalFileName = fileName.split("/").pop() || "download.bin";
-          alert(`File saved successfully!\nFile: ${originalFileName}\nSize: ${this.totalBytes} bytes\nTime: ${sec}s`);
-          this.onMessageNotify(`✅ File saved: ${originalFileName} (${sec}s)`);
-        } catch (e) {
-          console.error("File save error:", e);
-          this.onMessageNotify("❌ Failed to save file: " + e.message);
-        }
-      }
+      this.finishTransfer(`Download completed: ${fileName}`);
     } catch (e) {
-      if (e === "timeout") {
-        this.transferFailed("⏱ Timeout waiting for device response");
-      } else {
-        this.transferFailed("❌ Download error: " + e.message);
-      }
-    } finally {
-      this.enableStop(false);
-      this.sending = false;
+      if (e === "stopped" || this.stopRequested) return;
+      this.transferFailed(e === "timeout" ? "Timeout waiting device response" : `Download error: ${e?.message || e}`);
     }
-  };
+  }
 
-  /* ---------------- Stop Transfer ---------------- */
-
-  stopTransfer = async () => {
+  // -----------------------------------------------------------------------
+  // Stop transfer:
+  // - mark transfer stopped
+  // - cancel all pending waiters/timers (generic + upload monitor + download)
+  // - send cmd 0x07 end process
+  // -----------------------------------------------------------------------
+  async stopTransfer() {
     if (!this.sending) return;
-
-    const remaining = this.fileView.length - this.currentIndex;
 
     this.stopRequested = true;
     this.sending = false;
 
-    // Cancel ACK timer
     if (this.ackTimer) {
       clearTimeout(this.ackTimer);
       this.ackTimer = null;
     }
-
-    // Reject pending promise
     if (this.waitingAckReject) {
       this.waitingAckReject("stopped");
       this.waitingAckResolve = null;
       this.waitingAckReject = null;
     }
-
-    // Send STOP command (0x09)
-    try {
-      await this.onSendCommand(0x09, new Uint8Array());
-    } catch (e) {
-      console.error("Failed to send STOP command:", e);
+    if (this.downloadReject) {
+      this.downloadReject("stopped");
+      this.downloadResolve = null;
+      this.downloadReject = null;
+    }
+    if (this.uploadFinalAckTimer) {
+      clearTimeout(this.uploadFinalAckTimer);
+      this.uploadFinalAckTimer = null;
+    }
+    if (this.uploadFinalAckReject) {
+      this.uploadFinalAckReject("stopped");
+      this.uploadFinalAckResolve = null;
+      this.uploadFinalAckReject = null;
     }
 
-    status = "🛑 Transfer stopped by user";
-    // this.progressText.textContent = "Transfer aborted";
+    try {
+      const startPayload = new Uint8Array(2);
+      startPayload[0] = 0x00; // dummy byte to indicate stop all transfers, no specific file path needed
+      startPayload[1] = 0x00; // dummy byte to indicate stop all transfers, no specific file path needed
+      await this.onSendCommand(0x07, startPayload);
+      await this.waitForCmd(0x87, 2000);
+    } catch (_) {}
+
+    this.onMessageNotify("Transfer stopped");
     this.text_progress = "Transfer aborted";
-    onUpdateProgress(this.value_progress, this.text_progress);
+    this.onUpdateProgress(this.value_progress, this.text_progress);
     this.enableStop(false);
-  };
+  }
 
-  /* ---------------- Response Handling ---------------- */
-
-  waitForAck(timeout = 30000) {
+  // Wait for one specific command response (generic helper)
+  waitForCmd(expectedCmd, timeout = 30000) {
     return new Promise((resolve, reject) => {
-      this.waitingAckResolve = resolve;
+      this.waitingAckResolve = (info) => {
+        console.log("[FST]RX Command:", `0x${info.cmd.toString(16).padStart(2, "0")}`);
+        if (info?.cmd !== expectedCmd) return;
+        resolve(info);
+        this.waitingAckResolve = null;
+        this.waitingAckReject = null;
+      };
       this.waitingAckReject = reject;
 
       if (this.ackTimer) clearTimeout(this.ackTimer);
-
       this.ackTimer = setTimeout(() => {
         this.ackTimer = null;
         this.waitingAckResolve = null;
@@ -353,72 +444,191 @@ class FileTransfer {
     });
   }
 
-  handleDeviceResponse(info) {
-    if (this.stopRequested) return;
+  // Waiter dedicated for upload final workqueue response (cmd 0x83)
+  waitForUploadFinalAck() {
+    return new Promise((resolve, reject) => {
+      this.uploadFinalAckResolve = resolve;
+      this.uploadFinalAckReject = reject;
 
-    if (this.ackTimer) {
-      clearTimeout(this.ackTimer);
-      this.ackTimer = null;
+      if (this.uploadFinalAckTimer) {
+        clearTimeout(this.uploadFinalAckTimer);
+        this.uploadFinalAckTimer = null;
+      }
+    });
+  }
+
+  // -----------------------------------------------------------------------
+  // Device response router
+  // - cmd 0x83: upload write pipeline result (final/error)
+  // - cmd 0x85: download data chunk
+  // - others: pass to generic waiter if one is active
+  // -----------------------------------------------------------------------
+  handleDeviceResponse(info) {
+    if (!info || this.stopRequested) return;
+
+    const cmd = Number.isFinite(info?.cmd) ? info.cmd : info?.command;
+    if (!Number.isFinite(cmd)) {
+      this.transferFailed("Invalid device response: missing command");
+      return;
     }
 
+    if (info.crcOk === false) {
+      this.transferFailed("Frame CRC invalid");
+      return;
+    }
+
+    const data = info.data instanceof Uint8Array ? info.data : new Uint8Array();
+    if (Number.isFinite(info?.data_len) && info.data_len !== data.length) {
+      this.transferFailed(`Invalid device response length: header=${info.data_len}, actual=${data.length}`);
+      return;
+    }
+
+    // Upload monitor command (0x83)
+    if (cmd === 0x83 && this.sending) {
+      if (!data.length) {
+        this.transferFailed("Invalid upload ACK frame");
+        return;
+      }
+
+      const ack = data[0];
+
+      // Missing/out-of-order in stream mode: rewind sender chunk index from device hint
+      // data format: [ack][missing_chunk_id_u16_le]
+      if (ack === 0x08 && data.length >= 3) {
+        const missingChunkId = data[1] | (data[2] << 8);
+        if (Number.isFinite(missingChunkId) && missingChunkId >= 0) {
+          this.uploadChunkId = Math.min(missingChunkId, this.uploadTotalChunks);
+          this.currentIndex = Math.min(this.totalBytes, this.uploadChunkId * this.maxChunkSize);
+          this.updateProgress();
+          this.onMessageNotify(`Resuming upload from missing chunk #${missingChunkId}`);
+        }
+        return;
+      }
+
+      // Resolve upload final waiter (ACK OK or ACK error)
+      if (this.uploadFinalAckResolve) {
+        this.uploadFinalAckResolve(info);
+        this.uploadFinalAckResolve = null;
+        this.uploadFinalAckReject = null;
+        if (this.uploadFinalAckTimer) {
+          clearTimeout(this.uploadFinalAckTimer);
+          this.uploadFinalAckTimer = null;
+        }
+      }
+      return;
+    }
+
+    // Download chunk command (0x85)
+    if (cmd === 0x85 && this.sending && this.downloadBuffer) {
+      if (data.length === 0x01) {
+        const err = data[0];
+        this.transferFailed(`Download chunk error: ${this.statusMap[err] || `0x${err.toString(16)}`}`);
+        if (this.downloadReject) {
+          this.downloadReject("device_error");
+          this.downloadResolve = null;
+          this.downloadReject = null;
+        }
+        return;
+      }
+
+      if (data.length < 2) {
+        this.transferFailed("Invalid download chunk frame");
+        return;
+      }
+
+      const chunkId = data[0] | (data[1] << 8);
+      const chunkData = data.slice(2);
+      console.log("Received chunk ID:", `0x${chunkId.toString(16).padStart(2, "0")}`, "Chunk size:", chunkData.length);
+      // If chunk sequence mismatch, request resend pointer update by cmd 0x05
+      if (chunkId !== this.downloadExpectedChunkId) {
+        const miss = new Uint8Array(2);
+        miss[0] = this.downloadExpectedChunkId & 0xff;
+        miss[1] = (this.downloadExpectedChunkId >>> 8) & 0xff;
+        this.onSendCommand(0x05, miss);
+        return;
+      }
+
+      this.downloadBuffer.set(chunkData, this.currentIndex);
+      this.currentIndex += chunkData.length;
+      this.downloadExpectedChunkId += 1;
+      this.updateProgress();
+
+      // Signal getFile() when all bytes are received
+      if (this.currentIndex >= this.totalBytes && this.downloadResolve) {
+        this.downloadResolve(true);
+        this.downloadResolve = null;
+        this.downloadReject = null;
+      }
+    }
+
+    // Generic waiter path (start/stop/crc responses)
     if (this.waitingAckResolve) {
-      this.waitingAckResolve(info);
-      this.waitingAckResolve = null;
-      this.waitingAckReject = null;
+      this.waitingAckResolve({ ...info, cmd, data });
+      if (this.ackTimer) {
+        clearTimeout(this.ackTimer);
+        this.ackTimer = null;
+      }
     }
   }
 
-  validateResponse(info, context) {
+  // Validate device ACK payload and ensure ACK == OK
+  ensureAckOk(info, context) {
     if (!info) {
-      this.transferFailed(`❌ No response from device (${context})`);
+      this.transferFailed(`No response (${context})`);
       return false;
     }
 
-    // Check CRC validation
-    if (info.crcOk === false) {
-      this.transferFailed("❌ CRC validation failed");
+    const ack = this.getAckFromInfo(info);
+    if (ack === null) {
+      this.transferFailed(`Invalid ACK payload (${context})`);
       return false;
     }
 
-    // Check ACK code
-    const ack = info.ack;
-    const entry = this.statusMap[ack];
-
-    if (!entry) {
-      this.transferFailed(`❌ Unknown ACK code: 0x${ack.toString(16)}`);
+    if (ack !== 0x00) {
+      this.transferFailed(`${context} failed: ${this.statusMap[ack] || `0x${ack.toString(16)}`}`);
+      if (!context.includes("check integrity") || !context.includes("integrity")) {
+        this.stopTransfer();
+      }
       return false;
     }
-
-    if (entry.action !== "continue") {
-      this.transferFailed(`❌ Device error: ${entry.text}`);
-      return false;
-    }
-
     return true;
   }
 
-  /* ---------------- Error Handling ---------------- */
+  // Mark transfer success and print duration/statistics
+  finishTransfer(msg) {
+    this.sending = false;
+    this.enableStop(false);
+    this.currentIndex = this.totalBytes;
+    this.updateProgress();
 
+    const sec = ((performance.now() - this.startTime) / 1000).toFixed(2);
+    const message = `${msg} in ${sec}s (${this.totalBytes} bytes)`;
+    this.onMessageNotify(message);
+    this.showPopup(message);
+  }
+
+  // Mark transfer failure and notify UI
   transferFailed(msg) {
     this.sending = false;
     this.enableStop(false);
     this.onMessageNotify(msg);
-    alert(msg);
+    this.showPopup(msg);
+  }
 
-    // Send reset command (0x0A) to device
-    try {
-      this.onSendCommand(0x0a, new Uint8Array());
-      console.log("Sent reset command (0x0A) to device");
-    } catch (e) {
-      console.warn("Failed to send reset command (0x0A):", e);
+  // Show popup message for transfer result
+  showPopup(message) {
+    if (!message) return;
+
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
     }
   }
 }
 
 const FILE_TRANSFER = new FileTransfer();
-// Export public API for FILE_TRANSFER module
+
 export default {
-  sendFile: (file) => FILE_TRANSFER.sendFile(file),
+  sendFile: (file, remoteDir = "") => FILE_TRANSFER.sendFile(file, remoteDir),
   getFile: (fileName, fileHandle) => FILE_TRANSFER.getFile(fileName, fileHandle),
   stopTransfer: () => FILE_TRANSFER.stopTransfer(),
   handleDeviceResponse: (info) => FILE_TRANSFER.handleDeviceResponse(info),

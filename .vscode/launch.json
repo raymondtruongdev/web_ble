@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "launch Web BLE",
+      "url": "http://localhost:5502/index.html",
+      "webRoot": "${workspaceFolder}"
+    },
+  ],
+}
