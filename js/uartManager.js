@@ -215,7 +215,7 @@ class UARTManager {
     // const ack = frame[4]; // ACK status code
     const payload = frame.slice(4, 4 + payloadLen);
 
-    console.log("Payload length:", `0x${payloadLen.toString(16).padStart(2, "0")}`);
+    // console.log("Payload length:", `0x${payloadLen.toString(16).padStart(2, "0")}`);
     const expectedTotal = 1 + 1 + 2 + payloadLen + 2 + 1;
     if (frame.length !== expectedTotal) {
       console.warn("Frame length mismatch. Expected:", expectedTotal, "Got:", frame.length);

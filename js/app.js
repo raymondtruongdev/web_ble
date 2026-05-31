@@ -50,7 +50,7 @@ function terminal_send(cmd) {
           UART.sendFrame(0x01, cmd);
           break;
         case CONSTANTS.CONNECTION_TYPE.BLE:
-          BLE.sendCommand(cmd);
+          BLE.sendFrame(0x01, cmd);
           break;
         default:
           break;
@@ -236,7 +236,7 @@ window.addEventListener("DOMContentLoaded", () => {
     UI.elements.stopFileBtn.classList.toggle("hidden", !value);
   });
 
-  FILE_TRANSFER.onSendCommand((cmd, payload) => {
+  FILE_TRANSFER.onSendFrame((cmd, payload) => {
     UART.sendFrame(cmd, payload);
   });
 

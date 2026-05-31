@@ -27,7 +27,7 @@ class FileTransfer {
      * @param {number} cmd - The command ID / Opcode (e.g., 0x09)
      * @param {Uint8Array} payload - The  data to send
      */
-    this.onSendCommand = () => {}; // Function to send a command to the device
+    this.onSendFrame = () => {}; // Function to send a command to the device
 
     // ---------------------------------------------------------------------
     // Common transfer state
@@ -194,7 +194,7 @@ class FileTransfer {
       startPayload[pathBytes.length + 3] = (n >>> 24) & 0xff;
 
       // Step 1: start upload
-      await this.onSendCommand(0x02, startPayload);
+      await this.onSendFrame(0x02, startPayload);
       const startResp = await this.waitForCmd(0x82, 5000);
       if (!this.ensureAckOk(startResp, "upload start")) return;
 
@@ -212,7 +212,7 @@ class FileTransfer {
         this.sending
       ) {
         // Step 2: Get free chunk count from device and start streaming chunks without waiting ACK for each chunk
-        await this.onSendCommand(0x08, startPayload);
+        await this.onSendFrame(0x08, startPayload);
         const startResp = await this.waitForCmd(0x88, 5000);
         if (!this.ensureAckOk(startResp, "upload start")) return;
         if (startResp.data.length < 2) {
@@ -238,7 +238,7 @@ class FileTransfer {
             payload.set(chunk, 2);
 
             console.log("Chunk ID:", `0x${this.uploadChunkId.toString(16).padStart(2, "0")}`);
-            await this.onSendCommand(0x03, payload);
+            await this.onSendFrame(0x03, payload);
 
             send_chunk_cnt += 1;
             this.uploadChunkId += 1;
@@ -282,7 +282,7 @@ class FileTransfer {
       crcPayload[1] = (this.uploadCrc >>> 8) & 0xff;
       crcPayload[2] = (this.uploadCrc >>> 16) & 0xff;
       crcPayload[3] = (this.uploadCrc >>> 24) & 0xff;
-      await this.onSendCommand(0x06, crcPayload);
+      await this.onSendFrame(0x06, crcPayload);
       const crcResp = await this.waitForCmd(0x86, 5000);
       if (!this.ensureAckOk(crcResp, "check integrity")) return;
 
@@ -322,7 +322,7 @@ class FileTransfer {
 
     try {
       // Step 1: request download start
-      await this.onSendCommand(0x04, new TextEncoder().encode(fileName));
+      await this.onSendFrame(0x04, new TextEncoder().encode(fileName));
       const startResp = await this.waitForCmd(0x84, 5000);
       if (!this.ensureAckOk(startResp, "download start")) return;
 
@@ -356,7 +356,7 @@ class FileTransfer {
       crcPayload[1] = (localCrc >>> 8) & 0xff;
       crcPayload[2] = (localCrc >>> 16) & 0xff;
       crcPayload[3] = (localCrc >>> 24) & 0xff;
-      await this.onSendCommand(0x06, crcPayload);
+      await this.onSendFrame(0x06, crcPayload);
       const crcResp = await this.waitForCmd(0x86, 5000);
       if (!this.ensureAckOk(crcResp, "check integrity")) return;
 
@@ -412,7 +412,7 @@ class FileTransfer {
       const startPayload = new Uint8Array(2);
       startPayload[0] = 0x00; // dummy byte to indicate stop all transfers, no specific file path needed
       startPayload[1] = 0x00; // dummy byte to indicate stop all transfers, no specific file path needed
-      await this.onSendCommand(0x07, startPayload);
+      await this.onSendFrame(0x07, startPayload);
       await this.waitForCmd(0x87, 2000);
     } catch (_) {}
 
@@ -544,7 +544,7 @@ class FileTransfer {
         const miss = new Uint8Array(2);
         miss[0] = this.downloadExpectedChunkId & 0xff;
         miss[1] = (this.downloadExpectedChunkId >>> 8) & 0xff;
-        this.onSendCommand(0x05, miss);
+        this.onSendFrame(0x05, miss);
         return;
       }
 
@@ -635,5 +635,5 @@ export default {
   onMessageNotify: (fn) => (FILE_TRANSFER.onMessageNotify = fn),
   onUpdateProgress: (fn) => (FILE_TRANSFER.onUpdateProgress = fn),
   onStatusChange: (fn) => (FILE_TRANSFER.onStatusChange = fn),
-  onSendCommand: (fn) => (FILE_TRANSFER.onSendCommand = fn),
+  onSendFrame: (fn) => (FILE_TRANSFER.onSendFrame = fn),
 };

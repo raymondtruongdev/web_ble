@@ -7,7 +7,7 @@ class BLEManager {
      */
     this.onMessageNotify = () => {};
 
-       /**
+    /**
      * Callback to update BLE connection status
      * @param {boolean} isConnected - state of the device connection
      * @param {string} deviceName - Name of the connected device
@@ -73,7 +73,6 @@ class BLEManager {
       this.server = await this.device.gatt.connect();
       this.updateConnectionStatus(true);
       this.onMessageNotify("success", "BLE Connected ✅");
-      
 
       if (this.device.name && this.device.name.includes("T2D OS")) {
         await this.autoSetup(this.server);
@@ -87,8 +86,7 @@ class BLEManager {
   async disconnect() {
     try {
       if (this.device?.gatt.connected) {
-       await this.device.gatt.disconnect();
-      
+        await this.device.gatt.disconnect();
       }
     } catch (err) {
       this.onMessageNotify("error", `BLE Disconnect error: ${err.message || err}`);
@@ -137,39 +135,47 @@ class BLEManager {
 
   decodeBleValue(value, uuid = "") {
     let hexArr = [];
+    let asciiBuffer = [];
     for (let i = 0; i < value.byteLength; i++) {
       hexArr.push(value.getUint8(i).toString(16).padStart(2, "0").toUpperCase());
-    }
-    const shortUuid = uuid.substring(4, 8).toLowerCase();
-    let bpmValue = null;
-    let interpreted = "";
-
-    if (shortUuid === "2a37") {
-      let flags = value.getUint8(0);
-      bpmValue = flags & 0x01 ? value.getUint16(1, true) : value.getUint8(1);
-      interpreted = ` [BPM: ${bpmValue}]`;
+      asciiBuffer.push(value.getUint8(i));
     }
 
     const decoder = new TextDecoder("utf-8");
-    let textVal = "";
-    try {
-      textVal = decoder.decode(value).replace(/[\x00-\x1F\x7F-\x9F]/g, "");
-    } catch (e) {
-      textVal = "(binary)";
-    }
+    const finalText = decoder.decode(new Uint8Array(asciiBuffer));
 
-    return { hex: hexArr.join(" "), string: textVal, interpreted, bpm: bpmValue };
+    return { hex: hexArr.join(" "), string: finalText };
   }
 
-  async sendCommand(str_cmd) {
-    if (!this.defaultWriteCharacteristic) throw new Error("[T2D] Không có quyền ghi hoặc chưa kết nối FFF1");
+  async sendFrame(messageType, payload) {
+    if (!this.defaultWriteCharacteristic) throw new Error("[BLE] NOT Found a default write characteristic");
 
-    const payload = new TextEncoder().encode(str_cmd);
-    const frame = new Uint8Array(1 + 2 + payload.length);
-    frame[0] = 0x01;
-    frame[1] = payload.length & 0xff;
-    frame[2] = (payload.length >> 8) & 0xff;
-    frame.set(payload, 3);
+    if (typeof payload === "string") {
+      payload = new TextEncoder().encode(payload);
+    } else if (!(payload instanceof Uint8Array)) {
+      payload = new Uint8Array(payload);
+    }
+
+    const MaxPayloadSize = 8185; // TODO: Need to confirm max payload size for BLE
+    if (payload.length > MaxPayloadSize) {
+      throw new Error(`[BLE] Payload size ${payload.length} exceeds maximum of ${MaxPayloadSize} bytes.`);
+    }
+
+    const length = payload.length;
+
+    // Construct frame: [type][payload]
+    const frame = new Uint8Array(1 + length);
+    let offset = 0;
+    frame[offset++] = messageType;
+    frame.set(payload, offset);
+
+    console.log("TX [BLE] Command:", `0x${messageType.toString(16).padStart(2, "0")}`);
+    console.log(
+      "TX [BLE] Frame (hex):",
+      Array.from(frame)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join(" "),
+    );
 
     const method = this.defaultWriteCharacteristic.properties.write
       ? "writeValueWithResponse"
@@ -183,7 +189,7 @@ const BLE = new BLEManager();
 export default {
   connect: () => BLE.connect(),
   disconnect: () => BLE.disconnect(),
-  sendCommand: (cmd) => BLE.sendCommand(cmd),
+  sendFrame: (messageType, payload) => BLE.sendFrame(messageType, payload),
 
   onMessageNotify: (fn) => (BLE.onMessageNotify = fn),
   onStatusChange: (fn) => (BLE.onStatusChange = fn),
