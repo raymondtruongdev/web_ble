@@ -120,39 +120,37 @@ class BLEManager {
   handleData(event) {
     const dataView = event.target.value;
     const bytes = new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength);
-    const COMMANDS = new Set([0x01, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88]);
     const toHexString = (data) =>
       Array.from(data)
         .map((b) => b.toString(16).padStart(2, "0"))
         .join(" ");
     console.log("RX [BLE] Raw (hex):", toHexString(bytes));
-    // Packet phải có ít nhất Header + Command
-    if (bytes.length < 2) {
-      console.warn("RX [BLE] Invalid packet:", toHexString(bytes));
-      return;
-    }
-    // Check if it's an ASCII frame (not a known command)
-    const command = bytes[1];
-    if (!COMMANDS.has(command)) {
+
+    const startByte = bytes[0];
+
+    // Start byte 0x00 indicates a text frame ASCII
+    if (startByte == 0x00) {
       const text = new TextDecoder("utf-8").decode(bytes);
       console.log("RX [BLE] ASCII:", text);
       this.onDataReceived(text);
       return;
     }
-    // Binary frame
-    const payload = bytes.slice(2);
-    console.log("RX [BLE] Command:", `0x${command.toString(16).padStart(2, "0")}`);
-    console.log("RX [BLE] Payload:", toHexString(payload));
-
-    const crcOk = true; // No need to check CRC for BLE frames as they are handled by the protocol layer
-    const info = {
-      cmd: command,
-      command,
-      data: payload,
-      data_len: payload.length,
-      crcOk,
-    };
-    this.onFileTransferStatus(info);
+    // Start byte 0x01 indicates a frame with command and payload
+    if (startByte == 0x01) {
+      const command = bytes[1];
+      const payload = bytes.slice(2);
+      console.log("RX [BLE] Command:", `0x${command.toString(16).padStart(2, "0")}`);
+      console.log("RX [BLE] Payload:", toHexString(payload));
+      const crcOk = true; // No need to check CRC for BLE frames as they are handled by the protocol layer
+      const info = {
+        cmd: command,
+        command,
+        data: payload,
+        data_len: payload.length,
+        crcOk,
+      };
+      this.onFileTransferStatus(info);
+    }
   }
 
   async autoSetup(gattServer) {

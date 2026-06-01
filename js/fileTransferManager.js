@@ -245,7 +245,7 @@ class FileTransfer {
             // TODO: In transfering with BLE, we delay here for FW to process the chunk and update free chunk count,
             //  need more investigation to optimize here
             if (AppState.connectionType === CONSTANTS.CONNECTION_TYPE.BLE) {
-              await new Promise((resolve) => setTimeout(resolve, 400));
+              await new Promise((resolve) => setTimeout(resolve, 500));
             }
 
             send_chunk_cnt += 1;
