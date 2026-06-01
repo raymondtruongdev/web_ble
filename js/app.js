@@ -173,6 +173,12 @@ window.addEventListener("DOMContentLoaded", () => {
     FILE_TRANSFER.handleDeviceResponse(info);
   });
 
+  // Set callback for sending a status of BLE file transfer to FILE_TRANSFER module
+  BLE.onFileTransferStatus((info) => {
+    FILE_TRANSFER.handleDeviceResponse(info);
+    let text =1;
+  });
+
   //================= FILE TRANSFER PANEL =================
 
   UI.elements.fileInput.addEventListener("change", () => {
@@ -237,7 +243,11 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   FILE_TRANSFER.onSendFrame((cmd, payload) => {
-    UART.sendFrame(cmd, payload);
+    if (AppState.connectionType === CONSTANTS.CONNECTION_TYPE.UART) {
+      UART.sendFrame(cmd, payload);
+    } else if (AppState.connectionType === CONSTANTS.CONNECTION_TYPE.BLE) {
+      BLE.sendFrame(cmd, payload);
+    }
   });
 
   //================= DEVICE INFO PANEL =================

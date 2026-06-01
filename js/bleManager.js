@@ -21,6 +21,12 @@ class BLEManager {
      */
     this.onDataReceived = () => {};
 
+    /**
+     * Callback to notify file transfer status updates from the UART device
+     * @param {object} info - Message text to display
+     */
+    this.onFileTransferStatus = () => {};
+
     // =============== Variables ===============
     this.device = null; // BluetoothDevice object
     this.server = null; // BluetoothRemoteGATTServer object
@@ -112,8 +118,41 @@ class BLEManager {
   }
 
   handleData(event) {
-    const res = this.decodeBleValue(event.target.value, this.UUIDS.NOTIFY);
-    this.onDataReceived(res.string);
+    const dataView = event.target.value;
+    const bytes = new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength);
+    const COMMANDS = new Set([0x01, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88]);
+    const toHexString = (data) =>
+      Array.from(data)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join(" ");
+    console.log("RX [BLE] Raw (hex):", toHexString(bytes));
+    // Packet phải có ít nhất Header + Command
+    if (bytes.length < 2) {
+      console.warn("RX [BLE] Invalid packet:", toHexString(bytes));
+      return;
+    }
+    // Check if it's an ASCII frame (not a known command)
+    const command = bytes[1];
+    if (!COMMANDS.has(command)) {
+      const text = new TextDecoder("utf-8").decode(bytes);
+      console.log("RX [BLE] ASCII:", text);
+      this.onDataReceived(text);
+      return;
+    }
+    // Binary frame
+    const payload = bytes.slice(2);
+    console.log("RX [BLE] Command:", `0x${command.toString(16).padStart(2, "0")}`);
+    console.log("RX [BLE] Payload:", toHexString(payload));
+
+    const crcOk = true; // No need to check CRC for BLE frames as they are handled by the protocol layer
+    const info = {
+      cmd: command,
+      command,
+      data: payload,
+      data_len: payload.length,
+      crcOk,
+    };
+    this.onFileTransferStatus(info);
   }
 
   async autoSetup(gattServer) {
@@ -133,20 +172,6 @@ class BLEManager {
     }
   }
 
-  decodeBleValue(value, uuid = "") {
-    let hexArr = [];
-    let asciiBuffer = [];
-    for (let i = 0; i < value.byteLength; i++) {
-      hexArr.push(value.getUint8(i).toString(16).padStart(2, "0").toUpperCase());
-      asciiBuffer.push(value.getUint8(i));
-    }
-
-    const decoder = new TextDecoder("utf-8");
-    const finalText = decoder.decode(new Uint8Array(asciiBuffer));
-
-    return { hex: hexArr.join(" "), string: finalText };
-  }
-
   async sendFrame(messageType, payload) {
     if (!this.defaultWriteCharacteristic) throw new Error("[BLE] NOT Found a default write characteristic");
 
@@ -163,9 +188,10 @@ class BLEManager {
 
     const length = payload.length;
 
-    // Construct frame: [type][payload]
-    const frame = new Uint8Array(1 + length);
+    // Construct frame: [start][type][payload]
+    const frame = new Uint8Array(1 + 1 + length);
     let offset = 0;
+    frame[offset++] = 0x01;
     frame[offset++] = messageType;
     frame.set(payload, offset);
 
@@ -194,4 +220,5 @@ export default {
   onMessageNotify: (fn) => (BLE.onMessageNotify = fn),
   onStatusChange: (fn) => (BLE.onStatusChange = fn),
   onDataReceived: (fn) => (BLE.onDataReceived = fn),
+  onFileTransferStatus: (fn) => (BLE.onFileTransferStatus = fn),
 };
