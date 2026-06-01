@@ -1,3 +1,5 @@
+import { AppState } from "./appState.js";
+import { CONSTANTS } from "./constants.js";
 class FileTransfer {
   constructor() {
     // ---------------------------------------------------------------------
@@ -239,6 +241,12 @@ class FileTransfer {
 
             console.log("Chunk ID:", `0x${this.uploadChunkId.toString(16).padStart(2, "0")}`);
             await this.onSendFrame(0x03, payload);
+
+            // TODO: In transfering with BLE, we delay here for FW to process the chunk and update free chunk count,
+            //  need more investigation to optimize here
+            if (AppState.connectionType === CONSTANTS.CONNECTION_TYPE.BLE) {
+              await new Promise((resolve) => setTimeout(resolve, 400));
+            }
 
             send_chunk_cnt += 1;
             this.uploadChunkId += 1;
