@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 360" font-family="Consolas, monospace" font-size="13">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#333"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="160" fill="#fefefe" rx="6"/>
+
+  <!-- Title -->
+  <text x="20" y="30" font-size="15" font-weight="bold" fill="#222">RX Frame (hex): 01 93 05 00 02 04 e2 04 02 58 73 04</text>
+
+  <!-- Frame boxes -->
+  <!-- Byte 0: Frame data (0x01) -->
+  <rect x="20" y="60" width="100" height="80" fill="#e8f4fd" stroke="#4a90d9" stroke-width="1.5" rx="3"/>
+  <text x="70" y="85" text-anchor="middle" font-weight="bold" fill="#222">0x01</text>
+  <text x="70" y="105" text-anchor="middle" font-size="11" fill="#555">Frame data</text>
+  <text x="70" y="125" text-anchor="middle" font-size="11" fill="#888">(0x01)</text>
+
+  <!-- Byte 1: Stream info (0x93) -->
+  <rect x="130" y="60" width="110" height="80" fill="#fff4e6" stroke="#e67e22" stroke-width="1.5" rx="3"/>
+  <text x="185" y="85" text-anchor="middle" font-weight="bold" fill="#222">0x93</text>
+  <text x="185" y="105" text-anchor="middle" font-size="11" fill="#555">Stream info</text>
+  <text x="185" y="125" text-anchor="middle" font-size="11" fill="#888">(0x93)</text>
+
+  <!-- Byte 2-3: Payload len (0x0005) -->
+  <rect x="250" y="60" width="100" height="80" fill="#e8f8e8" stroke="#27ae60" stroke-width="1.5" rx="3"/>
+  <text x="300" y="85" text-anchor="middle" font-weight="bold" fill="#222">0x0005</text>
+  <text x="300" y="105" text-anchor="middle" font-size="11" fill="#555">Payload len</text>
+  <text x="300" y="125" text-anchor="middle" font-size="11" fill="#888">(0x0005)</text>
+
+  <!-- Byte 4: Data type (0x02) -->
+  <rect x="360" y="60" width="100" height="80" fill="#fce4ec" stroke="#e74c3c" stroke-width="1.5" rx="3"/>
+  <text x="410" y="85" text-anchor="middle" font-weight="bold" fill="#222">0x02</text>
+  <text x="410" y="105" text-anchor="middle" font-size="11" fill="#555">Data type</text>
+  <text x="410" y="125" text-anchor="middle" font-size="11" fill="#888">(0x02)</text>
+
+  <!-- Byte 5: No. channel (0x05) -->
+  <rect x="470" y="60" width="110" height="80" fill="#f3e5f5" stroke="#8e44ad" stroke-width="1.5" rx="3"/>
+  <text x="525" y="85" text-anchor="middle" font-weight="bold" fill="#222">0x05</text>
+  <text x="525" y="105" text-anchor="middle" font-size="11" fill="#555">No. channel</text>
+  <text x="525" y="125" text-anchor="middle" font-size="11" fill="#888">(0x05)</text>
+
+  <!-- Byte 6-7: Sampling rate (0x04e2 = 1250) -->
+  <rect x="590" y="60" width="130" height="80" fill="#fffde7" stroke="#f39c12" stroke-width="1.5" rx="3"/>
+  <text x="655" y="85" text-anchor="middle" font-weight="bold" fill="#222">0x04e2</text>
+  <text x="655" y="105" text-anchor="middle" font-size="11" fill="#555">Sampling rate</text>
+  <text x="655" y="120" text-anchor="middle" font-size="11" fill="#888">= 1250</text>
+  <text x="655" y="135" text-anchor="middle" font-size="11" fill="#888">(0x04e2)</text>
+
+  <!-- Byte 8: Sampling size (0x02) -->
+  <rect x="730" y="60" width="110" height="80" fill="#e0f7fa" stroke="#00acc1" stroke-width="1.5" rx="3"/>
+  <text x="785" y="85" text-anchor="middle" font-weight="bold" fill="#222">0x02</text>
+  <text x="785" y="105" text-anchor="middle" font-size="11" fill="#555">Sampling size</text>
+  <text x="785" y="125" text-anchor="middle" font-size="11" fill="#888">(0x02)</text>
+
+
+  <!-- Arrow indicators -->
+  <line x1="120" y1="100" x2="128" y2="100" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="240" y1="100" x2="248" y2="100" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="350" y1="100" x2="358" y2="100" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="460" y1="100" x2="468" y2="100" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="580" y1="100" x2="588" y2="100" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="720" y1="100" x2="728" y2="100" stroke="#333" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- Label arrows above -->
+  <text x="70" y="50" text-anchor="middle" font-size="10" fill="#4a90d9">Byte 0</text>
+  <text x="185" y="50" text-anchor="middle" font-size="10" fill="#e67e22">Byte 1</text>
+  <text x="300" y="50" text-anchor="middle" font-size="10" fill="#27ae60">Byte 2-3</text>
+  <text x="410" y="50" text-anchor="middle" font-size="10" fill="#e74c3c">Byte 4</text>
+  <text x="525" y="50" text-anchor="middle" font-size="10" fill="#8e44ad">Byte 5</text>
+  <text x="655" y="50" text-anchor="middle" font-size="10" fill="#f39c12">Byte 6-7</text>
+  <text x="785" y="50" text-anchor="middle" font-size="10" fill="#00acc1">Byte 8</text>
+
+  
+</svg>

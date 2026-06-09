@@ -79,6 +79,22 @@
     .btn-chart:active {
       transform: scale(0.95);
     }
+
+    .badge-chart {
+      display: flex;
+      flex: 1 1 0%;
+      height: 2rem;
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+      color: white;
+      font-weight: 600;
+      font-size: 0.75rem;
+      transition: all 0.2s;
+      align-items: center;
+      justify-content: center;
+      gap: 0.25rem;
+    }
+    
   </style>
 </head>
 
@@ -173,18 +189,24 @@
           </div>
 
           <div id="device-info-button-group" class="w-full grid grid-cols-2 gap-2">
+            <!-- Sync buttons -->
             <button id="btnSyncTime" class="button-info">
               Sync Time
             </button>
             <button id="btnSyncTimezone" class="button-info">
               Sync Timezone
             </button>
+            <!-- Get Date time button -->
             <button id="btnGetDate" class="button-info">
               Get Date
             </button>
+            <!-- Get MTU button -->
             <button id="btnGetMTU" class="button-info">
               Get BLE MTU
             </button>
+            <!-- Streaming buttons -->
+            <button id="btnStartStreaming" class="button-info bg-green-600 hover:bg-green-500">START STREAMING</button>
+            <button id="btnStopStreaming" class="button-info bg-red-600 hover:bg-red-500">STOP STREAMING</button>
           </div>
       </section>
       <!-- BLE Connection Section -->
@@ -217,7 +239,6 @@
 
         </div>
       </section>
-
 
       <!-- UART Connection Section -->
       <section id="uart-connection-section" class="bg-white rounded-2xl shadow-sm h-[150px] flex flex-col items-center">
@@ -438,16 +459,31 @@
         </div>
         <!-- Chart Container -->
         <div
-          class="relative bg-slate-950/80 border border-slate-900 rounded-xl overflow-hidden aspect-[16/9] md:aspect-[21/9] lg:aspect-[16/9] flex-1 items-center justify-center">
-          <!-- Lưới đồ thị tĩnh / Canvas động -->
-          <canvas id="chart-canvas" class="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"></canvas>
+          class="relative bg-slate-950/80 border border-slate-900 rounded-xl overflow-hidden aspect-[16/9] md:aspect-[21/9] lg:aspect-[16/9] flex-1">
+          <canvas id="chart-canvas" class="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing">
+          </canvas>
+          <!-- Toolbar -->
+          <div class="absolute top-2 right-2 z-10 flex items-center gap-2">
+            <!-- Run bagde status -->
+            <div id="chart-run-overlay-bagde" class="badge-chart text-green-400">
+              <i id="run-badge-icon" class="fa-solid fa-circle text-[10px]"></i>
+              <span id="run-badge-text">RUN</span>
+            </div>
 
-          <!-- Overlay/Badge khi dừng vẽ -->
-          <div id="chart-overlay-bagde"
-            class="absolute top-1 right-1 bg-slate-900/95 border border-amber-500/40 text-amber-400 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-lg shadow-black/50 opacity-0 pointer-events-none transition-opacity duration-300 z-10">
-            <i class="fa-solid fa-video text-xs animate-pulse text-green-400"></i>
-            <span class="text-xs font-bold tracking-wider uppercase" id="pause-badge-text">RUN</span>
+            <!-- Pause bagde status -->
+            <div id="chart-pause-overlay-bagde" class="badge-chart text-yellow-400">
+              <i id="pause-badge-icon" class="fa-solid fa-circle text-[10px]"></i>
+              <span id="pause-badge-text">PAUSE</span>
+            </div>
+
+            <!-- FIT chart button -->
+            <button id="btnFitChart"
+              class="badge-chart rounded-lg tracking-wide transition-all duration-200 text-slate-450 font-semibold bg-cyan-600/100 hover:bg-cyan-400 hover:text-slate-50 ">
+              <i class="fa-solid fa-maximize text-[10px]"></i>
+              <span>FIT</span>
+            </button>
           </div>
+
         </div>
 
         <!-- Chart Controls Toolbar -->
@@ -462,9 +498,18 @@
             <i class="fa-solid fa-rotate-left text-xs"></i><span>STOP</span>
           </button>
 
+          <!-- PAUSE -->
+          <button id="btn-pause-chart" class="hidden btn-chart bg-yellow-500 hover:bg-yellow-400 border-yellow-400/25">
+            <i class="fa-solid fa-pause text-xs"></i><span>PAUSE</span>
+          </button>
+          <!-- CONTINUE -->
+          <button id="btn-continue-chart" class="hidden btn-chart bg-blue-500 hover:bg-blue-400 border-blue-400/25">
+            <i class="fa-solid fa-play text-xs"></i><span>CONTINUE</span>
+          </button>
+
           <!-- RESET -->
-          <button id="btn-reset-chart" class="btn-chart bg-indigo-800 hover:bg-indigo-700 border-indigo-700 ">
-            <i class="fa-solid fa-stop text-xs"></i><span>RESET</span>
+          <button id="btn-clear-chart" class="btn-chart bg-indigo-800 hover:bg-indigo-700 border-indigo-700 ">
+            <i class="fa-solid fa-stop text-xs"></i><span>CLEAR</span>
           </button>
 
         </div>

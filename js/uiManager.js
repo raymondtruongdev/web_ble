@@ -54,11 +54,15 @@ class UIManager {
       // Chart Control buttons
       btnStartChart: document.getElementById("btn-start-chart"),
       btnStopChart: document.getElementById("btn-stop-chart"),
-      btnResetChart: document.getElementById("btn-reset-chart"),
+      btnPauseChart: document.getElementById("btn-pause-chart"),
+      btnContinueChart: document.getElementById("btn-continue-chart"),
+      btnClearChart: document.getElementById("btn-clear-chart"),
 
       // Chart Canvas & overlay
       canvas: document.getElementById("chart-canvas"),
-      chartOverlayPause: document.getElementById("chart-overlay-bagde"),
+      chartOverlayPause: document.getElementById("chart-pause-overlay-bagde"),
+      chartOverlayRun: document.getElementById("chart-run-overlay-bagde"),
+      btnFitChart: document.getElementById("btnFitChart"),
 
       // FILE LOGGING ELEMENTS
       allowFileLoggingToggle: document.getElementById("file-logging-toggle"),
@@ -68,6 +72,10 @@ class UIManager {
       startFileLoggingBtn: document.getElementById("start-file-logging-btn"),
       finishFileLoggingBtn: document.getElementById("finish-file-logging-btn"),
     };
+
+    // STREAMING ELEMENTS
+    this.elements.btnStartStreaming = document.getElementById("btnStartStreaming");
+    this.elements.btnStopStreaming = document.getElementById("btnStopStreaming");
   }
 
   // --- Toast Notification ---
@@ -134,6 +142,7 @@ class UIManager {
       this.elements.statusUartText.textContent = "OFFLINE";
     }
   }
+
   /**
    * Updates the UI for the Chart controls based on AppState.
    */
@@ -141,17 +150,34 @@ class UIManager {
     const chartState = AppState.chartStatus;
     switch (chartState) {
       case CONSTANTS.CHART_STATUS.NONE:
-        UI.elements.btnStartChart.classList.remove("opacity-50", "pointer-events-none");
-        UI.elements.btnStopChart.classList.add("opacity-50", "pointer-events-none");
-        UI.elements.chartOverlayPause.classList.add("opacity-0", "pointer-events-none");
-
+        UI.elements.btnStartChart.classList.remove("opacity-20", "pointer-events-none");
+        UI.elements.btnStopChart.classList.add("opacity-20", "pointer-events-none");
+        UI.elements.btnClearChart.classList.remove("hidden");
+        UI.elements.btnPauseChart.classList.add("hidden");
+        UI.elements.btnContinueChart.classList.add("hidden");
+        UI.elements.chartOverlayPause.classList.add("hidden");
+        UI.elements.chartOverlayRun.classList.add("hidden");
         break;
+
       case CONSTANTS.CHART_STATUS.RENDERING:
-        UI.elements.btnStartChart.classList.add("opacity-50", "pointer-events-none");
-        UI.elements.btnStopChart.classList.remove("opacity-50", "pointer-events-none");
-        UI.elements.chartOverlayPause.classList.remove("opacity-0", "pointer-events-none");
-
+        UI.elements.btnStartChart.classList.add("opacity-20", "pointer-events-none");
+        UI.elements.btnStopChart.classList.remove("opacity-20", "pointer-events-none");
+        UI.elements.btnClearChart.classList.add("hidden");
+        UI.elements.btnPauseChart.classList.remove("hidden", "pointer-events-none");
+        UI.elements.btnContinueChart.classList.add("hidden");
+        UI.elements.chartOverlayPause.classList.add("hidden");
+        UI.elements.chartOverlayRun.classList.remove("hidden", "pointer-events-none");
         break;
+      case CONSTANTS.CHART_STATUS.PAUSING:
+        UI.elements.btnStartChart.classList.add("opacity-20", "pointer-events-none");
+        UI.elements.btnStopChart.classList.remove("opacity-20", "pointer-events-none");
+        UI.elements.btnClearChart.classList.add("hidden");
+        UI.elements.btnPauseChart.classList.add("hidden");
+        UI.elements.btnContinueChart.classList.remove("hidden");
+        UI.elements.chartOverlayPause.classList.remove("hidden");
+        UI.elements.chartOverlayRun.classList.add("hidden");
+        break;
+
       default:
         break;
     }
@@ -188,28 +214,28 @@ class UIManager {
     this.elements.allowFileLoggingToggle.disabled = false; // Default to enabled
 
     // Reset all buttons to default (enabled) before applying specific states
-    this.elements.setFileLoggingBtn.classList.remove("opacity-50", "pointer-events-none");
-    this.elements.startFileLoggingBtn.classList.remove("opacity-50", "pointer-events-none");
-    this.elements.finishFileLoggingBtn.classList.remove("opacity-50", "pointer-events-none");
+    this.elements.setFileLoggingBtn.classList.remove("opacity-20", "pointer-events-none");
+    this.elements.startFileLoggingBtn.classList.remove("opacity-20", "pointer-events-none");
+    this.elements.finishFileLoggingBtn.classList.remove("opacity-20", "pointer-events-none");
 
     switch (loggingStatus) {
       case CONSTANTS.LOGGING_FILE_STATUS.NONE:
-        this.elements.startFileLoggingBtn.classList.add("opacity-50", "pointer-events-none");
-        this.elements.finishFileLoggingBtn.classList.add("opacity-50", "pointer-events-none");
+        this.elements.startFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
+        this.elements.finishFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
         break;
       case CONSTANTS.LOGGING_FILE_STATUS.READY:
-        this.elements.setFileLoggingBtn.classList.add("opacity-50", "pointer-events-none");
-        this.elements.finishFileLoggingBtn.classList.add("opacity-50", "pointer-events-none");
+        this.elements.setFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
+        this.elements.finishFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
         break;
       case CONSTANTS.LOGGING_FILE_STATUS.LOGGING:
         this.elements.allowFileLoggingToggle.disabled = true;
-        this.elements.setFileLoggingBtn.classList.add("opacity-50", "pointer-events-none");
-        this.elements.startFileLoggingBtn.classList.add("opacity-50", "pointer-events-none");
+        this.elements.setFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
+        this.elements.startFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
         break;
       case CONSTANTS.LOGGING_FILE_STATUS.FINISH:
-        this.elements.setFileLoggingBtn.classList.remove("opacity-50", "pointer-events-none");
-        this.elements.startFileLoggingBtn.classList.add("opacity-50", "pointer-events-none");
-        this.elements.finishFileLoggingBtn.classList.add("opacity-50", "pointer-events-none");
+        this.elements.setFileLoggingBtn.classList.remove("opacity-20", "pointer-events-none");
+        this.elements.startFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
+        this.elements.finishFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
         break;
 
       default:

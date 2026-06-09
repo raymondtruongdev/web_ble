@@ -145,3 +145,68 @@ export class SaveFileManager {
     this.firstTimestamp = null;
   }
 }
+
+
+// ================== FILE LOGGING  =================
+  // const saveFileManager = new SaveFileManager();
+  // UI.elements.allowFileLoggingToggle.addEventListener("change", async () => {
+  //   const isAllowDirectStream = saveFileManager.check_allow_direct_stream_support();
+  //   const allowRecord = UI.elements.allowFileLoggingToggle.checked;
+
+  //   if (!allowRecord) {
+  //     AppState.setLoggingMode(null);
+  //     AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.NONE);
+  //   } else if (isAllowDirectStream) {
+  //     AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.DIRECT_STREAM);
+  //     AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.NONE);
+  //     AppState.setLoggingFilename(null);
+  //   } else {
+  //     AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.BUFFERED_SAVE);
+  //     AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.READY);
+  //     return;
+  //   }
+  // });
+
+  // // Set a file location to write data if browser support WRITE_FILE_DIRECTLY
+  // UI.elements.setFileLoggingBtn.onclick = async () => {
+  //   // TODO: check this function later
+  //   return;
+
+  //   try {
+  //     const suggestedName = `data_${new Date().toISOString().replace(/T/, "_").slice(0, 19).replace(/:/g, "-")}.txt`;
+  //     saveFileManager.start(suggestedName, PPG.sampleIntervalMs);
+  //     AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.WRITE_FILE_DIRECTLY);
+  //     AppState.setLoggingFilename(saveFileManager.fileHandle?.name);
+  //     AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.READY);
+  //   } catch (err) {
+  //     if (err.name === "AbortError") {
+  //       logger.log("warning", "File selection cancelled.");
+  //       return;
+  //     }
+  //     AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.WRITE_BUFFER);
+  //     AppState.setLoggingFilename(null); //
+  //     AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.READY);
+  //   }
+  // };
+
+  // // Set State to LOGGING FLAG to allow writing data
+  // UI.elements.startFileLoggingBtn.onclick = async () => {
+  //   // TODO: check this function later
+  //   return;
+
+  //   AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.LOGGING);
+  // };
+
+  // // Set State to FINISH and trigger file saving process in SaveFileManager
+  // UI.elements.finishFileLoggingBtn.onclick = async () => {
+  //   // TODO: check this function later
+  //   return;
+  //   AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.FINISH);
+  //   saveFileManager.finish();
+  // };
+
+  // // Set callback for SAVE FILE MANAGER messages to log them in the terminal
+  // saveFileManager.onMessageNotify = (type = "info", text) => {
+  //   logger.log(type, text);
+  //   UI.showToastNotification(type, text);
+  // };

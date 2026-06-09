@@ -25,15 +25,36 @@ class UARTManager {
 
     /**
      * Callback to notify file transfer status updates from the UART device
-     * @param {object} info - Message text to display
+     * @param {object} info - object contains status file transfer info, including:
+     *   - cmd: command code from device (number)
+     *   - data: raw payload data (Uint8Array)
+     *   - data_len: length of the payload (number)
+     *   - crcOk: boolean indicating if CRC check passed
      */
     this.onFileTransferStatus = () => {};
+
+    /**
+     * Callback to notify streaming status updates from the UART device
+     * @param {object} info - object contains streaming status info, including:
+     *   - cmd: command code from device (number)
+     *   - data: raw payload data (Uint8Array)
+     *   - data_len: length of the payload (number)
+     */
+    this.onStreamingStatus = () => {};
   }
 
   async connect() {
     try {
       this.port = await navigator.serial.requestPort();
-      await this.port.open({ baudRate: 460800 }); // 921600 , 460800 (max value for MACOS)
+      // baudRate: 1000000, 921600 , 460800 (max value for MACOS)
+      await this.port.open({
+        baudRate: 460800,
+        dataBits: 8,
+        stopBits: 1,
+        parity: "none",
+        hwFlowControl: true,
+        bufferSize: 8192,
+      });
       this.writer = this.port.writable.getWriter();
 
       // Lắng nghe sự kiện hệ thống disconnect
@@ -234,12 +255,12 @@ class UARTManager {
     const crcCalc = this.calculateCRC16(crcData);
     const crcOk = (crcCalc & 0xffff) === (receivedCrc & 0xffff);
 
-    console.log(
-      "RX Frame (hex):",
-      Array.from(frame)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join(" "),
-    );
+    // console.log(
+    //   "RX Frame (hex):",
+    //   Array.from(frame)
+    //     .map((b) => b.toString(16).padStart(2, "0"))
+    //     .join(" "),
+    // );
     console.log("RX Command:", `0x${command.toString(16).padStart(2, "0")}`);
     // console.log("RX ACK:", `0x${ack.toString(16).padStart(2, "0")}`);
     console.log("RX Payload length:", payloadLen);
@@ -254,15 +275,20 @@ class UARTManager {
     // or raw payload for DATA type. We expose both cmd and command for compatibility.
     const info = {
       cmd: command,
-      command,
-      // code: ack,
-      // ack,
       data: payload,
       data_len: payloadLen,
       crcOk,
     };
 
-    this.onFileTransferStatus(info);
+    const filetransferCmds = new Set([0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89]);
+    if (filetransferCmds.has(command)) {
+      this.onFileTransferStatus(info);
+    }
+
+    const streamingCmds = new Set([0x91, 0x92, 0x93, 0x94]);
+    if (streamingCmds.has(command)) {
+      this.onStreamingStatus(info);
+    }
   }
 
   /** 📖 Read incoming data - length-based frame detection */
@@ -279,12 +305,12 @@ class UARTManager {
         const { value, done } = await this.reader.read();
         if (done) break;
         if (!value) continue;
-        console.log(
-          "RX Data before validation (hex):",
-          Array.from(value)
-            .map((b) => b.toString(16).padStart(2, "0"))
-            .join(" "),
-        );
+        // console.log(
+        //   "RX Data before validation (hex):",
+        //   Array.from(value)
+        //     .map((b) => b.toString(16).padStart(2, "0"))
+        //     .join(" "),
+        // );
         for (let byte of value) {
           if (byte === 0x01 && !inFrame) {
             // Start of new frame detected
@@ -333,10 +359,17 @@ class UARTManager {
                   console.error("handleFrame error:", e);
                 }
               } else {
-                console.warn(
-                  "Frame complete but missing stop byte (0x04). Got:",
-                  buffer[buffer.length - 1].toString(16),
-                );
+                // We got error end frame not 0x04
+                // TODO: need check the cause later, current we stop streamming to avoid receive more corrupted data. This send STOP STREAMMING command to device directly.
+
+                // Show message to user about corrupted frame
+                const cur_end_byte = `0x${buffer[buffer.length - 1].toString(16).padStart(2, "0")}`;
+                this.onMessageNotify("error", `"Frame complete but missing stop byte (0x04). Got: " ${cur_end_byte}`);
+                console.warn("Frame complete but missing stop byte (0x04). Got:", cur_end_byte);
+
+                // Send stop streaming command
+                const startPayload = new Uint8Array([0x2]);
+                await this.sendFrame(0x11, startPayload); // Stop streamming
               }
               buffer = [];
               inFrame = false;
@@ -381,4 +414,5 @@ export default {
   onStatusChange: (fn) => (UART.onStatusChange = fn),
   onDataReceived: (fn) => (UART.onDataReceived = fn),
   onFileTransferStatus: (fn) => (UART.onFileTransferStatus = fn),
+  onStreamingStatus: (fn) => (UART.onStreamingStatus = fn),
 };

@@ -3,11 +3,12 @@ import { UI } from "./uiManager.js";
 import BLE from "./bleManager.js";
 import UART from "./uartManager.js";
 import FILE_TRANSFER from "./fileTransferManager.js";
+import STREAMING from "./streamingManager.js";
 import { AppState } from "./appState.js";
 import { CONSTANTS } from "./constants.js";
-import { PPG } from "./simulator/ppgSimulation.js";
-import { CHART } from "./chartManager.js";
-import { SaveFileManager } from "./saveFileManager.js";
+import CHART from "./chartManager.js";
+import PARSER_STREAMING from "./parserStreaming.js";
+import { DATA_SIM } from "./simulator/dataSimulation.js";
 
 // Kết quả hiển thị trong Console sẽ có dạng: 08:45:30 19/05/2026
 // console.log("Thời gian load mới nhất:", new Date().toLocaleString('vi-VN'));
@@ -20,21 +21,6 @@ function terminal_send(cmd) {
   switch (cmd.toLowerCase()) {
     case "clear":
       logger.clear();
-      break;
-
-    case "ppg start":
-      PPG.startPPG(); // Start PPG data generation
-      logger.log("success", "PPG simulation started.");
-      break;
-
-    case "ppg stop":
-      PPG.stopPPG(); // Stop PPG data generation
-      logger.log("success", "PPG simulation stopped.");
-      break;
-    case "ppg reset":
-      PPG.resetPPG(); // Reset PPG data generation
-      logger.log("success", "PPG simulation reset.");
-
       break;
 
     default:
@@ -66,6 +52,7 @@ window.addEventListener("DOMContentLoaded", () => {
   // Khởi tạo Chart Manager với canvas từ UI
   CHART.init(UI.elements.canvas);
 
+  UI.updateChartControlUI(); // Cập nhật UI Chart ban đầu
   UI.updateFileLoggingUI(); // Cập nhật UI FILE LOGGING PANEL ban đầu
 
   // Liên kết DOM của Terminal vào Logger Service
@@ -93,6 +80,26 @@ window.addEventListener("DOMContentLoaded", () => {
       terminal_send(UI.elements.terminalInput.value.trim());
     }
   });
+
+  //================= DEVICE INFO PANEL =================
+  UI.elements.btnSyncTime.onclick = () => {
+    const now = Math.floor(Date.now() / 1000);
+    const cmd_set_current_time = `date -s @${now}`;
+    terminal_send(cmd_set_current_time);
+  };
+  UI.elements.btnSyncTimezone.onclick = () => {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const offsetMinutes = -new Date().getTimezoneOffset();
+    const cmd_set_timezone = `timedatectl set-timezone @${offsetMinutes}`;
+    terminal_send(cmd_set_timezone);
+  };
+
+  UI.elements.btnGetDate.onclick = () => {
+    terminal_send("date");
+  };
+  UI.elements.btnGetMTU.onclick = () => {
+    terminal_send("ble");
+  };
 
   //================= BLE CONNECTION PANEL =================
   // Updat UI và AppState dựa trên trạng thái kết nối BLE
@@ -166,7 +173,13 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   // Set callback for UART data reception to log incoming data to terminal
-  UART.onDataReceived((data) => logger.log("info", data));
+  UART.onDataReceived((data) => {
+    if (String(data).toUpperCase().includes("ERR")) {
+      logger.log("error", data);
+    } else {
+      logger.log("info", data);
+    }
+  });
 
   // Set callback for sending a status of UART file transfer to FILE_TRANSFER module
   UART.onFileTransferStatus((info) => {
@@ -176,9 +189,7 @@ window.addEventListener("DOMContentLoaded", () => {
   // Set callback for sending a status of BLE file transfer to FILE_TRANSFER module
   BLE.onFileTransferStatus((info) => {
     FILE_TRANSFER.handleDeviceResponse(info);
-    let text =1;
   });
-
   //================= FILE TRANSFER PANEL =================
 
   UI.elements.fileInput.addEventListener("change", () => {
@@ -250,134 +261,82 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  //================= DEVICE INFO PANEL =================
-  UI.elements.btnSyncTime.onclick = () => {
-    const now = Math.floor(Date.now() / 1000);
-    const cmd_set_current_time = `date -s @${now}`;
-    terminal_send(cmd_set_current_time);
-  };
-  UI.elements.btnSyncTimezone.onclick = () => {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const offsetMinutes = -new Date().getTimezoneOffset();
-    const cmd_set_timezone = `timedatectl set-timezone @${offsetMinutes}`;
-    terminal_send(cmd_set_timezone);
+  //================= STREAMING ================= =======
+  // Set callback for sending a status of streaming data to PARSER_STREAMING module
+  UART.onStreamingStatus((info) => {
+    PARSER_STREAMING.processStreamingData(info);
+  });
+
+  // Set callback when DATA_SIM has new data then we feed it to PARSER_STREAMING
+  DATA_SIM.onDataGenerated = (info) => {
+    PARSER_STREAMING.processStreamingData(info);
   };
 
-  UI.elements.btnGetDate.onclick = () => {
-    terminal_send("date");
-  };
-  UI.elements.btnGetMTU.onclick = () => {
-    terminal_send("ble");
-  };
+  // Set callback when PARSER_STREAMING has new data
+  PARSER_STREAMING.onNewStreamingData((result) => {
+    // This plot simulation data from DATA_SIM
+    if (AppState.chartStatus != CONSTANTS.CHART_STATUS.NONE) {
+      console.log("[NEW STREAMING DATA]", result);
 
-  //================= PPG SIMULATION =================
-  // Kết nối dữ liệu từ Simulator sang Chart
-  PPG.onDataGenerated = (samples) => {
-    // Only update chart if in RENDERING state
-    if (AppState.chartStatus === CONSTANTS.CHART_STATUS.RENDERING) {
-      // Vẽ đường Sensor A (CH1)
-      CHART.addDataPoints(samples, PPG.isRunning, PPG.lastDataGenTime, "ch1");
-
-      // Vẽ đường Sensor B (CH2)
-      const samplesCh2 = samples.map((s) => ({
-        value: Math.max(0, Math.min(1000, s.value * 0.7 + 150)),
-        timestamp: s.timestamp,
-      }));
-      CHART.addDataPoints(samplesCh2, PPG.isRunning, PPG.lastDataGenTime, "ch2");
-
-      // Vẽ đường Sensor C (CH3)
-      const samplesCh3 = samples.map((s) => ({
-        value: Math.max(0, Math.min(1000, s.value * 0.3 + 250)),
-        timestamp: s.timestamp,
-      }));
-      CHART.addDataPoints(samplesCh3, PPG.isRunning, PPG.lastDataGenTime, "ch3");
-    }
-    //Log the data to file
-    if (CONSTANTS.LOGGING_FILE_STATUS.LOGGING === AppState.loggingStatus) {
-      for (const sample of samples) {
-        saveFileManager.write(sample.value, sample.timestamp);
+      for (let i = 0; i < result.samples.length; i++) {
+        const samples = result.samples[i];
+        const sampleIntervalSec = result.sampleIntervalMs;
+        const baseTimestamp = result.timestamp + result.ts_batch_ms;
+        const channelName = "data_type_" + result.streamType + "_ch_" + i;
+        CHART.addChartBuffer(samples, sampleIntervalSec, baseTimestamp, channelName);
       }
-    }
-  };
-  //================= CHART CONTROLS =================
-  CHART.setLabels("acc1", "acc2");
-
-  UI.elements.btnStartChart.onclick = async () => {
-    // Set Chart status to update Chart controls buttons state
-    AppState.setChartStatus(CONSTANTS.CHART_STATUS.RENDERING);
-    // Cập nhật trạng thái Chart để bắt đầu cuộn timeline ngay lập tức
-    CHART.addDataPoints([], true, performance.now());
-    // Trở lại chế độ vẽ thời gian thực
-    CHART.unfreeze();
-  };
-
-  UI.elements.btnStopChart.onclick = async () => {
-    AppState.setChartStatus(CONSTANTS.CHART_STATUS.NONE);
-    // Cập nhật trạng thái Chart để dừng cuộn timeline tại mốc dữ liệu cuối cùng
-    CHART.addDataPoints([], false, PPG.lastDataGenTime);
-    CHART.unfreeze();
-  };
-
-  //Xoa dữ liệu trên Chart và reset về trạng thái ban đầu
-  UI.elements.btnResetChart.onclick = () => {
-    CHART.dataPoints = {}; // Xóa sạch tất cả các kênh động
-    CHART.addDataPoints([], false, null);
-  };
-
-  // ================== FILE LOGGING  =================
-  const saveFileManager = new SaveFileManager();
-  UI.elements.allowFileLoggingToggle.addEventListener("change", async () => {
-    const isAllowDirectStream = saveFileManager.check_allow_direct_stream_support();
-    const allowRecord = UI.elements.allowFileLoggingToggle.checked;
-
-    if (!allowRecord) {
-      AppState.setLoggingMode(null);
-      AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.NONE);
-    } else if (isAllowDirectStream) {
-      AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.DIRECT_STREAM);
-      AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.NONE);
-      AppState.setLoggingFilename(null);
-    } else {
-      AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.BUFFERED_SAVE);
-      AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.READY);
-      return;
     }
   });
 
-  // Set a file location to write data if browser support WRITE_FILE_DIRECTLY
-  UI.elements.setFileLoggingBtn.onclick = async () => {
-    try {
-      const suggestedName = `data_${new Date().toISOString().replace(/T/, "_").slice(0, 19).replace(/:/g, "-")}.txt`;
-      saveFileManager.start(suggestedName, PPG.sampleIntervalMs);
-      AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.WRITE_FILE_DIRECTLY);
-      AppState.setLoggingFilename(saveFileManager.fileHandle?.name);
-      AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.READY);
-    } catch (err) {
-      if (err.name === "AbortError") {
-        logger.log("warning", "File selection cancelled.");
-        return;
-      }
-      AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.WRITE_BUFFER);
-      AppState.setLoggingFilename(null); //
-      AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.READY);
+  UI.elements.btnStartStreaming.onclick = async () => {
+    if (AppState.connectionType != CONSTANTS.CONNECTION_TYPE.UART) {
+      logger.log("warning", "Not connected via UART. Streaming is only available for UART connection.");
+      return;
     }
+    STREAMING.startStreaming();
   };
 
-  // Set State to LOGGING FLAG to allow writing data
-  UI.elements.startFileLoggingBtn.onclick = async () => {
-    AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.LOGGING);
+  UI.elements.btnStopStreaming.onclick = async () => {
+    STREAMING.stopStreaming();
   };
 
-  // Set State to FINISH and trigger file saving process in SaveFileManager
-  UI.elements.finishFileLoggingBtn.onclick = async () => {
-    AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.FINISH);
-    saveFileManager.finish();
+  STREAMING.onSendFrame((cmd, payload) => {
+    UART.sendFrame(cmd, payload);
+  });
+
+  //================= CHART CONTROLS =================
+
+  CHART.setLabels("acc1", "acc2");
+
+  UI.elements.btnStartChart.onclick = async () => {
+    AppState.setChartStatus(CONSTANTS.CHART_STATUS.RENDERING);
+
+    CHART.clear();
+    CHART.unfreeze();
+
+    DATA_SIM.startGenerate();
   };
 
-  // Set callback for SAVE FILE MANAGER messages to log them in the terminal
-  saveFileManager.onMessageNotify = (type = "info", text) => {
-    logger.log(type, text);
-    UI.showToastNotification(type, text);
+  UI.elements.btnStopChart.onclick = async () => {
+    CHART.freezeCurrentView();
+    AppState.setChartStatus(CONSTANTS.CHART_STATUS.NONE);
+  };
+
+  UI.elements.btnPauseChart.onclick = async () => {
+    CHART.freezeCurrentView();
+    AppState.setChartStatus(CONSTANTS.CHART_STATUS.PAUSING);
+  };
+  UI.elements.btnContinueChart.onclick = async () => {
+    CHART.unfreeze();
+    AppState.setChartStatus(CONSTANTS.CHART_STATUS.RENDERING);
+  };
+
+  UI.elements.btnClearChart.onclick = () => {
+    CHART.clear();
+  };
+  // Fit lại khung nhìn để hiển thị toàn bộ dữ liệu hiện có trên chart
+  UI.elements.btnFitChart.onclick = () => {
+    CHART.zoomToFitData();
   };
 
   // End of DOMContentLoaded
