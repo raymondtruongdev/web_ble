@@ -16,7 +16,7 @@ class DataSimulation {
     this.onDataGenerated = null;
   }
 
-  startGenerate() {
+  start() {
     if (this.DEMO_TYPE == 1) {
       this.configInfo = this.generateConfigPacket();
       this.frameInfo = this.generateDataPacket();
@@ -31,7 +31,7 @@ class DataSimulation {
     // Chạy mỗi 1000ms để dữ liệu đổ về mỗi giây
     this.timerId = setInterval(() => this.tick(), 1000);
   }
-  stopGenerate() {
+  stop() {
     this.isRunning = false;
     if (this.timerId) {
       clearInterval(this.timerId);

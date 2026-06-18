@@ -27,9 +27,9 @@ const Utils = {
 
 class ChartManager {
   constructor() {
-    this.TIME_RENDER_CHART_MS = 20; // Duration for a timer to render chart
-    this.VIEW_DURATION_MS = 10000; // Chart will show the last 10s data
-    this.MAX_DATA_POINT_IN_CHART = 5000*30; // Maximum  data point show in chart
+    this.TIME_RENDER_CHART_MS = 20; // Duration for a timer to render chart 1000/20 = 50fps
+    this.VIEW_DURATION_MS = 10 * 1000; // Chart will show the last 10s data
+    this.MAX_DATA_POINT_IN_CHART = 5000 * 30; // Maximum  data point keep in chart, if exceed,it will be removed from the beginning of the array to avoid memory leak
 
     this.buffer = [];
     this.chartTimer = null;
@@ -49,14 +49,14 @@ class ChartManager {
     this.originalYMax = 0;
 
     // chart states
-    this.isRunning = false;
-    this.drawPending = false;
-    this.isPaused = false;
+    this.isRunning = false; // Flag indicating whether the chart is actively running and rendering
+    this.isPaused = false; // Flag indicating whether the chart viewport is paused/frozen
+    this.drawPending = false; // Flag to prevent duplicate requests
     this.freezeTime = null;
 
     // For zoom-in  X
-    this.MIN_VIEW_DURATION_MS = 100;
-    this.MAX_VIEW_DURATION_MS = 60000;
+    this.MIN_VIEW_DURATION_MS = 100; // Min duration for X axis in ms while zooming in
+    this.MAX_VIEW_DURATION_MS = 60000; // Max duration for X axis in ms while zooming out
 
     // Initial limit value for Y
     this.yMin = -2000;
@@ -78,8 +78,17 @@ class ChartManager {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.setupEvents();
-
+  }
+  start() {
+    this.isRunning = true;
+    this.clear();
+    this.unfreeze();
+    // Start timer to automatically render chart when have new data in buffer
     this.autoRender();
+  }
+  stop() {
+    this.isRunning = false;
+    this.freezeCurrentView();
   }
 
   /**
@@ -94,7 +103,7 @@ class ChartManager {
     this.requestRedraw();
   }
   /**
-   * Trở lại chế độ vẽ thời gian thực
+   * Set chart to unfreeze state, chart will auto scroll with new data comming
    */
   unfreeze() {
     this.isPaused = false;
@@ -104,13 +113,13 @@ class ChartManager {
   }
 
   /**
-   *  Clear all data points in chart
+   *  Clear all data points in chart and reset view to current time
    */
   clear() {
     this.dataPoints = {};
     this.buffer = [];
+    this.freezeTime = performance.now();
     this.requestRedraw();
-    // CHART.reset();
   }
 
   /**
@@ -180,6 +189,13 @@ class ChartManager {
    */
   autoRender() {
     if (this.chartTimer) return;
+    if (!this.isRunning) {
+      if (this.chartTimer) {
+        clearInterval(this.chartTimer);
+        this.chartTimer = null;
+      }
+      return;
+    }
     this.chartTimer = setInterval(() => {
       let needRedraw = false;
       for (const item of this.buffer) {
@@ -200,6 +216,11 @@ class ChartManager {
           target.splice(0, excess);
         }
 
+        // Check if Chart is not ruuning, we skip render data points
+        if (this.isRunning === false) {
+          continue;
+        }
+
         let count = 0;
         const now = performance.now();
         while (count < item.dataPoints.length && item.dataPoints[count].timestamp <= now) {
@@ -217,32 +238,12 @@ class ChartManager {
     }, this.TIME_RENDER_CHART_MS);
   }
 
-  setYLimits(min, max) {
-    if (min >= max) return;
-    this.yMin = min;
-    this.yMax = max;
-    this.requestRedraw();
-  }
-
-  setViewDuration(durationMs) {
-    if (durationMs > 0) {
-      this.VIEW_DURATION_MS = this.clampViewDuration(durationMs);
-      this.viewOffsetMs = 0;
-      this.requestRedraw();
-    }
-  }
-
   setupEvents() {
     window.addEventListener("resize", () => this.resize());
     this.resize();
 
     this.canvas.addEventListener("mousemove", (e) => this.handleMouseMove(e));
     this.canvas.addEventListener("mousedown", (e) => this.handleMouseDown(e));
-    this.canvas.addEventListener("mouseleave", () => {
-      this.hoverPoint = null;
-      this.mouseX = null;
-      this.requestRedraw();
-    });
 
     // Ngăn context menu mặc định khi click chuột phải trên canvas
     this.canvas.addEventListener("contextmenu", (e) => {
@@ -260,11 +261,27 @@ class ChartManager {
     return Math.max(this.MIN_VIEW_DURATION_MS, Math.min(this.MAX_VIEW_DURATION_MS, durationMs));
   }
 
-  getBaseTime(isRunning = this.isRunning) {
+  /**
+   * Get the reference timestamp used for rendering the chart
+   *
+   * This function determines the "current time" on the chart's time axis:
+   *
+   * - **Normal mode (not paused):**
+   *   Returns the actual current time (performance.now()), allowing the chart
+   *   to auto-scroll and display new incoming data in real-time.
+   *
+   * - **Paused mode (frozen):**
+   *   Returns the frozen timestamp (freezeTime), keeping the chart static at
+   *   a specific moment. Users can analyze historical data in detail without
+   *   being pushed forward by new data.
+   */
+  getBaseTime() {
     if (this.isPaused && this.freezeTime !== null) {
       return this.freezeTime;
     }
-    // return isRunning ? performance.now() : lastSimTime || 10000;
+    if (Object.keys(this.dataPoints).length === 0) {
+      return this.freezeTime;
+    }
     return performance.now();
   }
 
@@ -330,7 +347,7 @@ class ChartManager {
     if (this.drawPending) return;
     this.drawPending = true;
     requestAnimationFrame(() => {
-      this.draw(this.isRunning);
+      this.draw();
       this.drawPending = false;
     });
   }
@@ -346,10 +363,6 @@ class ChartManager {
   }
 
   handleMouseMove(e) {
-    if (this.isRunning === false && this.isPaused === false && this.drawPending === false) {
-      return;
-    }
-
     const rect = this.canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
 
@@ -601,10 +614,9 @@ class ChartManager {
     }
   }
 
-  draw(isRunning) {
+  draw() {
     if (!this.ctx) return;
 
-    this.isRunning = isRunning;
     const { width, height } = this.canvas;
     const dpr = window.devicePixelRatio || 1;
     this.ctx.clearRect(0, 0, width, height);
@@ -774,6 +786,7 @@ class ChartManager {
 
     sortedChannels.forEach((channel, i) => {
       const config = palette[i % palette.length];
+      // Set default label name is "Sensor A", "Sensor B"
       const label = (this.customLabels[i] || `Sensor ${String.fromCharCode(65 + (i % 26))}`).toUpperCase();
 
       this.ctx.font = `bold ${10 * dpr}px Inter`;
@@ -863,6 +876,8 @@ const CHART = new ChartManager();
 
 export default {
   init: (canvas) => CHART.init(canvas),
+  start: () => CHART.start(),
+  stop: () => CHART.stop(),
   freezeCurrentView: () => CHART.freezeCurrentView(),
   unfreeze: () => CHART.unfreeze(),
   clear: () => CHART.clear(),

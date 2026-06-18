@@ -306,19 +306,17 @@ window.addEventListener("DOMContentLoaded", () => {
 
   //================= CHART CONTROLS =================
 
+  // We can set custom labels for channels, if not set, it will use default channel names like "ch1", "ch2",
   CHART.setLabels("acc1", "acc2");
 
   UI.elements.btnStartChart.onclick = async () => {
     AppState.setChartStatus(CONSTANTS.CHART_STATUS.RENDERING);
-
-    CHART.clear();
-    CHART.unfreeze();
-
-    DATA_SIM.startGenerate();
+    CHART.start();
+    // DATA_SIM.start();
   };
 
   UI.elements.btnStopChart.onclick = async () => {
-    CHART.freezeCurrentView();
+    CHART.stop();
     AppState.setChartStatus(CONSTANTS.CHART_STATUS.NONE);
   };
 

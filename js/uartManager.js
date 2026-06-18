@@ -4,6 +4,8 @@ class UARTManager {
     this.reader = null;
     this.writer = null;
 
+    this.no_package = 0;
+
     /**
      * Callback to notify a message from BLE manager
      * @param {string} type - Type of the message (e.g., "info", "warning", "error")
@@ -55,7 +57,10 @@ class UARTManager {
         hwFlowControl: true,
         bufferSize: 8192,
       });
+
       this.writer = this.port.writable.getWriter();
+
+      this.no_package = 0;
 
       // Lắng nghe sự kiện hệ thống disconnect
       navigator.serial.addEventListener("disconnect", (event) => {
@@ -287,10 +292,40 @@ class UARTManager {
 
     const streamingCmds = new Set([0x91, 0x92, 0x93, 0x94]);
     if (streamingCmds.has(command)) {
+      // console.log(
+      //   "RX Payload (hex):",
+      //   Array.from(payload)
+      //   .map((b) => b.toString(16).padStart(2, "0"))
+      //   .join(" "),
+      // );
+      console.log("========== Nuber of package:", this.no_package);
+      this.no_package++;
+
       this.onStreamingStatus(info);
     }
   }
 
+  discardFrameandRsync(buffer) {
+    const nextHeader = buffer.indexOf(0x01, 1);
+
+    if (nextHeader >= 0) {
+      console.warn(`Resync found new frame at offset ${nextHeader}`);
+
+      return {
+        buffer: buffer.slice(nextHeader),
+        inFrame: true,
+        expectedLength: null,
+      };
+    }
+
+    console.warn("No new frame found, dropping buffer");
+
+    return {
+      buffer: [],
+      inFrame: false,
+      expectedLength: null,
+    };
+  }
   /** 📖 Read incoming data - length-based frame detection */
   async readLoop() {
     this.reader = this.port.readable.getReader();
@@ -330,9 +365,10 @@ class UARTManager {
 
               if (payloadLen > 8185 || payloadLen === 0) {
                 console.warn("Invalid payload length:", payloadLen, "Resetting frame buffer");
-                buffer = [];
-                inFrame = false;
-                expectedLength = null;
+                const resync = this.discardAndResync(buffer);
+                buffer = resync.buffer;
+                inFrame = resync.inFrame;
+                expectedLength = resync.expectedLength;
                 continue;
               }
 
@@ -342,9 +378,10 @@ class UARTManager {
               // Validate expected length (min 8 bytes, max 8192 bytes)
               if (expectedLength < 8 || expectedLength > 8192) {
                 console.warn("Invalid frame length:", expectedLength, "Resetting frame buffer");
-                buffer = [];
-                inFrame = false;
-                expectedLength = null;
+                const resync = this.discardAndResync(buffer);
+                buffer = resync.buffer;
+                inFrame = resync.inFrame;
+                expectedLength = resync.expectedLength;
                 continue;
               }
             }
@@ -368,8 +405,17 @@ class UARTManager {
                 console.warn("Frame complete but missing stop byte (0x04). Got:", cur_end_byte);
 
                 // Send stop streaming command
-                const startPayload = new Uint8Array([0x2]);
-                await this.sendFrame(0x11, startPayload); // Stop streamming
+                // const startPayload = new Uint8Array([0x2]);
+                // await this.sendFrame(0x11, startPayload); // Stop streamming
+                console.warn(
+                  "Discard this frame because it's incomplete and missing stop byte (0x04). Got:",
+                  buffer[buffer.length - 1].toString(16),
+                );
+                const resync = this.discardAndResync(buffer);
+                buffer = resync.buffer;
+                inFrame = resync.inFrame;
+                expectedLength = resync.expectedLength;
+                continue;
               }
               buffer = [];
               inFrame = false;
