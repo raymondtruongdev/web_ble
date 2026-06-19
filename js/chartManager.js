@@ -29,7 +29,7 @@ class ChartManager {
   constructor() {
     this.TIME_RENDER_CHART_MS = 20; // Duration for a timer to render chart 1000/20 = 50fps
     this.VIEW_DURATION_MS = 10 * 1000; // Chart will show the last 10s data
-    this.MAX_DATA_POINT_IN_CHART = 5000 * 30; // Maximum  data point keep in chart, if exceed,it will be removed from the beginning of the array to avoid memory leak
+    this.MAX_DURATION_VIEW_IN_CHART = 30*1000; // Maximum  data point keep in chart is 30 second
 
     this.buffer = [];
     this.chartTimer = null;
@@ -213,18 +213,17 @@ class ChartManager {
         const target = this.dataPoints[mappedChannel];
 
         // Check if buffer render chart is overload we remove some old data points
-        const excess = target.length - this.MAX_DATA_POINT_IN_CHART;
-        if (excess > 0) {
-          target.splice(0, excess);
-        }
-
-        // Check if Chart is not ruuning, we skip render data points
-        if (this.isRunning === false) {
-          continue;
-        }
-
         let count = 0;
-        const now = performance.now();
+        let now = performance.now();
+        while (count < target.length && target[count].timestamp <= now - this.MAX_DURATION_VIEW_IN_CHART) {
+          count++;
+        }
+        if (count > 0) {
+          target.splice(0, count);
+        }
+        
+        // Transfer data from buffer to Chart
+        count = 0;
         while (count < item.dataPoints.length && item.dataPoints[count].timestamp <= now) {
           count++;
         }
