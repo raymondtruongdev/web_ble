@@ -268,6 +268,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   // Set callback when DATA_SIM has new data then we feed it to PARSER_STREAMING
+  DATA_SIM.setupDemoType(DATA_SIM.DEMO_MODE.EXAMPLE_3);
   DATA_SIM.onDataGenerated = (info) => {
     PARSER_STREAMING.processStreamingData(info);
   };
@@ -312,7 +313,7 @@ window.addEventListener("DOMContentLoaded", () => {
   UI.elements.btnStartChart.onclick = async () => {
     AppState.setChartStatus(CONSTANTS.CHART_STATUS.RENDERING);
     CHART.start();
-    // DATA_SIM.start();
+    DATA_SIM.start();
   };
 
   UI.elements.btnStopChart.onclick = async () => {

@@ -37,6 +37,8 @@ class ChartManager {
     this.ctx = null;
     this.dataPoints = {};
     this.customLabels = [];
+    this.channelMapping = {}; // Mapping originalChannel -> ch1, ch2, ch3
+    this.nextChannelIndex = 1; // Start name is "ch1"
     this.margins = { left: 70, right: 20, top: 30, bottom: 40 };
     this.viewOffsetMs = 0;
     this.hoverPoint = null;
@@ -118,6 +120,8 @@ class ChartManager {
   clear() {
     this.dataPoints = {};
     this.buffer = [];
+    this.channelMapping = {};
+    this.nextChannelIndex = 1;
     this.freezeTime = performance.now();
     this.requestRedraw();
   }
@@ -195,13 +199,18 @@ class ChartManager {
         if (!item.dataPoints || item.dataPoints.length === 0) {
           continue;
         }
-        const channel = item.channel;
-        // Check if channel not exist in dataPoints, if not create it
-        if (!this.dataPoints[channel]) {
-          this.dataPoints[channel] = [];
+
+        const originalChannel = item.channel;
+        // Check if originalChannel is mapped to a display channel (ch1, ch2, ch3...), if not we create a new mapping
+        let mappedChannel = this.channelMapping[originalChannel];
+        if (!mappedChannel) {
+          mappedChannel = `ch${this.nextChannelIndex}`;
+          this.channelMapping[originalChannel] = mappedChannel;
+          this.nextChannelIndex++;
+          this.dataPoints[mappedChannel] = [];
         }
 
-        const target = this.dataPoints[channel];
+        const target = this.dataPoints[mappedChannel];
 
         // Check if buffer render chart is overload we remove some old data points
         const excess = target.length - this.MAX_DATA_POINT_IN_CHART;
