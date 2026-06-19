@@ -9,6 +9,7 @@ import { CONSTANTS } from "./constants.js";
 import CHART from "./chartManager.js";
 import PARSER_STREAMING from "./parserStreaming.js";
 import { DATA_SIM } from "./simulator/dataSimulation.js";
+import { FILE_LOG_MANAGER } from "./fileLogManager.js";
 
 // Kết quả hiển thị trong Console sẽ có dạng: 08:45:30 19/05/2026
 // console.log("Thời gian load mới nhất:", new Date().toLocaleString('vi-VN'));
@@ -279,13 +280,16 @@ window.addEventListener("DOMContentLoaded", () => {
     if (AppState.chartStatus != CONSTANTS.CHART_STATUS.NONE) {
       console.log("[NEW STREAMING DATA]", result);
 
+      const sampleIntervalMs = result.sampleIntervalMs;
+      const baseTimestamp = result.timestamp + result.ts_batch_ms;
       for (let i = 0; i < result.samples.length; i++) {
         const samples = result.samples[i];
-        const sampleIntervalSec = result.sampleIntervalMs;
-        const baseTimestamp = result.timestamp + result.ts_batch_ms;
         const channelName = "data_type_" + result.streamType + "_ch_" + i;
-        CHART.addChartBuffer(samples, sampleIntervalSec, baseTimestamp, channelName);
+        CHART.addChartBuffer(samples, sampleIntervalMs, baseTimestamp, channelName);
       }
+      const sensorName = "data_type_" + result.streamType;
+      const sensorData = result.samples;
+      FILE_LOG_MANAGER.addFileLogBuffer(sensorData, sampleIntervalMs, Date.now(), sensorName);
     }
   });
 
@@ -336,6 +340,71 @@ window.addEventListener("DOMContentLoaded", () => {
   // Fit lại khung nhìn để hiển thị toàn bộ dữ liệu hiện có trên chart
   UI.elements.btnFitChart.onclick = () => {
     CHART.zoomToFitData();
+  };
+
+  // ================== FILE LOGGING  =================
+  UI.elements.allowFileLoggingToggle.addEventListener("change", async () => {
+    const isAllowDirectStream = FILE_LOG_MANAGER.isDirectFileWriteAvailable();
+    const allowRecord = UI.elements.allowFileLoggingToggle.checked;
+
+    if (!allowRecord) {
+      AppState.setLoggingMode(null);
+      AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.NONE);
+    } else if (isAllowDirectStream) {
+      AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.DIRECT_STREAM);
+      AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.NONE);
+      AppState.setLoggingFilename(null);
+    } else {
+      AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.BUFFERED_SAVE);
+      AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.READY);
+      return;
+    }
+  });
+
+  // Set a file location to write data if browser support WRITE_FILE_DIRECTLY
+  UI.elements.setFileLoggingBtn.onclick = async () => {
+    try {
+      await FILE_LOG_MANAGER.initializeDirectory();
+      AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.WRITE_FILE_DIRECTLY);
+      AppState.setLoggingFilename(FILE_LOG_MANAGER.fileHandle?.name);
+      AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.READY);
+    } catch (err) {
+      if (err.name === "AbortError") {
+        logger.log("warning", "File selection cancelled.");
+        return;
+      }
+      AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.WRITE_BUFFER);
+      AppState.setLoggingFilename(null); //
+      AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.READY);
+    }
+  };
+
+  // Set State to LOGGING FLAG to allow writing data
+  UI.elements.startFileLoggingBtn.onclick = async () => {
+    AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.LOGGING);
+    // Bắt đầu auto-write (tự động tạo session mới bên trong)
+    await FILE_LOG_MANAGER.autoWriteBuffer();
+
+    // Có thể hiển thị thông báo cho user
+    console.log(`Started new logging session: ${FILE_LOG_MANAGER.sessionId}`);
+  };
+
+  // Set State to FINISH and trigger file saving process in SaveFileManager
+  UI.elements.finishFileLoggingBtn.onclick = async () => {
+    AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.FINISH);
+    // Dừng auto-write (tự động kết thúc session bên trong)
+    FILE_LOG_MANAGER.stopAutoWrite();
+
+    // Đảm bảo ghi hết dữ liệu còn lại trong buffer
+    await FILE_LOG_MANAGER.writeNow();
+
+    console.log("Logging session finished, data saved");
+  };
+
+  // Set callback for SAVE FILE MANAGER messages to log them in the terminal
+  FILE_LOG_MANAGER.onMessageNotify = (type = "info", text) => {
+    logger.log(type, text);
+    UI.showToastNotification(type, text);
   };
 
   // End of DOMContentLoaded
