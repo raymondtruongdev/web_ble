@@ -188,14 +188,7 @@ class ChartManager {
    * Start a timer that used to render the chart
    */
   autoRender() {
-    if (this.chartTimer) return;
-    if (!this.isRunning) {
-      if (this.chartTimer) {
-        clearInterval(this.chartTimer);
-        this.chartTimer = null;
-      }
-      return;
-    }
+    if (this.chartTimer !== null) return;
     this.chartTimer = setInterval(() => {
       let needRedraw = false;
       for (const item of this.buffer) {
@@ -234,6 +227,13 @@ class ChartManager {
       }
       if (needRedraw && !this.isPaused) {
         this.requestRedraw();
+      }
+      if (!this.isRunning) {
+        if (this.chartTimer) {
+          clearInterval(this.chartTimer);
+          this.chartTimer = null;
+        }
+        return;
       }
     }, this.TIME_RENDER_CHART_MS);
   }
@@ -805,6 +805,10 @@ class ChartManager {
     this.ctx.restore();
 
     // Tooltip
+    // Check if not have data points in chart, we skip draw tooltiop to avoid error when hover without data
+    if (Object.keys(this.dataPoints).length === 0) {
+      return;
+    }
     if (this.hoverPoint && this.hoverPoint.points && this.mouseX !== null) {
       const hx = this.getX(this.hoverPoint.timestamp, minTime, activeW, dpr);
 
