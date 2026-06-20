@@ -51,4 +51,7 @@ export const AppState = {
     }
     UI.updateFileLoggingUI();
   },
+  updateAutoFitState(isValue) {
+    UI.updateAutoFitButton(isValue);
+  },
 };

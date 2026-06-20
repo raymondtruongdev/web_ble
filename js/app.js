@@ -337,10 +337,20 @@ window.addEventListener("DOMContentLoaded", () => {
   UI.elements.btnClearChart.onclick = () => {
     CHART.clear();
   };
-  // Fit lại khung nhìn để hiển thị toàn bộ dữ liệu hiện có trên chart
+  // Fit the view to display all data currently available on the chart
   UI.elements.btnFitChart.onclick = () => {
     CHART.zoomToFitData();
   };
+
+  // Toggle Auto Fit mode
+  UI.elements.btnAutoFit.onclick = () => {
+    CHART.toggleAutoFit();
+  };
+
+  // Sync UI state when Auto Fit mode changes
+  CHART.onAutoFitChange((isValue) => {
+    AppState.updateAutoFitState(isValue);
+  });
 
   // ================== FILE LOGGING  =================
   UI.elements.allowFileLoggingToggle.addEventListener("change", async () => {

@@ -63,6 +63,7 @@ class UIManager {
       chartOverlayPause: document.getElementById("chart-pause-overlay-bagde"),
       chartOverlayRun: document.getElementById("chart-run-overlay-bagde"),
       btnFitChart: document.getElementById("btnFitChart"),
+      btnAutoFit : document.getElementById("btnAutoFit"),
 
       // FILE LOGGING ELEMENTS
       allowFileLoggingToggle: document.getElementById("file-logging-toggle"),
@@ -242,6 +243,16 @@ class UIManager {
         break;
     }
   }
+  
+ updateAutoFitButton(isAutoFit) {
+  if (isAutoFit) {
+    this.elements.btnAutoFit.classList.remove("bg-gray-600","hover:bg-gray-500","text-slate-300");
+    this.elements.btnAutoFit.classList.add("bg-green-600","hover:bg-green-500","text-white");
+  } else {
+    this.elements.btnAutoFit.classList.remove("bg-green-600","hover:bg-green-500","text-white");
+    this.elements.btnAutoFit.classList.add("bg-gray-600","hover:bg-gray-500","text-slate-300");
+  }
+}
 }
 
 // Export một instance duy nhất (Singleton Pattern)

@@ -3,6 +3,7 @@
 // - Click trái + kéo: Zoom trên trục X/Y
 // - Click phải + kéo ngang: Pan theo trục X
 // - Click phải + kéo dọc: Pan theo trục Y
+// - Click vào label: Toggle hiển thị đường tương ứng
 // ============================================================
 
 const Utils = {
@@ -29,7 +30,7 @@ class ChartManager {
   constructor() {
     this.TIME_RENDER_CHART_MS = 20; // Duration for a timer to render chart 1000/20 = 50fps
     this.VIEW_DURATION_MS = 10 * 1000; // Chart will show the last 10s data
-    this.MAX_DURATION_VIEW_IN_CHART = 30*1000; // Maximum  data point keep in chart is 30 second
+    this.MAX_DURATION_VIEW_IN_CHART = 30 * 1000; // Maximum  data point keep in chart is 30 second
 
     this.buffer = [];
     this.chartTimer = null;
@@ -54,6 +55,7 @@ class ChartManager {
     this.isRunning = false; // Flag indicating whether the chart is actively running and rendering
     this.isPaused = false; // Flag indicating whether the chart viewport is paused/frozen
     this.drawPending = false; // Flag to prevent duplicate requests
+    this.isAutoFit = true; // Mặc định bật AutoFit
     this.freezeTime = null;
 
     // For zoom-in  X
@@ -72,6 +74,19 @@ class ChartManager {
     this.axisZoomOriginalYMax = 0;
     this.axisZoomStartDataValue = 0;
     this.axisZoomStartMouseRatio = 0;
+
+    this.onAutoFitChange = () => {};
+
+    // Flag để kiểm tra xem có đang tương tác với chart không
+    this.isInteracting = false;
+
+    // Lưu vị trí các button legend để xử lý click
+    this.legendButtons = [];
+
+    // Lưu trạng thái click để phân biệt click và drag
+    this.mouseDownX = 0;
+    this.mouseDownY = 0;
+    this.isDragging = false;
   }
 
   // ==================== PUBLIC ====================
@@ -80,14 +95,19 @@ class ChartManager {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.setupEvents();
+
+    // Bật AutoFit mặc định
+    this.setAutoFit(true);
   }
+
   start() {
     this.isRunning = true;
     this.clear();
     this.unfreeze();
-    // Start timer to automatically render chart when have new data in buffer
+    this.setAutoFit(true);
     this.autoRender();
   }
+
   stop() {
     this.isRunning = false;
     this.freezeCurrentView();
@@ -104,6 +124,7 @@ class ChartManager {
     this.freezeTime = frozenAt;
     this.requestRedraw();
   }
+
   /**
    * Set chart to unfreeze state, chart will auto scroll with new data comming
    */
@@ -122,15 +143,22 @@ class ChartManager {
     this.buffer = [];
     this.channelMapping = {};
     this.nextChannelIndex = 1;
+    this.channelVisibility = {};
+    this.legendButtons = [];
     this.freezeTime = performance.now();
     this.requestRedraw();
   }
 
   /**
-   * Zoom to fit data in current chart
+   * Fit the view to display all data currently available on the chart
    */
   zoomToFitData() {
     const bounds = this.getDataBounds();
+    if (!bounds) {
+      // Nếu không có dữ liệu, giữ nguyên view
+      return;
+    }
+
     // Đặt viewOffset để nhìn thấy dữ liệu mới nhất (cuối cùng)
     const baseTime = this.getBaseTime();
     this.viewOffsetMs = bounds.maxTime - baseTime;
@@ -138,14 +166,48 @@ class ChartManager {
     // Scale trục Y theo min/max của toàn bộ dữ liệu
     if (bounds.maxValue !== bounds.minValue) {
       // Nếu có range, scale chính xác
-      this.yMin = bounds.minValue;
-      this.yMax = bounds.maxValue;
+      const padding = (bounds.maxValue - bounds.minValue) * 0.1; // Thêm 10% padding
+      this.yMin = bounds.minValue - padding;
+      this.yMax = bounds.maxValue + padding;
     } else {
       // Nếu chỉ có 1 giá trị, tạo khoảng nhỏ xung quanh
       this.yMin = bounds.minValue - 1;
       this.yMax = bounds.maxValue + 1;
     }
     this.requestRedraw();
+  }
+
+  /**
+   * Set AutoFit mode
+   * @param {boolean} isValue - true to enable AutoFit, false to disable
+   */
+  setAutoFit(isValue) {
+    this.isAutoFit = isValue;
+    if (isValue) {
+      // Nếu bật AutoFit, tự động fit dữ liệu
+      this.zoomToFitData();
+      // Reset trạng thái tương tác
+      this.isInteracting = false;
+    } else {
+      // Nếu tắt AutoFit, đánh dấu đang tương tác
+      this.isInteracting = true;
+    }
+    this.onAutoFitChange(this.isAutoFit);
+  }
+
+  /**
+   * Get current AutoFit status
+   * @returns {boolean} - true if AutoFit is enabled
+   */
+  getAutoFit() {
+    return this.isAutoFit;
+  }
+
+  /**
+   * Toggle AutoFit mode
+   */
+  toggleAutoFit() {
+    this.setAutoFit(!this.isAutoFit);
   }
 
   /**
@@ -175,6 +237,7 @@ class ChartManager {
       this.buffer.push({ channel, dataPoints });
     }
   }
+
   /**
    * Set new chart labels
    */
@@ -184,6 +247,14 @@ class ChartManager {
     } else {
       this.customLabels = labels;
     }
+
+    const sortedChannels = Object.keys(this.dataPoints).sort();
+    sortedChannels.forEach((ch, index) => {
+      if (this.channelVisibility[ch] === undefined) {
+        this.channelVisibility[ch] = true;
+      }
+    });
+
     this.requestRedraw();
   }
 
@@ -208,6 +279,7 @@ class ChartManager {
           this.channelMapping[originalChannel] = mappedChannel;
           this.nextChannelIndex++;
           this.dataPoints[mappedChannel] = [];
+          this.channelVisibility[mappedChannel] = true;
         }
 
         const target = this.dataPoints[mappedChannel];
@@ -221,7 +293,7 @@ class ChartManager {
         if (count > 0) {
           target.splice(0, count);
         }
-        
+
         // Transfer data from buffer to Chart
         count = 0;
         while (count < item.dataPoints.length && item.dataPoints[count].timestamp <= now) {
@@ -235,6 +307,10 @@ class ChartManager {
       }
       if (needRedraw && !this.isPaused) {
         this.requestRedraw();
+        // Nếu đang ở chế độ AutoFit, tự động fit dữ liệu
+        if (this.isAutoFit) {
+          this.zoomToFitData();
+        }
       }
       if (!this.isRunning) {
         if (this.chartTimer) {
@@ -252,6 +328,8 @@ class ChartManager {
 
     this.canvas.addEventListener("mousemove", (e) => this.handleMouseMove(e));
     this.canvas.addEventListener("mousedown", (e) => this.handleMouseDown(e));
+    this.canvas.addEventListener("mouseup", (e) => this.handleMouseUp(e));
+    this.canvas.addEventListener("click", (e) => this.handleCanvasClick(e));
 
     // Ngăn context menu mặc định khi click chuột phải trên canvas
     this.canvas.addEventListener("contextmenu", (e) => {
@@ -263,6 +341,10 @@ class ChartManager {
       // Kết thúc mọi chế độ drag
       this.dragMode = null;
     });
+  }
+
+  handleMouseUp(e) {
+    this.isDragging = false;
   }
 
   clampViewDuration(durationMs) {
@@ -319,6 +401,10 @@ class ChartManager {
     let hasData = false;
 
     sortedChannels.forEach((channel) => {
+      if (!this.getChannelVisibility(channel)) {
+        return;
+      }
+
       const points = this.dataPoints[channel];
       if (!Array.isArray(points) || points.length === 0) return;
 
@@ -373,6 +459,14 @@ class ChartManager {
   handleMouseMove(e) {
     const rect = this.canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
+
+    if (this.mouseDownX !== 0 || this.mouseDownY !== 0) {
+      const dx = e.clientX - this.mouseDownX;
+      const dy = e.clientY - this.mouseDownY;
+      if (Math.sqrt(dx * dx + dy * dy) > 5) {
+        this.isDragging = true;
+      }
+    }
 
     // === XỬ LÝ PAN X (chuột phải + kéo ngang) ===
     if (this.dragMode === "pan-x") {
@@ -453,6 +547,12 @@ class ChartManager {
     const mouseX = (e.clientX - rect.left) * dpr;
     const mouseY = (e.clientY - rect.top) * dpr;
 
+    const onLegend = this.isOnLegendButton(mouseX / dpr, mouseY / dpr);
+    if (onLegend) {
+      this.canvas.style.cursor = "pointer";
+      return;
+    }
+
     const onXAxis =
       mouseY >= this.canvas.height - this.margins.bottom * dpr &&
       mouseX >= this.margins.left * dpr &&
@@ -474,7 +574,25 @@ class ChartManager {
     }
   }
 
+  isOnLegendButton(x, y) {
+    for (const button of this.legendButtons) {
+      if (x >= button.x && x <= button.x + button.width && y >= button.y && y <= button.y + button.height) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   handleMouseDown(e) {
+    this.mouseDownX = e.clientX;
+    this.mouseDownY = e.clientY;
+    this.isDragging = false;
+
+    // Khi click vào chart, tắt AutoFit nếu đang bật
+    if (this.isAutoFit) {
+      this.setAutoFit(false);
+    }
+
     const rect = this.canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     const clickX = (e.clientX - rect.left) * dpr;
@@ -588,6 +706,62 @@ class ChartManager {
     }
   }
 
+  handleCanvasClick(e) {
+    // Debug: In ra thông tin để kiểm tra
+    console.log("Click detected!");
+    console.log("isDragging:", this.isDragging);
+
+    if (this.isDragging) {
+      console.log("Skipping click because dragging");
+      return;
+    }
+
+    const rect = this.canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+
+    // Tính tọa độ click trong canvas coordinate (pixel của canvas)
+    const clickX = (e.clientX - rect.left) * dpr;
+    const clickY = (e.clientY - rect.top) * dpr;
+
+    // Debug: In ra tọa độ
+    console.log("Click position (canvas):", clickX, clickY);
+    console.log("Legend buttons:", this.legendButtons);
+
+    // Kiểm tra xem có click vào legend button không
+    for (const button of this.legendButtons) {
+      // Debug: In ra thông tin từng button
+      console.log("Checking button:", button);
+      console.log("Button bounds:", button.x, button.y, button.x + button.width, button.y + button.height);
+      console.log(
+        "Click inside?",
+        clickX >= button.x,
+        clickX <= button.x + button.width,
+        clickY >= button.y,
+        clickY <= button.y + button.height,
+      );
+
+      // So sánh trực tiếp trong canvas coordinate (không chia DPR)
+      if (
+        clickX >= button.x &&
+        clickX <= button.x + button.width &&
+        clickY >= button.y &&
+        clickY <= button.y + button.height
+      ) {
+        // Toggle visibility của channel này
+        const channel = button.channel;
+        const currentVisibility = this.getChannelVisibility(channel);
+        this.channelVisibility[channel] = !currentVisibility;
+
+        console.log(`Toggled ${channel} to ${!currentVisibility}`);
+
+        this.setAutoFit(true);
+
+        e.stopPropagation();
+        break;
+      }
+    }
+  }
+
   updateHoverPoint(dpr) {
     const baseTime = this.getBaseTime();
     const now = baseTime + this.viewOffsetMs;
@@ -599,6 +773,10 @@ class ChartManager {
       const pointsAtTime = [];
 
       for (const channel in this.dataPoints) {
+        if (!this.getChannelVisibility(channel)) {
+          continue;
+        }
+
         const points = this.dataPoints[channel];
         let closestPoint = null;
         let minDiff = Infinity;
@@ -620,6 +798,10 @@ class ChartManager {
     } else {
       this.hoverPoint = null;
     }
+  }
+
+  getChannelVisibility(channel) {
+    return this.channelVisibility[channel] !== undefined ? this.channelVisibility[channel] : true;
   }
 
   draw() {
@@ -711,6 +893,10 @@ class ChartManager {
     const sortedChannels = Object.keys(this.dataPoints).sort();
 
     sortedChannels.forEach((channel, idx) => {
+      if (!this.getChannelVisibility(channel)) {
+        return;
+      }
+
       const points = this.dataPoints[channel];
       const config = palette[idx % palette.length];
       let firstIdx = -1;
@@ -785,30 +971,67 @@ class ChartManager {
     }
     this.ctx.restore();
 
-    // Legend
+    // Legend - Toggle buttons
     this.ctx.save();
     this.ctx.textBaseline = "middle";
     this.ctx.textAlign = "left";
     let legendX = (this.margins.left + 10) * dpr;
     const legendY = (this.margins.top + 15) * dpr;
 
+    // Reset legend buttons - LƯU Ý: lưu trực tiếp trong canvas coordinate (đã nhân DPR)
+    this.legendButtons = [];
+
     sortedChannels.forEach((channel, i) => {
       const config = palette[i % palette.length];
-      // Set default label name is "Sensor A", "Sensor B"
+      const isVisible = this.getChannelVisibility(channel);
       const label = (this.customLabels[i] || `Sensor ${String.fromCharCode(65 + (i % 26))}`).toUpperCase();
 
       this.ctx.font = `bold ${10 * dpr}px Inter`;
       const textWidth = this.ctx.measureText(label).width;
+      const buttonWidth = textWidth + 28 * dpr;
+      const buttonHeight = 22 * dpr;
+      const buttonX = legendX - 2 * dpr;
+      const buttonY = legendY - buttonHeight / 2;
+
+      // Lưu button với tọa độ canvas (đã nhân DPR)
+      this.legendButtons.push({
+        x: buttonX,
+        y: buttonY,
+        width: buttonWidth,
+        height: buttonHeight,
+        channel: channel,
+      });
 
       this.ctx.beginPath();
-      this.ctx.arc(legendX + 4 * dpr, legendY, 3.5 * dpr, 0, Math.PI * 2);
-      this.ctx.fillStyle = config.color;
+      this.ctx.roundRect(buttonX, buttonY, buttonWidth, buttonHeight, 4 * dpr);
+
+      if (isVisible) {
+        this.ctx.fillStyle = config.color + "33";
+      } else {
+        this.ctx.fillStyle = "rgba(51, 65, 85, 0.6)";
+      }
       this.ctx.fill();
 
-      this.ctx.fillStyle = "rgba(226, 232, 240, 0.9)";
+      this.ctx.strokeStyle = isVisible ? config.color : "rgba(100, 116, 139, 0.5)";
+      this.ctx.lineWidth = 1.5 * dpr;
+      this.ctx.stroke();
+
+      this.ctx.beginPath();
+      this.ctx.arc(legendX + 6 * dpr, legendY, 4 * dpr, 0, Math.PI * 2);
+      this.ctx.fillStyle = isVisible ? config.color : "rgba(100, 116, 139, 0.4)";
+      this.ctx.fill();
+
+      if (isVisible) {
+        this.ctx.strokeStyle = "#ffffff";
+        this.ctx.lineWidth = 1 * dpr;
+        this.ctx.stroke();
+      }
+
+      this.ctx.fillStyle = isVisible ? "rgba(226, 232, 240, 0.9)" : "rgba(148, 163, 184, 0.5)";
+      this.ctx.font = `bold ${10 * dpr}px Inter`;
       this.ctx.fillText(label, legendX + 14 * dpr, legendY);
 
-      legendX += textWidth + 30 * dpr;
+      legendX += buttonWidth + 12 * dpr;
     });
     this.ctx.restore();
 
@@ -894,7 +1117,11 @@ export default {
   unfreeze: () => CHART.unfreeze(),
   clear: () => CHART.clear(),
   zoomToFitData: () => CHART.zoomToFitData(),
+  setAutoFit: (isValue) => CHART.setAutoFit(isValue),
+  getAutoFit: () => CHART.getAutoFit(),
+  toggleAutoFit: () => CHART.toggleAutoFit(),
   addChartBuffer: (samples, sampleIntervalSec, baseTimestamp, channel) =>
     CHART.addChartBuffer(samples, sampleIntervalSec, baseTimestamp, channel),
   setLabels: (...labels) => CHART.setLabels(...labels),
+  onAutoFitChange: (fn) => (CHART.onAutoFitChange = fn),
 };
