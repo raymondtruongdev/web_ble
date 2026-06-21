@@ -456,6 +456,21 @@ class ChartManager {
     return height - this.margins.bottom * dpr - ratio * activeHeight;
   }
 
+  /**
+   * Get legend button at specific position
+   * @param {number} x - X coordinate in canvas pixel space
+   * @param {number} y - Y coordinate in canvas pixel space
+   * @returns {Object|null} - The legend button object or null if not found
+   */
+  getLegendButtonAt(x, y) {
+    for (const button of this.legendButtons) {
+      if (x >= button.x && x <= button.x + button.width && y >= button.y && y <= button.y + button.height) {
+        return button;
+      }
+    }
+    return null;
+  }
+
   handleMouseMove(e) {
     const rect = this.canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
@@ -547,8 +562,8 @@ class ChartManager {
     const mouseX = (e.clientX - rect.left) * dpr;
     const mouseY = (e.clientY - rect.top) * dpr;
 
-    const onLegend = this.isOnLegendButton(mouseX / dpr, mouseY / dpr);
-    if (onLegend) {
+    // Kiểm tra legend button trước
+    if (this.getLegendButtonAt(mouseX, mouseY)) {
       this.canvas.style.cursor = "pointer";
       return;
     }
@@ -572,15 +587,6 @@ class ChartManager {
     } else {
       this.canvas.style.cursor = "default";
     }
-  }
-
-  isOnLegendButton(x, y) {
-    for (const button of this.legendButtons) {
-      if (x >= button.x && x <= button.x + button.width && y >= button.y && y <= button.y + button.height) {
-        return true;
-      }
-    }
-    return false;
   }
 
   handleMouseDown(e) {
@@ -707,12 +713,8 @@ class ChartManager {
   }
 
   handleCanvasClick(e) {
-    // Debug: In ra thông tin để kiểm tra
-    console.log("Click detected!");
-    console.log("isDragging:", this.isDragging);
-
+    // Skipping click because dragging
     if (this.isDragging) {
-      console.log("Skipping click because dragging");
       return;
     }
 
@@ -723,42 +725,16 @@ class ChartManager {
     const clickX = (e.clientX - rect.left) * dpr;
     const clickY = (e.clientY - rect.top) * dpr;
 
-    // Debug: In ra tọa độ
-    console.log("Click position (canvas):", clickX, clickY);
-    console.log("Legend buttons:", this.legendButtons);
+    // Tìm button được click
+    const clickedButton = this.getLegendButtonAt(clickX, clickY);
+    if (clickedButton) {
+      // Toggle visibility của channel này
+      const channel = clickedButton.channel;
+      const currentVisibility = this.getChannelVisibility(channel);
+      this.channelVisibility[channel] = !currentVisibility;
 
-    // Kiểm tra xem có click vào legend button không
-    for (const button of this.legendButtons) {
-      // Debug: In ra thông tin từng button
-      console.log("Checking button:", button);
-      console.log("Button bounds:", button.x, button.y, button.x + button.width, button.y + button.height);
-      console.log(
-        "Click inside?",
-        clickX >= button.x,
-        clickX <= button.x + button.width,
-        clickY >= button.y,
-        clickY <= button.y + button.height,
-      );
-
-      // So sánh trực tiếp trong canvas coordinate (không chia DPR)
-      if (
-        clickX >= button.x &&
-        clickX <= button.x + button.width &&
-        clickY >= button.y &&
-        clickY <= button.y + button.height
-      ) {
-        // Toggle visibility của channel này
-        const channel = button.channel;
-        const currentVisibility = this.getChannelVisibility(channel);
-        this.channelVisibility[channel] = !currentVisibility;
-
-        console.log(`Toggled ${channel} to ${!currentVisibility}`);
-
-        this.setAutoFit(true);
-
-        e.stopPropagation();
-        break;
-      }
+      this.setAutoFit(true);
+      e.stopPropagation();
     }
   }
 
@@ -882,11 +858,16 @@ class ChartManager {
     this.ctx.clip();
 
     const palette = [
-      { color: "#3b82f6", fill: "rgba(59, 130, 246, 0.2)" },
-      { color: "#ef4444", fill: "rgba(239, 68, 68, 0.2)" },
-      { color: "#10b981", fill: "rgba(16, 185, 129, 0.2)" },
-      { color: "#f59e0b", fill: "rgba(245, 158, 11, 0.2)" },
-      { color: "#8b5cf6", fill: "rgba(139, 92, 246, 0.2)" },
+      { color: "#3b82f6", fill: "rgba(59,130,246,0.15)" }, // Blue
+      { color: "#ef4444", fill: "rgba(239,68,68,0.15)" }, // Red
+      { color: "#22c55e", fill: "rgba(34,197,94,0.15)" }, // Green
+      { color: "#eab308", fill: "rgba(234,179,8,0.15)" }, // Yellow
+      { color: "#a855f7", fill: "rgba(168,85,247,0.15)" }, // Purple
+      { color: "#06b6d4", fill: "rgba(6,182,212,0.15)" }, // Cyan
+      { color: "#f97316", fill: "rgba(249,115,22,0.15)" }, // Orange
+      { color: "#84cc16", fill: "rgba(132,204,22,0.15)" }, // Lime
+      { color: "#14b8a6", fill: "rgba(20,184,166,0.15)" }, // Teal
+      { color: "#4B5563", fill: "rgba(75,85,99,0.15)" }, // Slate
     ];
 
     let hasData = false;
