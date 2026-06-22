@@ -31,20 +31,40 @@ class Logger {
       default: "#e2e8f0",
     };
     const timestampColor = "#8d949d";
-
     const time = this._formatTimestamp();
     const textColor = colorMap[type] || colorMap.default;
 
-    logLine.innerHTML = `
-        <span style="color: ${timestampColor}; flex-shrink: 0;">${time}</span>
-        <span style="color: ${textColor};"></span>
+    const lines = String(message).split("\n");
+
+    lines.forEach((line, index) => {
+      const logLine = document.createElement("div");
+
+      logLine.innerHTML = `
+      <span
+        style="
+          color: ${timestampColor};
+          display: inline-block;
+          width: 80px;
+          flex-shrink: 0;
+        "
+      >
+        ${index === 0 ? time : ""}
+      </span>
+      <span
+        style="
+          color: ${textColor};
+          white-space: pre;
+        "
+      ></span>
     `;
 
-    if (logLine.lastElementChild) {
-      logLine.lastElementChild.textContent = message;
-    }
+      if (logLine.lastElementChild) {
+        logLine.lastElementChild.textContent = line;
+      }
 
-    this.terminalComponent.appendChild(logLine);
+      this.terminalComponent.appendChild(logLine);
+    });
+
     this.terminalComponent.scrollTop = this.terminalComponent.scrollHeight;
   }
 
