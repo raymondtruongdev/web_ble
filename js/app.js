@@ -54,7 +54,6 @@ window.addEventListener("DOMContentLoaded", () => {
   CHART.init(UI.elements.canvas);
 
   UI.updateChartControlUI(); // Cập nhật UI Chart ban đầu
-  UI.updateFileLoggingUI(); // Cập nhật UI FILE LOGGING PANEL ban đầu
 
   // Liên kết DOM của Terminal vào Logger Service
   if (UI.elements.terminalOutput) {
@@ -278,7 +277,7 @@ window.addEventListener("DOMContentLoaded", () => {
   PARSER_STREAMING.onNewStreamingData((result) => {
     // This plot simulation data from DATA_SIM
     if (AppState.chartStatus != CONSTANTS.CHART_STATUS.NONE) {
-      console.log("[NEW STREAMING DATA]", result);
+      // console.log("[NEW STREAMING DATA]", result);
 
       const sampleIntervalMs = 1000.0 / result.samplingRate;
       const baseTimestamp = result.perfTimeMs;
@@ -289,8 +288,8 @@ window.addEventListener("DOMContentLoaded", () => {
       }
       const sensorName = "data_type_" + result.streamType;
       const sensorData = result.samples;
-      const logStartBatchMs = result.unixTimeMs;
-      FILE_LOG_MANAGER.addFileLogBuffer(sensorData, sampleIntervalMs,logStartBatchMs, sensorName);
+      const baseLogTimestamp = result.unixTimeMs;
+      FILE_LOG_MANAGER.addFileLogBuffer(sensorData, sampleIntervalMs, baseLogTimestamp, sensorName);
     }
   });
 
@@ -357,55 +356,56 @@ window.addEventListener("DOMContentLoaded", () => {
   UI.elements.allowFileLoggingToggle.addEventListener("change", async () => {
     const isAllowDirectStream = FILE_LOG_MANAGER.isDirectFileWriteAvailable();
     const allowRecord = UI.elements.allowFileLoggingToggle.checked;
-
-    if (!allowRecord) {
-      AppState.setLoggingMode(null);
-      AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.NONE);
-    } else if (isAllowDirectStream) {
-      AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.DIRECT_STREAM);
-      AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.NONE);
-      AppState.setLoggingFilename(null);
-    } else {
-      AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.BUFFERED_SAVE);
-      AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.READY);
+    if (!isAllowDirectStream) {
+      logger.log("error", "This browser does not support direct streaming of data to a file.");
+      console.error("This browser does not support direct streaming of data to a file.");
+      UI.elements.allowFileLoggingToggle.checked = false; // Disable Logging file module
       return;
+    }
+    if (allowRecord) {
+      AppState.setLoggingPanelVisible(false);
+      AppState.setLoggingPanelStatus(CONSTANTS.LOGGING_FILE_STATUS.NONE);
+      FILE_LOG_MANAGER.resetDirectory(); // Clear dirHandle. User must select folder again in next toggle ON
+    } else {
+      AppState.setLoggingPanelVisible(true);
+      if (isAllowDirectStream) {
+        AppState.loggingMode = CONSTANTS.LOGGING_MODE.DIRECT_STREAM;
+        AppState.setLoggingPanelStatus(CONSTANTS.LOGGING_FILE_STATUS.NONE);
+      } else {
+        // TODO or NO NEED: - Save data in buffer. When finish we will download file to pc.
+        AppState.loggingMode = CONSTANTS.LOGGING_MODE.BUFFERED_SAVE;
+        AppState.setLoggingPanelStatus(CONSTANTS.LOGGING_FILE_STATUS.READY); // Ignore folder selection
+      }
     }
   });
 
   // Set a file location to write data if browser support WRITE_FILE_DIRECTLY
   UI.elements.setFileLoggingBtn.onclick = async () => {
     try {
-      await FILE_LOG_MANAGER.initializeDirectory();
-      AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.WRITE_FILE_DIRECTLY);
-      AppState.setLoggingFilename(FILE_LOG_MANAGER.fileHandle?.name);
-      AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.READY);
+      const isOK = await FILE_LOG_MANAGER.initializeDirectory();
+      if (!isOK) return;
+      AppState.setLoggingPanelStatus(CONSTANTS.LOGGING_FILE_STATUS.READY);
     } catch (err) {
       if (err.name === "AbortError") {
         logger.log("warning", "File selection cancelled.");
         return;
       }
-      AppState.setLoggingMode(CONSTANTS.LOGGING_MODE.WRITE_BUFFER);
-      AppState.setLoggingFilename(null); //
-      AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.READY);
     }
   };
 
-  // Set State to LOGGING FLAG to allow writing data
   UI.elements.startFileLoggingBtn.onclick = async () => {
-    AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.LOGGING);
-    // Bắt đầu auto-write (tự động tạo session mới bên trong)
-    await FILE_LOG_MANAGER.autoWriteBuffer();
-
-    // Có thể hiển thị thông báo cho user
-    console.log(`Started new logging session: ${FILE_LOG_MANAGER.sessionId}`);
+    // Start File Logging module
+    await FILE_LOG_MANAGER.start();
+    // Update File Logging UI
+    AppState.setLoggingPanelStatus(CONSTANTS.LOGGING_FILE_STATUS.LOGGING);
   };
 
   // Set State to FINISH and trigger file saving process in SaveFileManager
   UI.elements.finishFileLoggingBtn.onclick = async () => {
-    AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.FINISH);
-    // Dừng auto-write (tự động kết thúc session bên trong)
-    FILE_LOG_MANAGER.stopAutoWrite();
-    console.log("Logging session finished, data saved");
+    // Finish the current loging file
+    await FILE_LOG_MANAGER.finish();
+    // Update File Logging UI
+    AppState.setLoggingPanelStatus(CONSTANTS.LOGGING_FILE_STATUS.FINISH);
   };
 
   // Set callback for SAVE FILE MANAGER messages to log them in the terminal

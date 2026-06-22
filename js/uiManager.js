@@ -63,12 +63,12 @@ class UIManager {
       chartOverlayPause: document.getElementById("chart-pause-overlay-bagde"),
       chartOverlayRun: document.getElementById("chart-run-overlay-bagde"),
       btnFitChart: document.getElementById("btnFitChart"),
-      btnAutoFit : document.getElementById("btnAutoFit"),
+      btnAutoFit: document.getElementById("btnAutoFit"),
 
       // FILE LOGGING ELEMENTS
       allowFileLoggingToggle: document.getElementById("file-logging-toggle"),
       loggingConfigPanel: document.getElementById("logging-config-panel"),
-      pathLoggingText: document.getElementById("path-logging-text"),
+      pathLoggingText: document.getElementById("path-logging-text"), // It set is "hidden", we do not use it now
       setFileLoggingBtn: document.getElementById("set-file-logging-btn"),
       startFileLoggingBtn: document.getElementById("start-file-logging-btn"),
       finishFileLoggingBtn: document.getElementById("finish-file-logging-btn"),
@@ -81,7 +81,7 @@ class UIManager {
 
   // --- Toast Notification ---
   /**
-   * Show a toast notification with the given message and type.
+   * Show a toast notification with the given message and type.The toast locate at right-bottom website
    * @param {'success' | 'default'} type
    * @param {string} message
    */
@@ -183,59 +183,38 @@ class UIManager {
         break;
     }
   }
-
   /**
    * Updates the UI for the File Logging section based on AppState.
    */
-  updateFileLoggingUI() {
-    const allowRecord = this.elements.allowFileLoggingToggle.checked;
-    const loggingStatus = AppState.loggingStatus;
-    const mode = AppState.loggingMode;
-    const filename = AppState.loggingFilename;
 
-    // 1. Control visibility of the logging config panel
-    this.elements.loggingConfigPanel.classList.toggle("hidden", !allowRecord);
-
-    // 2. Update path display and set file button visibility based on mode
-    if (allowRecord) {
-      if (mode === CONSTANTS.LOGGING_MODE.WRITE_FILE_DIRECTLY) {
-        this.elements.pathLoggingText.textContent = `Save file at: ${filename}`;
-        this.elements.setFileLoggingBtn.classList.remove("hidden");
-        this.elements.pathLoggingText.classList.remove("hidden");
-        this.elements.finishFileLoggingBtn.classList.remove("hidden");
-      } else if (mode === CONSTANTS.LOGGING_MODE.WRITE_BUFFER) {
-        this.elements.pathLoggingText.textContent = "";
-        this.elements.setFileLoggingBtn.classList.add("hidden");
-        this.elements.pathLoggingText.classList.add("hidden");
-        this.elements.finishFileLoggingBtn.classList.remove("hidden");
-      }
+  setLoggingPanelVisible(isEnable) {
+    if (isEnable) {
+      this.elements.loggingConfigPanel.classList.remove("hidden");
+    } else {
+      this.elements.loggingConfigPanel.classList.add("hidden");
     }
+  }
 
-    // 3. Update button states and toggle disabled state based on loggingStatus
-    this.elements.allowFileLoggingToggle.disabled = false; // Default to enabled
-
-    // Reset all buttons to default (enabled) before applying specific states
-    this.elements.setFileLoggingBtn.classList.remove("opacity-20", "pointer-events-none");
-    this.elements.startFileLoggingBtn.classList.remove("opacity-20", "pointer-events-none");
-    this.elements.finishFileLoggingBtn.classList.remove("opacity-20", "pointer-events-none");
-
+  setLoggingPanelStatus(loggingStatus) {
     switch (loggingStatus) {
       case CONSTANTS.LOGGING_FILE_STATUS.NONE:
+        this.elements.setFileLoggingBtn.classList.remove("hidden");
         this.elements.startFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
         this.elements.finishFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
         break;
       case CONSTANTS.LOGGING_FILE_STATUS.READY:
-        this.elements.setFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
+        this.elements.setFileLoggingBtn.classList.add("hidden");
+        this.elements.startFileLoggingBtn.classList.remove("opacity-20", "pointer-events-none");
         this.elements.finishFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
         break;
       case CONSTANTS.LOGGING_FILE_STATUS.LOGGING:
         this.elements.allowFileLoggingToggle.disabled = true;
-        this.elements.setFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
         this.elements.startFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
+        this.elements.finishFileLoggingBtn.classList.remove("opacity-20", "pointer-events-none");
         break;
       case CONSTANTS.LOGGING_FILE_STATUS.FINISH:
-        this.elements.setFileLoggingBtn.classList.remove("opacity-20", "pointer-events-none");
-        this.elements.startFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
+        this.elements.allowFileLoggingToggle.disabled = false;
+        this.elements.startFileLoggingBtn.classList.remove("opacity-20", "pointer-events-none");
         this.elements.finishFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
         break;
 
@@ -243,16 +222,20 @@ class UIManager {
         break;
     }
   }
-  
- updateAutoFitButton(isAutoFit) {
-  if (isAutoFit) {
-    this.elements.btnAutoFit.classList.remove("bg-gray-600","hover:bg-gray-500","text-slate-300");
-    this.elements.btnAutoFit.classList.add("bg-green-600","hover:bg-green-500","text-white");
-  } else {
-    this.elements.btnAutoFit.classList.remove("bg-green-600","hover:bg-green-500","text-white");
-    this.elements.btnAutoFit.classList.add("bg-gray-600","hover:bg-gray-500","text-slate-300");
+
+  /**
+   * Updates the UI for AutoFit Button in Chart
+   */
+
+  updateAutoFitButton(isAutoFit) {
+    if (isAutoFit) {
+      this.elements.btnAutoFit.classList.remove("bg-gray-600", "hover:bg-gray-500", "text-slate-300");
+      this.elements.btnAutoFit.classList.add("bg-green-600", "hover:bg-green-500", "text-white");
+    } else {
+      this.elements.btnAutoFit.classList.remove("bg-green-600", "hover:bg-green-500", "text-white");
+      this.elements.btnAutoFit.classList.add("bg-gray-600", "hover:bg-gray-500", "text-slate-300");
+    }
   }
-}
 }
 
 // Export một instance duy nhất (Singleton Pattern)

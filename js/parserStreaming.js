@@ -145,7 +145,7 @@ class ParserStreaming {
         } else {
           this.configs.push(config);
         }
-        console.log("[ALL CONFIGS]", this.configs);
+        // console.log("[ALL CONFIGS]", this.configs);
         break;
       }
       case 0x92: {
@@ -156,7 +156,7 @@ class ParserStreaming {
           return;
         }
         const result = await this.parseStreamingFrame(data, config);
-        console.log("[STREAM DATA]", result);
+        // console.log("[STREAM DATA]", result);
         this.onNewStreamingData(result);
         break;
       }
@@ -164,7 +164,7 @@ class ParserStreaming {
       // console.log(`[UNKNOWN CMD] 0x${cmd.toString(16)}`);
     }
     const elapsedTime = performance.now() - startTime;
-    console.log(`processStreamingData took ${elapsedTime.toFixed(2)} ms`);
+    // console.log(`processStreamingData took ${elapsedTime.toFixed(2)} ms`);
 
     return;
   }

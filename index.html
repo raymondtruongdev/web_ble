@@ -385,7 +385,7 @@
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" id="file-logging-toggle" class="sr-only peer" />
               <div
-                class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-400 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 peer-checked:after:bg-white">
+                class="w-11 h-6 bg-slate-800 rounded-full peer   peer-disabled:opacity-30 peer-disabled:cursor-not-allowed peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-400 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 peer-checked:after:bg-white">
               </div>
             </label>
           </div>
@@ -400,7 +400,7 @@
             </button>
 
             <!-- Path Display Box -->
-            <div id="path-logging-display" class=" flex items-start gap-2 bg-gray-50 px-2 rounded-lg text-left">
+            <div id="path-logging-display" class=" hidden flex items-start gap-2 bg-gray-50 px-2 rounded-lg text-left">
               <span id="path-logging-text"
                 class="text-[14px] text-gray-400 italic py-2 break-words whitespace-normal line-clamp-3">
                 No location selected...

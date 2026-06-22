@@ -7,7 +7,6 @@ const state = {
   chartStatus: CONSTANTS.CHART_STATUS.NONE,
   loggingStatus: CONSTANTS.LOGGING_FILE_STATUS.NONE,
   loggingMode: null, // "direct_mode", "buffered_mode", or null
-  loggingFilename: null, // string or null
 };
 
 export const AppState = {
@@ -25,32 +24,24 @@ export const AppState = {
     state.chartStatus = newType;
     UI.updateChartControlUI();
   },
-  get loggingStatus() {
-    return state.loggingStatus;
-  },
-  setLoggingStatus(newType) {
-    state.loggingStatus = newType;
-    UI.updateFileLoggingUI();
-  },
+
   get loggingMode() {
     return state.loggingMode;
   },
-  setLoggingMode(newMode) {
-    state.loggingMode = newMode;
-    UI.updateFileLoggingUI();
+
+  set loggingMode(value) {
+    state.loggingMode = value;
   },
-  get loggingFilename() {
-    return state.loggingFilename;
-    UI.updateFileLoggingUI();
+
+  setLoggingPanelVisible(isValue) {
+    UI.setLoggingPanelVisible(isValue);
   },
-  setLoggingFilename(newFilename) {
-    if (newFilename === null) {
-      state.loggingFilename = "...";
-    } else {
-      state.loggingFilename = newFilename;
-    }
-    UI.updateFileLoggingUI();
+
+  setLoggingPanelStatus(newType) {
+    state.loggingStatus = newType;
+    UI.setLoggingPanelStatus(state.loggingStatus);
   },
+
   updateAutoFitState(isValue) {
     UI.updateAutoFitButton(isValue);
   },

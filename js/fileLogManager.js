@@ -13,6 +13,12 @@ class FileLogManager {
     this.isLoggingActive = false; // Thêm flag để kiểm soát logging
     this.sessionId = null; // Thêm session ID để tạo file mới
 
+    /**
+     *  Callback to update the notification message UI
+     * @param {string} text - content to display in notification area
+     */
+    this.onMessageNotify = () => {}; //
+
     // Stats
     this.stats = {
       totalWrites: 0,
@@ -38,12 +44,16 @@ class FileLogManager {
         mode: "readwrite",
       });
 
-      console.log("Directory initialized successfully");
-      return this.dirHandle;
+      this.onMessageNotify("success", `Logging folder selected by user: ${this.dirHandle.name}`);
+      return true;
     } catch (error) {
       console.error("Error initializing directory:", error);
-      throw new Error("Failed to initialize directory: " + error.message);
+      return false;
     }
+  }
+
+  async resetDirectory() {
+    this.dirHandle = null;
   }
 
   // ==================== QUẢN LÝ SESSION ====================
@@ -52,15 +62,19 @@ class FileLogManager {
    * Bắt đầu một session logging mới
    * Tạo session ID mới và reset mapping để tạo file mới
    */
-  startNewSession() {
-    // Tạo session ID mới dựa trên timestamp
-    this.sessionId = new Date().getTime();
+  async initNewSession() {
+    // Generate a new session ID based on the current timestamp.
+    this.sessionId = Date.now();
     this.isLoggingActive = true;
 
-    // Reset mapping và file handlers để tạo file mới
-    this.reset();
+    // Reset mappings and file handlers to create new log files.
+    this.sensorNameMapping = {};
+    this.fileHandlers = {};
+    this.buffer.forEach((sensor) => {
+      sensor.dataPoints = [];
+    });
+    this.onMessageNotify("success", `New logging session started: ${this.sessionId}`);
 
-    console.log(`New logging session started: ${this.sessionId}`);
     return this.sessionId;
   }
 
@@ -72,7 +86,6 @@ class FileLogManager {
   async addFileLogBuffer(sensorData, sampleIntervalSec, baseTimestamp, sensorName = "ch1") {
     // Kiểm tra nếu logging không active thì không thêm dữ liệu
     if (!this.isLoggingActive) {
-      console.warn("Logging is not active, ignoring data");
       return;
     }
 
@@ -105,8 +118,8 @@ class FileLogManager {
   getMappedName(originalSensorName) {
     if (!this.sensorNameMapping[originalSensorName]) {
       // Thêm session ID vào tên file để phân biệt các session
-      const sessionPrefix = this.sessionId ? `session_${this.sessionId}_` : "";
-      const mappedName = `${sessionPrefix}data_${originalSensorName}.txt`; // set filename to save
+      const sessionPrefix = this.sessionId ? `session_${this.sessionId}` : "";
+      const mappedName = `${sessionPrefix}_${originalSensorName}.txt`; // set filename to save
       this.sensorNameMapping[originalSensorName] = mappedName;
       console.log(`Mapped sensor: ${originalSensorName} -> ${mappedName}`);
     }
@@ -148,89 +161,72 @@ class FileLogManager {
   }
 
   // ==================== GHI DỮ LIỆU ====================
-
   async writeDataToFile(fileHandle, sensor) {
-    if (!sensor.dataPoints || sensor.dataPoints.length === 0) {
-      return;
-    }
+    if (!sensor.dataPoints || sensor.dataPoints.length === 0) return 0;
 
     try {
-      // Kiểm tra kích thước file để quyết định có thêm header không
-      let fileSize = 0;
-      try {
-        const file = await fileHandle.getFile();
-        fileSize = file.size;
-      } catch (error) {
-        // Nếu không lấy được kích thước, coi như file trống
-        fileSize = 0;
-      }
+      const file = await fileHandle.getFile();
+      const existingText = await file.text();
+      const isEmptyFile = existingText.length === 0;
 
-      // Tạo writable stream
       const writable = await fileHandle.createWritable({
         keepExistingData: true,
       });
 
-      // Format dữ liệu
-      const dataToWrite = sensor.dataPoints
-        .map((s) => {
-          const point = s.sample;
-          if (!Array.isArray(point) || point.length < 2) {
-            return null;
-          }
+      // append đúng vị trí
+      if (!isEmptyFile) {
+        await writable.seek(file.size);
+      }
 
-          let dateObj = point[0] instanceof Date ? point[0] : new Date(point[0]);
-          const timestamp = dateObj.toISOString().replace("Z", "");
-          const values = point.slice(1).join(",");
-
-          return `${timestamp},${values}\n`;
-        })
-        .filter((line) => line !== null)
-        .join("");
-
-      // Nếu file trống, thêm header
-      if (fileSize === 0 && sensor.dataPoints.length > 0) {
+      // ===== HEADER =====
+      if (isEmptyFile) {
         const firstPoint = sensor.dataPoints[0].sample;
-        const header = `timestamp,${Array.from({ length: firstPoint.length - 1 }, (_, i) => `value_${i + 1}`).join(",")}\n`;
+
+        const header =
+          `timestamp,` + Array.from({ length: firstPoint.length - 1 }, (_, i) => `ch_${i + 1}`).join(",") + "\n";
+
         await writable.write(header);
       }
 
-      // Ghi dữ liệu
+      // ===== DATA =====
+      const dataToWrite = sensor.dataPoints
+        .map((s) => {
+          const point = s.sample;
+          if (!Array.isArray(point) || point.length < 2) return null;
+          const dateObj = point[0] instanceof Date ? point[0] : new Date(point[0]);
+          if (isNaN(dateObj.getTime())) return null;
+          const timestamp = dateObj.toISOString().replace("Z", "");
+          const values = point.slice(1).join(",");
+          return `${timestamp},${values}\n`;
+        })
+        .filter(Boolean)
+        .join("");
+
       await writable.write(dataToWrite);
       await writable.close();
 
-      // Cập nhật stats
-      this.stats.totalWrites++;
-      this.stats.lastWriteTime = new Date();
-
-      // Clear buffer sau khi ghi thành công
-      const writtenCount = sensor.dataPoints.length;
       sensor.dataPoints = [];
-
-      console.log(`Written ${writtenCount} data points for sensor ${sensor.name}`);
-      return writtenCount;
-    } catch (error) {
-      console.error(`Error writing to file for sensor ${sensor.name}:`, error);
-      this.stats.totalErrors++;
-      throw error;
+    } catch (err) {
+      this.onMessageNotify("error", `writeDataToFile error: ${err}`);
     }
   }
 
   // ==================== AUTO WRITE ====================
 
-  async autoWriteBuffer() {
-    if (this.timer !== null) {
-      console.warn("Auto-write is already running");
-      return;
-    }
-
-    if (this.isWriting) {
-      console.warn("Write operation in progress");
-      return;
-    }
+  async start() {
+    // An active logging session already exists, do not start a new one.
+    if (this.isLoggingActive) return;
 
     // Bắt đầu session mới
-    this.startNewSession();
+    await this.initNewSession();
 
+    // Start timer to write file
+    this.autoWriteFile();
+  }
+  async autoWriteFile() {
+    if (this.timer !== null) {
+      return;
+    }
     console.log("Starting auto-write...");
 
     this.timer = setInterval(async () => {
@@ -271,42 +267,21 @@ class FileLogManager {
       } finally {
         this.isWriting = false;
       }
+      if (!this.isLoggingActive) {
+        clearInterval(this.timer);
+        this.timer = null;
+      }
     }, this.interval);
   }
 
   // ==================== DỪNG AUTO WRITE ====================
 
-  stopAutoWrite() {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-
-      // Kết thúc session
-      this.isLoggingActive = false;
-      console.log(`Logging session ended: ${this.sessionId}`);
-      this.sessionId = null;
-
-      console.log("Auto-write stopped");
-      return true;
-    }
-    console.warn("Auto-write is not running");
-    return false;
-  }
-
-
-
-  // ==================== RESET & CLEANUP ====================
-
-  reset() {
-    // Reset mapping
-    this.sensorNameMapping = {};
-    this.fileHandlers = {};
-    console.log("Mapping reset");
-    // Clear buffer
-    this.buffer.forEach((sensor) => {
-      sensor.dataPoints = [];
-    });
-    console.log("Buffer cleared");
+  finish() {
+    this.isLoggingActive = false; // Set this flag to stop the timer in autoWriteFile()
+    this.onMessageNotify(
+      "success",
+      `Logging session finished: ${this.sessionId}, Files saved to folder: ${this.dirHandle.name}`,
+    );
   }
 }
 
