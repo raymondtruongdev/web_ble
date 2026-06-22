@@ -287,10 +287,10 @@ window.addEventListener("DOMContentLoaded", () => {
         const channelName = "data_type_" + result.streamType + "_ch_" + i;
         CHART.addChartBuffer(samples, sampleIntervalMs, baseTimestamp, channelName);
       }
-      // const sensorName = "data_type_" + result.streamType;
-      // const sensorData = result.samples;
-      // const logStartBatchMs = result.unixTimeMs + result.msOfMinute;
-      // FILE_LOG_MANAGER.addFileLogBuffer(sensorData, sampleIntervalMs,logStartBatchMs, sensorName);
+      const sensorName = "data_type_" + result.streamType;
+      const sensorData = result.samples;
+      const logStartBatchMs = result.unixTimeMs;
+      FILE_LOG_MANAGER.addFileLogBuffer(sensorData, sampleIntervalMs,logStartBatchMs, sensorName);
     }
   });
 
@@ -405,10 +405,6 @@ window.addEventListener("DOMContentLoaded", () => {
     AppState.setLoggingStatus(CONSTANTS.LOGGING_FILE_STATUS.FINISH);
     // Dừng auto-write (tự động kết thúc session bên trong)
     FILE_LOG_MANAGER.stopAutoWrite();
-
-    // Đảm bảo ghi hết dữ liệu còn lại trong buffer
-    await FILE_LOG_MANAGER.writeNow();
-
     console.log("Logging session finished, data saved");
   };
 

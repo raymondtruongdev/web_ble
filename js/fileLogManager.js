@@ -58,20 +58,10 @@ class FileLogManager {
     this.isLoggingActive = true;
 
     // Reset mapping và file handlers để tạo file mới
-    this.resetMapping();
-    this.clearBuffer();
+    this.reset();
 
     console.log(`New logging session started: ${this.sessionId}`);
     return this.sessionId;
-  }
-
-  /**
-   * Kết thúc session logging hiện tại
-   */
-  endSession() {
-    this.isLoggingActive = false;
-    console.log(`Logging session ended: ${this.sessionId}`);
-    this.sessionId = null;
   }
 
   // ==================== QUẢN LÝ SENSOR ====================
@@ -292,7 +282,9 @@ class FileLogManager {
       this.timer = null;
 
       // Kết thúc session
-      this.endSession();
+      this.isLoggingActive = false;
+      console.log(`Logging session ended: ${this.sessionId}`);
+      this.sessionId = null;
 
       console.log("Auto-write stopped");
       return true;
@@ -301,145 +293,20 @@ class FileLogManager {
     return false;
   }
 
-  // ==================== GHI NGAY LẬP TỨC ====================
 
-  async writeNow() {
-    if (this.isWriting) {
-      console.warn("Write operation already in progress");
-      return;
-    }
-
-    if (!this.isLoggingActive) {
-      console.warn("Logging is not active");
-      return;
-    }
-
-    console.log("Manual write triggered...");
-    this.isWriting = true;
-
-    try {
-      if (!this.dirHandle) {
-        await this.initializeDirectory();
-      }
-
-      const writePromises = this.buffer.map(async (sensor) => {
-        if (!sensor.dataPoints || sensor.dataPoints.length === 0) {
-          return;
-        }
-
-        try {
-          const fileHandle = await this.getOrCreateFileHandler(sensor.name);
-          return await this.writeDataToFile(fileHandle, sensor);
-        } catch (error) {
-          console.error(`Failed to write sensor ${sensor.name}:`, error);
-          this.stats.totalErrors++;
-          return 0;
-        }
-      });
-
-      const results = await Promise.all(writePromises);
-      const totalWritten = results.reduce((sum, count) => sum + (count || 0), 0);
-
-      console.log(`Manual write completed: ${totalWritten} data points written`);
-      return totalWritten;
-    } catch (error) {
-      console.error("Error during manual write:", error);
-      throw error;
-    } finally {
-      this.isWriting = false;
-    }
-  }
-
-  // ==================== QUERY FUNCTIONS ====================
-
-  getFileHandlerForSensor(originalSensorName) {
-    const mappedName = this.sensorNameMapping[originalSensorName];
-    if (!mappedName) return null;
-    return this.fileHandlers[mappedName] || null;
-  }
-
-  getAllFileHandlers() {
-    return { ...this.fileHandlers };
-  }
-
-  getSensorMapping() {
-    return { ...this.sensorNameMapping };
-  }
-
-  getBufferStatus() {
-    return this.buffer.map((sensor) => ({
-      name: sensor.name,
-      mappedName: this.sensorNameMapping[sensor.name] || "Not mapped",
-      dataPoints: sensor.dataPoints.length,
-    }));
-  }
-
-  getStats() {
-    return {
-      ...this.stats,
-      bufferSize: this.buffer.reduce((sum, s) => sum + s.dataPoints.length, 0),
-      mappedSensors: Object.keys(this.sensorNameMapping).length,
-      fileHandlers: Object.keys(this.fileHandlers).length,
-      isRunning: this.timer !== null,
-      isWriting: this.isWriting,
-      isLoggingActive: this.isLoggingActive,
-      sessionId: this.sessionId,
-    };
-  }
 
   // ==================== RESET & CLEANUP ====================
 
-  resetMapping() {
+  reset() {
+    // Reset mapping
     this.sensorNameMapping = {};
     this.fileHandlers = {};
     console.log("Mapping reset");
-  }
-
-  clearBuffer() {
+    // Clear buffer
     this.buffer.forEach((sensor) => {
       sensor.dataPoints = [];
     });
     console.log("Buffer cleared");
-  }
-
-  async cleanup() {
-    this.stopAutoWrite();
-
-    while (this.isWriting) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-
-    this.clearBuffer();
-    this.resetMapping();
-    this.isLoggingActive = false;
-    this.sessionId = null;
-    this.stats = {
-      totalWrites: 0,
-      totalErrors: 0,
-      lastWriteTime: null,
-      totalDataPoints: 0,
-    };
-
-    console.log("Cleanup completed");
-  }
-
-  // ==================== EXPORT DATA ====================
-
-  async exportAllData() {
-    const allData = {};
-
-    for (const [mappedName, fileHandle] of Object.entries(this.fileHandlers)) {
-      try {
-        const file = await fileHandle.getFile();
-        const content = await file.text();
-        allData[mappedName] = content;
-      } catch (error) {
-        console.error(`Error reading file ${mappedName}:`, error);
-        allData[mappedName] = null;
-      }
-    }
-
-    return allData;
   }
 }
 
