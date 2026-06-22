@@ -38,7 +38,7 @@ class Streaming {
   }
 
   async startStreaming() {
-    const startPayload = new Uint8Array([0x2]);
+    const startPayload = new Uint8Array([0x0]);
     // startPayload.set(0x2, 0);
     await this.onSendFrame(0x10, startPayload);
     // const startResp = await this.waitForCmd(0x90, 5000);
@@ -47,7 +47,7 @@ class Streaming {
   }
 
   async stopStreaming() {
-    const startPayload =  new Uint8Array([0x2]);
+    const startPayload =  new Uint8Array([0x0]);
     // startPayload.set(0x2, 0);
     await this.onSendFrame(0x11, startPayload);
     this.is_streaming = false;
