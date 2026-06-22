@@ -5,15 +5,6 @@ class ParserStreaming {
     this.onSendFrame = () => {}; // Function to send a command to the device
     this.onMessageNotify = () => {}; //
 
-    /**
-     * Callback to notify new streaming data is parsed from device.
-     * @param {object} result - object contains the parsed streaming data
-     * streamType: type,
-     * timestamp: timestamp_batch,
-     * sampleIntervalMs: sampleIntervalMs,
-     * sampleCount: sampleCount,
-     * samples: samples,
-     */
     this.onNewStreamingData = () => {}; //
 
     this.configs = [];
@@ -41,10 +32,39 @@ class ParserStreaming {
     };
   }
 
+  /**
+   * Parse a streaming data frame received from the device.
+   *
+   * The frame format is:
+   * - Byte 0      : stream type
+   * - Byte 1..2   : milliseconds-of-minute when the firmware created the frame
+   * - Remaining   : interleaved sample data
+   *
+   * @param {Uint8Array} frame - Raw frame received from the device.
+   * @param {Object} config - Stream configuration.
+   * @param {number} config.channels - Number of channels.
+   * @param {number} config.sampleSize - Bytes per sample (1, 2, or 4).
+   * @param {number} config.samplingRate - Sampling rate in Hz.
+   *
+   * @returns {Promise<Object>} Parsed streaming data.
+   * @returns {number} returns.streamType - Stream type identifier.
+   * @returns {number} returns.perfTimeMs - Monotonic timestamp from performance.now()
+   *                                        when the frame was parsed.
+   * @returns {number} returns.unixTimeMs - Unix timestamp in milliseconds from
+   *                                        Date.now() when the frame was parsed.
+   * @returns {number} returns.msOfMinuteFW - Milliseconds within the current minute
+   *                                        (0..59999) recorded by the firmware
+   *                                        when the frame was generated.
+   *                                        This value is only used to check for missing data.
+   * @returns {number} returns.samplingRate - Sampling rate in Hz.
+   * @returns {number} returns.sampleCount - Number of samples per channel.
+   * @returns {number[][]} returns.samples - Sample data organized as
+   *                                         samples[channel][sampleIndex].
+   */
   async parseStreamingFrame(frame, config) {
     const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
     const type = view.getUint8(0);
-    const ts_batch_ms = view.getUint16(1, true) / 60;
+    const msOfMinuteFW = view.getUint16(1, true);
     const channels = config.channels;
     const sampleSize = config.sampleSize;
     const samplingRate = config.samplingRate;
@@ -56,9 +76,12 @@ class ParserStreaming {
     // }
     const sampleCount = Math.floor(payloadLength / bytesPerSample);
 
-    const cur_timestamp = performance.now();
-    // const sampleIntervalMs = ts_batch_ms / sampleCount;
-    const sampleIntervalMs = 1000 / config.samplingRate;
+    // High-resolution elapsed time since page load.
+    const perfTimeMs = performance.now();
+
+    // Milliseconds since Unix Epoch (1970-01-01 UTC).
+    // Example: 1782076609123 -> 2026-06-21 21:16:49.123 UTC
+    const unixTimeMs = Date.now();
 
     // samples[ch][sampleIndex]
     const samples = Array.from({ length: channels }, () => new Array(sampleCount));
@@ -87,9 +110,9 @@ class ParserStreaming {
 
     return {
       streamType: type,
-      timestamp: cur_timestamp,
-      ts_batch_ms: ts_batch_ms,
-      sampleIntervalMs: sampleIntervalMs,
+      perfTimeMs: perfTimeMs,
+      unixTimeMs: unixTimeMs,
+      msOfMinuteFW: msOfMinuteFW, //  This value is only used to check for missing data.
       samplingRate: samplingRate,
       sampleCount,
       samples,

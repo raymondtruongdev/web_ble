@@ -280,16 +280,17 @@ window.addEventListener("DOMContentLoaded", () => {
     if (AppState.chartStatus != CONSTANTS.CHART_STATUS.NONE) {
       console.log("[NEW STREAMING DATA]", result);
 
-      const sampleIntervalMs = result.sampleIntervalMs;
-      const baseTimestamp = result.timestamp + result.ts_batch_ms;
+      const sampleIntervalMs = 1000.0 / result.samplingRate;
+      const baseTimestamp = result.perfTimeMs;
       for (let i = 0; i < result.samples.length; i++) {
         const samples = result.samples[i];
         const channelName = "data_type_" + result.streamType + "_ch_" + i;
         CHART.addChartBuffer(samples, sampleIntervalMs, baseTimestamp, channelName);
       }
-      const sensorName = "data_type_" + result.streamType;
-      const sensorData = result.samples;
-      FILE_LOG_MANAGER.addFileLogBuffer(sensorData, sampleIntervalMs, Date.now(), sensorName);
+      // const sensorName = "data_type_" + result.streamType;
+      // const sensorData = result.samples;
+      // const logStartBatchMs = result.unixTimeMs + result.msOfMinute;
+      // FILE_LOG_MANAGER.addFileLogBuffer(sensorData, sampleIntervalMs,logStartBatchMs, sensorName);
     }
   });
 
