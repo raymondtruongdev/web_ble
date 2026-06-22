@@ -285,9 +285,18 @@ class UARTManager {
       crcOk,
     };
 
+    //This means terminal display screen
+    if (command === 0x81) {
+      const decoder = new TextDecoder();
+      const finalText = decoder.decode(new Uint8Array(payload));
+      this.onDataReceived(finalText);
+      return;
+    }
+
     const filetransferCmds = new Set([0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89]);
     if (filetransferCmds.has(command)) {
       this.onFileTransferStatus(info);
+      return;
     }
 
     const streamingCmds = new Set([0x91, 0x92, 0x93, 0x94]);
@@ -302,6 +311,7 @@ class UARTManager {
       this.no_package++;
 
       this.onStreamingStatus(info);
+      return;
     }
   }
 
@@ -332,8 +342,6 @@ class UARTManager {
     let buffer = [];
     let expectedLength = null;
     let inFrame = false;
-    let asciiBuffer = [];
-    const decoder = new TextDecoder();
 
     try {
       while (true) {
@@ -420,19 +428,6 @@ class UARTManager {
               buffer = [];
               inFrame = false;
               expectedLength = null;
-            }
-          } else {
-            // Not in a frame - regular ASCII character (terminal data)
-            // const text = decoder.decode(Uint8Array.of(byte));
-            // this.onDataReceived(text);
-            // Not in a frame - accumulate ASCII bytes
-            asciiBuffer.push(byte);
-
-            // Detect end of message (newline)
-            if (byte === 0x0a || byte === 0x0d) {
-              const finalText = decoder.decode(new Uint8Array(asciiBuffer));
-              this.onDataReceived(finalText);
-              asciiBuffer = [];
             }
           }
         }
