@@ -315,21 +315,17 @@ class UARTManager {
     }
   }
 
-  discardFrameandRsync(buffer) {
+  discardAndResync(buffer) {
     const nextHeader = buffer.indexOf(0x01, 1);
-
     if (nextHeader >= 0) {
-      console.warn(`Resync found new frame at offset ${nextHeader}`);
-
+      this.onMessageNotify("warning", `Resync buffer: found new frame at offset ${nextHeader}`);
       return {
         buffer: buffer.slice(nextHeader),
         inFrame: true,
         expectedLength: null,
       };
     }
-
-    console.warn("No new frame found, dropping buffer");
-
+    this.onMessageNotify("warning", "Resync buffer: No new frame found, dropping buffer");
     return {
       buffer: [],
       inFrame: false,
@@ -404,25 +400,13 @@ class UARTManager {
                   console.error("handleFrame error:", e);
                 }
               } else {
-                // We got error end frame not 0x04
-                // TODO: need check the cause later, current we stop streamming to avoid receive more corrupted data. This send STOP STREAMMING command to device directly.
-
-                // Show message to user about corrupted frame
-                const cur_end_byte = `0x${buffer[buffer.length - 1].toString(16).padStart(2, "0")}`;
-                this.onMessageNotify("error", `"Frame complete but missing stop byte (0x04). Got: " ${cur_end_byte}`);
-                console.warn("Frame complete but missing stop byte (0x04). Got:", cur_end_byte);
-
-                // Send stop streaming command
-                // const startPayload = new Uint8Array([0x2]);
-                // await this.sendFrame(0x11, startPayload); // Stop streamming
-                console.warn(
-                  "Discard this frame because it's incomplete and missing stop byte (0x04). Got:",
-                  buffer[buffer.length - 1].toString(16),
-                );
-                const resync = this.discardAndResync(buffer);
-                buffer = resync.buffer;
-                inFrame = resync.inFrame;
-                expectedLength = resync.expectedLength;
+                const curEndByte = `0x${buffer[buffer.length - 1].toString(16).padStart(2, "0")}`;
+                this.onMessageNotify("error", `Frame complete but missing stop byte (0x04). Got ${curEndByte}`);
+                console.warn("Discard corrupted frame. Missing stop byte. Got:", curEndByte);
+                // Reset parser state
+                buffer = [];
+                inFrame = false;
+                expectedLength = null;
                 continue;
               }
               buffer = [];
