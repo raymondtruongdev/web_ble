@@ -362,7 +362,7 @@ window.addEventListener("DOMContentLoaded", () => {
       UI.elements.allowFileLoggingToggle.checked = false; // Disable Logging file module
       return;
     }
-    if (allowRecord) {
+    if (!allowRecord) {
       AppState.setLoggingPanelVisible(false);
       AppState.setLoggingPanelStatus(CONSTANTS.LOGGING_FILE_STATUS.NONE);
       FILE_LOG_MANAGER.resetDirectory(); // Clear dirHandle. User must select folder again in next toggle ON
