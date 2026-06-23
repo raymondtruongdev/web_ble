@@ -5,6 +5,7 @@
 // - Click phải + kéo dọc: Pan theo trục Y
 // - Click vào label: Toggle hiển thị đường tương ứng
 // ============================================================
+import { CONSTANTS } from "./constants.js";
 
 const Utils = {
   bootTime: Date.now() - performance.now(),
@@ -38,7 +39,7 @@ class ChartManager {
     this.ctx = null;
     this.dataPoints = {};
     this.customLabels = [];
-    this.channelMapping = {}; // Mapping originalChannel -> ch1, ch2, ch3
+    this.channelMapping = {}; // Mapping originalChannel -> R1, R2, E1, E2,...
     this.nextChannelIndex = 1; // Start name is "ch1"
     this.margins = { left: 70, right: 20, top: 30, bottom: 40 };
     this.viewOffsetMs = 0;
@@ -272,12 +273,19 @@ class ChartManager {
         }
 
         const originalChannel = item.channel;
-        // Check if originalChannel is mapped to a display channel (ch1, ch2, ch3...), if not we create a new mapping
+        // Check if originalChannel is already mapped
         let mappedChannel = this.channelMapping[originalChannel];
         if (!mappedChannel) {
-          mappedChannel = `ch${this.nextChannelIndex}`;
+          const match = originalChannel.match(/^(data_type_\d+)_ch_(\d+)$/);
+          if (match) {
+            const dataType = match[1];
+            const channel = Number(match[2]);
+            const prefix = CONSTANTS.DATATYPE_CHANNEL_NAME_MAPPING[dataType] ?? CONSTANTS.DEFAULT_SENSOR_NAME;
+            mappedChannel = `${prefix}${channel + 1}`;
+          } else {
+            mappedChannel = originalChannel;
+          }
           this.channelMapping[originalChannel] = mappedChannel;
-          this.nextChannelIndex++;
           this.dataPoints[mappedChannel] = [];
           this.channelVisibility[mappedChannel] = true;
         }
@@ -965,7 +973,11 @@ class ChartManager {
     sortedChannels.forEach((channel, i) => {
       const config = palette[i % palette.length];
       const isVisible = this.getChannelVisibility(channel);
-      const label = (this.customLabels[i] || `Sensor ${String.fromCharCode(65 + (i % 26))}`).toUpperCase();
+      // Set label the same with channel name
+      const label = this.customLabels[i] || channel;
+
+      // Set label default is Sensor if not have a custom name
+      // const label = (this.customLabels[i] || `Sensor ${String.fromCharCode(65 + (i % 26))}`).toUpperCase();
 
       this.ctx.font = `bold ${10 * dpr}px Inter`;
       const textWidth = this.ctx.measureText(label).width;

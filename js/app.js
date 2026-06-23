@@ -298,11 +298,16 @@ window.addEventListener("DOMContentLoaded", () => {
       logger.log("warning", "Not connected via UART. Streaming is only available for UART connection.");
       return;
     }
+    await UART.sendFrame(0x01, "sensor hx712 1 40 31 0");
+    // "sensor hx712 1 40 31 0" : start sensor
+    // "sensor hx712 0" : stop sensor
     STREAMING.startStreaming();
   };
 
   UI.elements.btnStopStreaming.onclick = async () => {
     STREAMING.stopStreaming();
+
+    await UART.sendFrame(0x01, "sensor hx712 0");
   };
 
   STREAMING.onSendFrame((cmd, payload) => {
@@ -310,10 +315,6 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   //================= CHART CONTROLS =================
-
-  // We can set custom labels for channels, if not set, it will use default channel names like "ch1", "ch2",
-  CHART.setLabels("acc1", "acc2");
-
   UI.elements.btnStartChart.onclick = async () => {
     AppState.setChartStatus(CONSTANTS.CHART_STATUS.RENDERING);
     CHART.start();
@@ -400,7 +401,7 @@ window.addEventListener("DOMContentLoaded", () => {
     AppState.setLoggingPanelStatus(CONSTANTS.LOGGING_FILE_STATUS.LOGGING);
   };
 
-  // Set State to FINISH and trigger file saving process in SaveFileManager
+  // Set State to FINISH and trigger file saving process in FILE_LOG_MANAGER
   UI.elements.finishFileLoggingBtn.onclick = async () => {
     // Finish the current loging file
     await FILE_LOG_MANAGER.finish();

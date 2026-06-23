@@ -1,10 +1,11 @@
 // --- LOG FILE MANAGER ---
+import { CONSTANTS } from "./constants.js";
 class FileLogManager {
   constructor(options = {}) {
     // Cấu hình
     this.interval = options.interval || 1000; // Mặc định 1 giây
     this.buffer = [];
-    this.sensorNameMapping = {};
+    this.fileNameMapping = {};
     this.fileHandlers = {};
     this.timer = null;
     this.dirHandle = null;
@@ -12,6 +13,8 @@ class FileLogManager {
     this.maxBufferSize = options.maxBufferSize || 1000;
     this.isLoggingActive = false; // Thêm flag để kiểm soát logging
     this.sessionId = null; // Thêm session ID để tạo file mới
+
+    this.channelMapping = {}; // Mapping originalChannel -> R1, R2, E1, E2,...
 
     /**
      *  Callback to update the notification message UI
@@ -68,7 +71,7 @@ class FileLogManager {
     this.isLoggingActive = true;
 
     // Reset mappings and file handlers to create new log files.
-    this.sensorNameMapping = {};
+    this.fileNameMapping = {};
     this.fileHandlers = {};
     this.buffer.forEach((sensor) => {
       sensor.dataPoints = [];
@@ -83,7 +86,7 @@ class FileLogManager {
   /**
    * Adds a batch of samples to the chart buffer for a specific channel.
    */
-  async addFileLogBuffer(sensorData, sampleIntervalSec, baseTimestamp, sensorName = "ch1") {
+  async addFileLogBuffer(sensorData, sampleIntervalSec, baseTimestamp, sensorName = "data_type_0") {
     // Kiểm tra nếu logging không active thì không thêm dữ liệu
     if (!this.isLoggingActive) {
       return;
@@ -114,22 +117,34 @@ class FileLogManager {
   }
 
   // ==================== MAPPING SENSOR ====================
+  getMappedName(originalSensorName, mappingTable = CONSTANTS.DATATYPE_CHANNEL_NAME_MAPPING) {
+    let mappedSensorName = originalSensorName;
+    const match = originalSensorName.match(/^(data_type_\d+)/);
+    if (match) {
+      const dataType = match[1];
+      mappedSensorName = mappingTable[dataType] ?? CONSTANTS.DEFAULT_SENSOR_NAME;
+    }
+    return mappedSensorName;
+  }
 
-  getMappedName(originalSensorName) {
-    if (!this.sensorNameMapping[originalSensorName]) {
+  getFileName(originalSensorName) {
+    if (!this.fileNameMapping[originalSensorName]) {
       // Thêm session ID vào tên file để phân biệt các session
       const sessionPrefix = this.sessionId ? `session_${this.sessionId}` : "";
-      const mappedName = `${sessionPrefix}_${originalSensorName}.txt`; // set filename to save
-      this.sensorNameMapping[originalSensorName] = mappedName;
-      console.log(`Mapped sensor: ${originalSensorName} -> ${mappedName}`);
+      const mappedSensorName = this.getMappedName(originalSensorName, CONSTANTS.DATATYPE_FILENAME_MAPPING);
+
+      const fileName = `${sessionPrefix}_${mappedSensorName}.txt`;
+
+      this.fileNameMapping[originalSensorName] = fileName;
+      console.log(`Mapped sensor: ${originalSensorName} -> ${fileName}`);
     }
-    return this.sensorNameMapping[originalSensorName];
+    return this.fileNameMapping[originalSensorName];
   }
 
   async getOrCreateFileHandler(originalSensorName) {
-    const mappedName = this.getMappedName(originalSensorName);
+    const fileName = this.getFileName(originalSensorName);
 
-    if (!this.fileHandlers[mappedName]) {
+    if (!this.fileHandlers[fileName]) {
       try {
         if (!this.dirHandle) {
           await this.initializeDirectory();
@@ -139,25 +154,25 @@ class FileLogManager {
         let fileHandle;
         try {
           // Thử lấy file đã tồn tại
-          fileHandle = await this.dirHandle.getFileHandle(mappedName);
-          console.log(`File already exists: ${mappedName}`);
+          fileHandle = await this.dirHandle.getFileHandle(fileName);
+          console.log(`File already exists: ${fileName}`);
         } catch (error) {
           // File không tồn tại, tạo mới
-          fileHandle = await this.dirHandle.getFileHandle(mappedName, {
+          fileHandle = await this.dirHandle.getFileHandle(fileName, {
             create: true,
           });
-          console.log(`Created new file: ${mappedName}`);
+          console.log(`Created new file: ${fileName}`);
         }
 
-        this.fileHandlers[mappedName] = fileHandle;
-        console.log(`File handler ready for: ${mappedName}`);
+        this.fileHandlers[fileName] = fileHandle;
+        console.log(`File handler ready for: ${fileName}`);
       } catch (error) {
-        console.error(`Error creating file handler for ${mappedName}:`, error);
+        console.error(`Error creating file handler for ${fileName}:`, error);
         throw error;
       }
     }
 
-    return this.fileHandlers[mappedName];
+    return this.fileHandlers[fileName];
   }
 
   // ==================== GHI DỮ LIỆU ====================
@@ -182,8 +197,12 @@ class FileLogManager {
       if (isEmptyFile) {
         const firstPoint = sensor.dataPoints[0].sample;
 
+        const mappedSensorName = this.getMappedName(sensor.name, CONSTANTS.DATATYPE_CHANNEL_NAME_MAPPING);
+
         const header =
-          `timestamp,` + Array.from({ length: firstPoint.length - 1 }, (_, i) => `ch_${i + 1}`).join(",") + "\n";
+          `timestamp,` +
+          Array.from({ length: firstPoint.length - 1 }, (_, i) => `${mappedSensorName}${i + 1}`).join(",") +
+          "\n";
 
         await writable.write(header);
       }
