@@ -307,8 +307,10 @@ class UARTManager {
       //   .map((b) => b.toString(16).padStart(2, "0"))
       //   .join(" "),
       // );
-      console.log("========== Nuber of package:", this.no_package);
-      this.no_package++;
+      if (command == 0x92) {
+        console.log("========== DATA[0x92] package ID:", this.no_package);
+        this.no_package++;
+      }
 
       this.onStreamingStatus(info);
       return;
