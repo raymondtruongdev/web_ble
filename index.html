@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>T2DTECH BLE</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@latest/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@1.21.0/dist/umd/lucide.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <style>
     .status-dot {
@@ -168,7 +168,7 @@
   <!-- Green Bar -->
   <div class="w-full h-3 bg-green-600"></div>
   <!-- Main Content -->
-  <main class="w-full max-w-7xl mx-auto flex-1 flex flex-row py-4 px-2 gap-4 overflow-x-auto custom-scrollbar">
+  <main class="w-full max-w-8xl mx-auto flex-1 flex flex-row py-4 px-2 gap-4 overflow-x-auto custom-scrollbar">
     <!-- Left Container Connection và File Transfer -->
     <aside id="left-container" class="w-[320px] flex-shrink-0 gap-3 flex flex-col">
 
@@ -274,10 +274,7 @@
       <!-- File Transfer Section -->
       <section id="file-transfer-section" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <h2 class="text-lg font-semibold flex items-center bg-blue-600 text-white w-full h-[50px] px-4 mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-white" fill="none" viewBox="0 0 24 24"
-            stroke="currentColor">
-            <path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-          </svg>
+          <i data-lucide="arrow-left-right" class="w-6 h-6 text-white mr-2"></i>
           <span class="truncate">FILE TRANSFER</span>
         </h2>
 
@@ -366,10 +363,7 @@
       <!-- FILE LOGGING  PANEL -->
       <section id="file-logging-section" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <h2 class="text-lg font-semibold flex items-center bg-blue-600 text-white w-full h-[50px] px-4 mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-white" fill="none" viewBox="0 0 24 24"
-            stroke="currentColor">
-            <path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-          </svg>
+          <i data-lucide="file-text" class="w-6 h-6 text-white mr-2"></i>
           <span class="truncate">FILE LOGGING</span>
         </h2>
 
@@ -437,7 +431,7 @@
           <h2 class="text-sm font-bold uppercase tracking-wider text-gray-200">Terminal Output</h2>
         </div>
         <div id="terminal"
-          class="terminal-bg h-[300px] md:h-[350px] p-4 text-green-400 text-sm overflow-y-auto custom-scrollbar leading-relaxed font-mono">
+          class="terminal-bg h-[270px] md:h-[270px] p-4 text-green-400 text-sm overflow-y-auto custom-scrollbar leading-relaxed font-mono">
         </div>
         <div class="p-3 bg-gray-800 flex space-x-2">
           <span class="text-gray-500 font-mono pl-2 py-1">$</span>
@@ -492,29 +486,35 @@
         </div>
 
         <!-- Chart Controls Toolbar -->
-        <div class="w-full grid grid-cols-1 sm:grid-cols-3 gap-3 py-3">
+        <div class="w-full flex flex-wrap justify-center gap-3 py-3 max-w-[800px] mx-auto">
           <!-- START -->
-          <button id="btn-start-chart" class="btn-chart bg-emerald-600 hover:bg-emerald-500 border-emerald-400/25">
-            <i class="fa-solid fa-play text-xs"></i><span>START</span>
+          <button id="btn-start-chart"
+            class="btn-chart w-full h-[60px] bg-emerald-600 hover:bg-emerald-500 border-emerald-400/25">
+            <i class="fa-solid fa-play text-xs"></i>
+            <span>START</span>
           </button>
-
           <!-- STOP -->
-          <button id="btn-stop-chart" class="btn-chart bg-red-500 hover:bg-red-400 border-red-400/25">
-            <i class="fa-solid fa-rotate-left text-xs"></i><span>STOP</span>
+          <button id="btn-stop-chart" class="btn-chart w-full h-[60px] bg-red-500 hover:bg-red-400 border-red-400/25">
+            <i class="fa-solid fa-rotate-left text-xs"></i>
+            <span>STOP</span>
           </button>
-
           <!-- PAUSE -->
-          <button id="btn-pause-chart" class="hidden btn-chart bg-yellow-500 hover:bg-yellow-400 border-yellow-400/25">
-            <i class="fa-solid fa-pause text-xs"></i><span>PAUSE</span>
+          <button id="btn-pause-chart"
+            class="hidden btn-chart w-fullh-[60px] bg-yellow-500 hover:bg-yellow-400 border-yellow-400/25">
+            <i class="fa-solid fa-pause text-xs"></i>
+            <span>PAUSE</span>
           </button>
           <!-- CONTINUE -->
-          <button id="btn-continue-chart" class="hidden btn-chart bg-blue-500 hover:bg-blue-400 border-blue-400/25">
-            <i class="fa-solid fa-play text-xs"></i><span>CONTINUE</span>
+          <button id="btn-continue-chart"
+            class="hidden btn-chart w-full  h-[60px] bg-blue-500 hover:bg-blue-400 border-blue-400/25">
+            <i class="fa-solid fa-play text-xs"></i>
+            <span>CONTINUE</span>
           </button>
-
-          <!-- RESET -->
-          <button id="btn-clear-chart" class="btn-chart bg-indigo-800 hover:bg-indigo-700 border-indigo-700 ">
-            <i class="fa-solid fa-stop text-xs"></i><span>CLEAR</span>
+          <!-- CLEAR -->
+          <button id="btn-clear-chart"
+            class="btn-chart w-full h-[60px] bg-indigo-800 hover:bg-indigo-700 border-indigo-700">
+            <i class="fa-solid fa-stop text-xs"></i>
+            <span>CLEAR</span>
           </button>
 
         </div>
