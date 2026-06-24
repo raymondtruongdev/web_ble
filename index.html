@@ -208,6 +208,33 @@
             <button id="btnStopStreaming" class="button-info bg-red-600 hover:bg-red-500">STOP STREAMING</button>
           </div>
       </section>
+
+      <!--Sensor Information Section -->
+      <section id="sensorPanel" class="bg-white rounded-2xl shadow-sm flex-col items-center">
+        <h2 id="sensor-info-title" class="w-full p-2 text-lg font-semibold flex items-center">
+          <i data-lucide="smartphone" class="w-6 h-6 text-blue-600 mr-2"></i>
+          <span class="truncate">SENSOR INFORMATION</span>
+        </h2>
+        <div id="sensor-status" class="w-full p-3 flex flex-col gap-3 rounded-b-2xl bg-[#0d1117]">
+          <!-- HX712 Sensor-->
+          <div class="w-full flex items-center justify-between gap-4 p-2 bg-[#1c2128] rounded-lg">
+            <div class="flex items-center gap-3">
+              <span class="font-bold text-[12px] text-blue-400 truncate uppercase"> HX712 SENSOR</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="textStatusHX712" class="text-[12px] font-semibold text-gray-400">OFF</span>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="checkboxHX712" class="sr-only peer">
+                <div
+                  class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-green-600 transition-all duration-300">
+                </div>
+                <span
+                  class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 peer-checked:translate-x-5"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
       <!-- BLE Connection Section -->
       <section id="ble-connection-section" class="bg-white rounded-2xl shadow-sm h-[150px] flex flex-col items-center">
         <h2 id="ble-connection-title" class="w-full p-2 text-lg font-semibold flex items-center">
@@ -268,8 +295,6 @@
 
         </div>
       </section>
-
-
 
       <!-- File Transfer Section -->
       <section id="file-transfer-section" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -368,8 +393,6 @@
         </h2>
 
         <div class="space-y-4 px-4 pb-4">
-
-
           <!-- Toggle Switch -->
           <div class="w-full flex items-center justify-between">
             <div class="flex flex-col">
@@ -383,7 +406,6 @@
               </div>
             </label>
           </div>
-
           <!-- Hidden Config Area (Appears when ON) -->
           <div id="logging-config-panel" class=" hidden flex flex-col gap-3  border-t border-slate-300 pt-2">
 
@@ -411,15 +433,9 @@
               class=" w-full py-2 items-center justify-center bg-red-600 text-white p-2 rounded-lg hover:bg-red-400 transition shadow-sm">
               FINISH & SAVE
             </button>
-
           </div>
-
-        </div>
-
         </div>
       </section>
-
-
 
     </aside>
 

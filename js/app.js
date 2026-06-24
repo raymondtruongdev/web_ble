@@ -17,7 +17,6 @@ import { FILE_LOG_MANAGER } from "./fileLogManager.js";
 function terminal_send(cmd) {
   if (!cmd) return;
   UI.elements.terminalInput.value = ""; // Clear terminal input
-  logger.log("default", `> ${cmd}`); // In ra terminal output
 
   switch (cmd.toLowerCase()) {
     case "clear":
@@ -29,6 +28,7 @@ function terminal_send(cmd) {
         logger.log("warning", "No device connected. Please connect to a device first.");
         return;
       }
+      logger.log("default", `> ${cmd}`); // In ra terminal output
       const parts = cmd.split(/\s+/);
       const cmd_1 = parts[0].toLowerCase();
       const connect_state = AppState.connectionType;
@@ -298,16 +298,13 @@ window.addEventListener("DOMContentLoaded", () => {
       logger.log("warning", "Not connected via UART. Streaming is only available for UART connection.");
       return;
     }
-    await UART.sendFrame(0x01, "sensor hx712 1 40 31 0");
-    // "sensor hx712 1 40 31 0" : start sensor
-    // "sensor hx712 0" : stop sensor
     STREAMING.startStreaming();
+    UI.elements.btnStartChart.click();
   };
 
   UI.elements.btnStopStreaming.onclick = async () => {
     STREAMING.stopStreaming();
-
-    await UART.sendFrame(0x01, "sensor hx712 0");
+    UI.elements.btnStopChart.click();
   };
 
   STREAMING.onSendFrame((cmd, payload) => {
@@ -318,7 +315,7 @@ window.addEventListener("DOMContentLoaded", () => {
   UI.elements.btnStartChart.onclick = async () => {
     AppState.setChartStatus(CONSTANTS.CHART_STATUS.RENDERING);
     CHART.start();
-    DATA_SIM.start();
+    // DATA_SIM.start();
   };
 
   UI.elements.btnStopChart.onclick = async () => {
@@ -414,6 +411,31 @@ window.addEventListener("DOMContentLoaded", () => {
     logger.log(type, text);
     UI.showToastNotification(type, text);
   };
+
+  // ================== SENSOR  =================
+  async function updateSensorToogleUI(toogleComponent) {
+    const isChecked = toogleComponent.checked;
+    // If no device is connected, force toggle OFF and reset UI
+    if (AppState.connectionType === CONSTANTS.CONNECTION_TYPE.NONE) {
+      toogleComponent.checked = false;
+      toogleComponent.textContent = "OFF";
+      toogleComponent.classList.replace("text-green-400", "text-gray-400");
+      return;
+    }
+    // Determine UI state based on toggle status
+    const statusText = isChecked ? "ON" : "OFF";
+    const statusClass = isChecked ? "text-green-400" : "text-gray-400";
+    const removeClass = isChecked ? "text-gray-400" : "text-green-400";
+    toogleComponent.textContent = statusText;
+    toogleComponent.classList.replace(removeClass, statusClass);
+  }
+
+  UI.elements.checkboxHX712.addEventListener("change", async () => {
+    await updateSensorToogleUI(UI.elements.checkboxHX712);
+    const isChecked = UI.elements.checkboxHX712.checked;
+    if (isChecked) terminal_send("sensor hx712 1 40 31 0");
+    else terminal_send("sensor hx712 0");
+  });
 
   // End of DOMContentLoaded
 });

@@ -77,6 +77,10 @@ class UIManager {
     // STREAMING ELEMENTS
     this.elements.btnStartStreaming = document.getElementById("btnStartStreaming");
     this.elements.btnStopStreaming = document.getElementById("btnStopStreaming");
+
+    // SENSOR PANEL
+    this.elements.checkboxHX712 = document.getElementById("checkboxHX712");
+    this.elements.textStatusHX712 = document.getElementById("textStatusHX712");
   }
 
   // --- Toast Notification ---
