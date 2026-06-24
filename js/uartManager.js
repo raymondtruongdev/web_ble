@@ -51,11 +51,11 @@ class UARTManager {
       // baudRate: 1000000, 921600 , 460800 (max value for MACOS)
       await this.port.open({
         baudRate: 460800,
-        dataBits: 8,
-        stopBits: 1,
-        parity: "none",
-        hwFlowControl: true,
-        bufferSize: 8192,
+        // dataBits: 8,
+        // stopBits: 1,
+        // parity: "none",
+        // hwFlowControl: true,
+        // bufferSize: 8192,
       });
 
       this.writer = this.port.writable.getWriter();
