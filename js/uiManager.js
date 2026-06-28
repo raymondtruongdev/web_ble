@@ -75,12 +75,15 @@ class UIManager {
     };
 
     // STREAMING ELEMENTS
-    this.elements.btnStartStreaming = document.getElementById("btnStartStreaming");
-    this.elements.btnStopStreaming = document.getElementById("btnStopStreaming");
+    this.elements.checkboxStreaming = document.getElementById("checkboxStreaming");
 
     // SENSOR PANEL
     this.elements.checkboxHX712 = document.getElementById("checkboxHX712");
-    this.elements.textStatusHX712 = document.getElementById("textStatusHX712");
+    this.elements.sdHX712 = document.getElementById("sdHX712");
+    this.elements.checkboxPiezo = document.getElementById("checkboxPiezo");
+    this.elements.sdPiezo = document.getElementById("sdPiezo");
+    this.elements.checkboxADS1115 = document.getElementById("checkboxADS1115");
+    this.elements.sdADS1115 = document.getElementById("sdADS1115");
   }
 
   // --- Toast Notification ---
@@ -238,6 +241,42 @@ class UIManager {
     } else {
       this.elements.btnAutoFit.classList.remove("bg-green-600", "hover:bg-green-500", "text-white");
       this.elements.btnAutoFit.classList.add("bg-gray-600", "hover:bg-gray-500", "text-slate-300");
+    }
+  }
+
+  /**
+   * Updates the UI for Sensor Panel
+   */
+
+  updateSensorStatusUI(sensorStatus) {
+    if (!Array.isArray(sensorStatus) || sensorStatus.length === 0) {
+      console.warn("No sensor data to update");
+      return;
+    }
+    for (let sensor of sensorStatus) {
+      if (!sensor.name) continue;
+      switch (sensor.name) {
+        case "Sensor Info":
+          break;
+        case "Stream status":
+          break;
+        case "hx712":
+          this.elements.checkboxHX712.checked = sensor.active === "ON";
+          this.elements.sdHX712.checked = sensor.enableSDcardLog === "ON";
+          break;
+
+        case "piezo":
+          this.elements.checkboxPiezo.checked = sensor.active === "ON";
+          this.elements.sdPiezo.checked = sensor.enableSDcardLog === "ON";
+          break;
+
+        case "ads1115":
+
+          break;
+
+        default:
+          break;
+      }
     }
   }
 }

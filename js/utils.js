@@ -1,6 +1,5 @@
-export class UTILS {
-  constructor() {
-  }
+class Utils1 {
+  constructor() {}
 
   async saveFrame2JsonFile(frame) {
     // const frame = new Uint8Array([0x01, 0x92, 0x03, 0x10, 0x02, 0x5e, 0x60, 0x02, 0xff, 0x07, 0xff, 0x07]);
@@ -17,4 +16,53 @@ export class UTILS {
     a.click();
     URL.revokeObjectURL(url);
   }
+
+  async parseSensorStatus(str) {
+    // Loại bỏ các dấu backtick và ký tự xuống dòng thừa
+    const cleanStr = str.replace(/`/g, "").trim();
+    // Tách thành các dòng
+    const lines = cleanStr.split("\n").filter((line) => line.trim() !== "");
+    const result = [];
+
+    for (let line of lines) {
+      // Bỏ qua dòng "Sensor Info" và "Stream status"
+      if (line.includes("Sensor Info")) continue;
+
+      // Tách tên sensor và thông tin
+      const parts = line.split(":");
+      if (parts.length < 2) continue;
+
+      const name = parts[0].trim();
+      const info = parts[1].trim();
+
+      // Parse các field
+      const fields = info.split(",").map((f) => f.trim());
+
+      let active = "OFF";
+      let freq = "0";
+      let enableSDcardLog = "OFF";
+
+      for (let field of fields) {
+        if (field.includes("freq")) {
+          freq = field.split("=")[1].trim().replace(" Hz", "");
+        } else if (field.includes("log")) {
+          enableSDcardLog = field.split("=")[1].trim();
+        } else {
+          // Field còn lại là status (OFF/ON)
+          active = field;
+        }
+      }
+
+      result.push({
+        name: name,
+        active: active,
+        freq: freq,
+        enableSDcardLog: enableSDcardLog,
+      });
+    }
+
+    return result;
+  }
 }
+
+export const UTILS = new Utils1();

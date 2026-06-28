@@ -35,6 +35,10 @@ class BLEManager {
     this.defaultNotifyCharacteristic = null; // BluetoothRemoteGATTCharacteristic for notifications
     this.isConnected = false;
 
+    // GATT operation queue — prevents "GATT operation already in progress" errors
+    this._gattOpQueue = [];
+    this._gattOpProcessing = false;
+
     this.boundDisconnectHandler = this.handleDisconnect.bind(this);
     this.boundNotifyHandler = this.handleData.bind(this);
 
@@ -59,6 +63,31 @@ class BLEManager {
 
   // =============== FUNCTIONS ==================
 
+  // Queue a GATT operation — all GATT operations run sequentially to prevent
+  // "GATT operation already in progress" errors.
+  async _queueGattOp(fn) {
+    return new Promise((resolve, reject) => {
+      this._gattOpQueue.push({ fn, resolve, reject });
+      if (!this._gattOpProcessing) {
+        this._processGattQueue();
+      }
+    });
+  }
+
+  async _processGattQueue() {
+    this._gattOpProcessing = true;
+    while (this._gattOpQueue.length > 0) {
+      const { fn, resolve, reject } = this._gattOpQueue.shift();
+      try {
+        const result = await fn();
+        resolve(result);
+      } catch (err) {
+        reject(err);
+      }
+    }
+    this._gattOpProcessing = false;
+  }
+
   // Update BLE connection status
   async updateConnectionStatus(status) {
     this.isConnected = status;
@@ -76,7 +105,7 @@ class BLEManager {
       this.device.removeEventListener("gattserverdisconnected", this.boundDisconnectHandler);
       this.device.addEventListener("gattserverdisconnected", this.boundDisconnectHandler);
 
-      this.server = await this.device.gatt.connect();
+      this.server = await this._queueGattOp(() => this.device.gatt.connect());
       this.updateConnectionStatus(true);
       this.onMessageNotify("success", "BLE Connected ✅");
 
@@ -92,7 +121,7 @@ class BLEManager {
   async disconnect() {
     try {
       if (this.device?.gatt.connected) {
-        await this.device.gatt.disconnect();
+        await this._queueGattOp(() => this.device.gatt.disconnect());
       }
     } catch (err) {
       this.onMessageNotify("error", `BLE Disconnect error: ${err.message || err}`);
@@ -155,13 +184,19 @@ class BLEManager {
 
   async autoSetup(gattServer) {
     try {
-      this.service = await gattServer.getPrimaryService(this.UUIDS.SERVICE);
-      const chars = await this.service.getCharacteristics();
-      this.defaultWriteCharacteristic = chars.find((c) => c.uuid.includes(this.UUIDS.WRITE));
-      this.defaultNotifyCharacteristic = chars.find((c) => c.uuid.includes(this.UUIDS.NOTIFY));
+      await this._queueGattOp(async () => {
+        this.service = await gattServer.getPrimaryService(this.UUIDS.SERVICE);
+        const chars = await this.service.getCharacteristics();
+        this.defaultWriteCharacteristic = chars.find((c) => c.uuid.includes(this.UUIDS.WRITE));
+        this.defaultNotifyCharacteristic = chars.find((c) => c.uuid.includes(this.UUIDS.NOTIFY));
 
+        if (this.defaultNotifyCharacteristic) {
+          await this.defaultNotifyCharacteristic.startNotifications();
+        }
+      });
+
+      // Register event listener after successful GATT operations
       if (this.defaultNotifyCharacteristic) {
-        await this.defaultNotifyCharacteristic.startNotifications();
         this.defaultNotifyCharacteristic.removeEventListener("characteristicvaluechanged", this.boundNotifyHandler);
         this.defaultNotifyCharacteristic.addEventListener("characteristicvaluechanged", this.boundNotifyHandler);
       }
@@ -179,7 +214,7 @@ class BLEManager {
       payload = new Uint8Array(payload);
     }
 
-    const MaxPayloadSize = 8185; // TODO: Need to confirm max payload size for BLE
+    const MaxPayloadSize = 247; // TODO: Need to confirm max payload size for BLE
     if (payload.length > MaxPayloadSize) {
       throw new Error(`[BLE] Payload size ${payload.length} exceeds maximum of ${MaxPayloadSize} bytes.`);
     }
@@ -204,7 +239,7 @@ class BLEManager {
     const method = this.defaultWriteCharacteristic.properties.write
       ? "writeValueWithResponse"
       : "writeValueWithoutResponse";
-    await this.defaultWriteCharacteristic[method](frame);
+    await this._queueGattOp(() => this.defaultWriteCharacteristic[method](frame));
   }
 }
 

@@ -94,6 +94,31 @@
       justify-content: center;
       gap: 0.25rem;
     }
+
+    /* CSS Toggle Switch */
+    .toggle-sensor-switch {
+      position: relative;
+      width: 40px;
+      height: 24px;
+      border-radius: 9999px;
+      transition: background-color 0.2s;
+    }
+
+    .toggle-sensor-switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      border-radius: 9999px;
+      background-color: white;
+      transition: transform 0.2s;
+    }
+
+    .peer:checked~.toggle-sensor-switch::after {
+      transform: translateX(16px);
+    }
   </style>
 </head>
 
@@ -203,36 +228,104 @@
             <button id="btnGetMTU" class="button-info">
               Get BLE MTU
             </button>
-            <!-- Streaming buttons -->
-            <button id="btnStartStreaming" class="button-info bg-green-600 hover:bg-green-500">START STREAMING</button>
-            <button id="btnStopStreaming" class="button-info bg-red-600 hover:bg-red-500">STOP STREAMING</button>
           </div>
+          <!-- STREAMING CONTROL -->
+          <div class="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-blue-400">
+            <div class="flex-[2] flex items-center gap-1.5 min-w-0">
+              <div id="icon-sensorB" class="w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0">
+                <i class="fa-solid fa-chart-line text-[18px]"></i>
+              </div>
+              <span class="font-bold text-[12px] truncate">STREAMING DATA</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="checkboxStreaming" class="sr-only peer" />
+              <div
+                class="w-11 h-6 bg-slate-700 rounded-full peer   peer-disabled:opacity-30 peer-disabled:cursor-not-allowed peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-200 after:border-slate-400 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 peer-checked:after:bg-white">
+              </div>
+            </label>
+          </div>
+
       </section>
 
       <!--Sensor Information Section -->
       <section id="sensorPanel" class="bg-white rounded-2xl shadow-sm flex-col items-center">
         <h2 id="sensor-info-title" class="w-full p-2 text-lg font-semibold flex items-center">
-          <i data-lucide="smartphone" class="w-6 h-6 text-blue-600 mr-2"></i>
+          <i class="fa-solid fa-microchip text-[22px] text-blue-600 mr-2"></i>
           <span class="truncate">SENSOR INFORMATION</span>
         </h2>
-        <div id="sensor-status" class="w-full p-3 flex flex-col gap-3 rounded-b-2xl bg-[#0d1117]">
+        <div id="sensor-status" class="w-full p-3 flex flex-col gap-3 rounded-b-2xl bg-[#1F2937]">
           <!-- HX712 Sensor-->
-          <div class="w-full flex items-center justify-between gap-4 p-2 bg-[#1c2128] rounded-lg">
-            <div class="flex items-center gap-3">
-              <span class="font-bold text-[12px] text-blue-400 truncate uppercase"> HX712 SENSOR</span>
+          <div class="w-full flex items-center gap-2 p-3 bg-[#05091A] rounded-lg text-orange-400">
+            <div class="flex-[2] flex items-center gap-1.5 min-w-0">
+              <div id="icon-sensorB" class="w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0">
+                <i class="fa-solid fa-temperature-half text-[18px]"></i>
+              </div>
+              <span class="font-bold text-[12px] truncate">HX712</span>
             </div>
-            <div class="flex items-center gap-2">
-              <span id="textStatusHX712" class="text-[12px] font-semibold text-gray-400">OFF</span>
+            <div class="flex-[1] flex items-center justify-start gap-1.5">
+              <i class="fa-solid fa-sd-card text-[16px]"></i>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="sdHX712" class="sr-only peer">
+                <div class="toggle-sensor-switch bg-slate-700 peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+            <div class="flex-[1] flex items-center justify-end gap-1.5">
+              <i id="power-icon-sensorA" class="fa-solid fa-power-off text-[16px]"></i>
               <label class="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" id="checkboxHX712" class="sr-only peer">
-                <div
-                  class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-green-600 transition-all duration-300">
-                </div>
-                <span
-                  class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 peer-checked:translate-x-5"></span>
+                <div class="toggle-sensor-switch bg-slate-700 peer-checked:bg-emerald-600"></div>
               </label>
             </div>
           </div>
+
+          <!-- PIEZO Sensor -->
+          <div class="w-full flex items-center gap-2 p-3 bg-[#05091A] rounded-lg text-purple-400">
+            <div class="flex-[2] flex items-center gap-1.5 min-w-0">
+              <div id="icon-sensorB" class="w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0">
+                <i class="fa-solid fa-gauge-high text-[18px]"></i>
+              </div>
+              <span class="font-bold text-[12px] truncate">PIEZO</span>
+            </div>
+            <div class="flex-[1] flex items-center justify-start gap-1.5">
+              <i class="fa-solid fa-sd-card text-[16px]"></i>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="sdPiezo" class="sr-only peer">
+                <div class="toggle-sensor-switch bg-slate-700 peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+            <div class="flex-[1] flex items-center justify-end gap-1.5">
+              <i id="power-icon-sensorA" class="fa-solid fa-power-off text-[16px]"></i>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="checkboxPiezo" class="sr-only peer">
+                <div class="toggle-sensor-switch bg-slate-700 peer-checked:bg-emerald-600"></div>
+              </label>
+            </div>
+          </div>
+
+          <!-- ADS1115 Sensor -->
+          <div class="w-full flex items-center gap-2 p-3 bg-[#05091A] rounded-lg text-[#14b8a6]">
+            <div class="flex-[2] flex items-center gap-1.5 min-w-0">
+              <div class="w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0">
+                <i class="fa-solid fa-wave-square text-[18px]"></i>
+              </div>
+              <span class="font-bold text-[12px] truncate">ADS1115</span>
+            </div>
+            <div class="flex-[1] flex items-center justify-start gap-1.5">
+              <i class="fa-solid fa-sd-card text-[16px]"></i>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="sdADS1115" class="sr-only peer">
+                <div class="toggle-sensor-switch bg-slate-700 peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+            <div class="flex-[1] flex items-center justify-end gap-1.5">
+              <i class="fa-solid fa-power-off text-[16px]"></i>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="checkboxADS1115" class="sr-only peer">
+                <div class="toggle-sensor-switch bg-slate-700 peer-checked:bg-emerald-600"></div>
+              </label>
+            </div>
+          </div>
+
         </div>
       </section>
       <!-- BLE Connection Section -->
