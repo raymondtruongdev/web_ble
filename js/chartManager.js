@@ -8,96 +8,102 @@
 import { CONSTANTS } from "./constants.js";
 
 const Utils = {
-  bootTime: Date.now() - performance.now(),
-  getRealTime(perfTime) {
-    return new Date(this.bootTime + perfTime);
+  formatIndex(index) {
+    return Math.round(index).toString();
   },
-  formatRealTime(date) {
-    const h = String(date.getHours()).padStart(2, "0");
-    const m = String(date.getMinutes()).padStart(2, "0");
-    const s = String(date.getSeconds()).padStart(2, "0");
-    return `${h}:${m}:${s}`;
-  },
-  formatRealTimeWithMs(date) {
-    const h = String(date.getHours()).padStart(2, "0");
-    const m = String(date.getMinutes()).padStart(2, "0");
-    const s = String(date.getSeconds()).padStart(2, "0");
-    const ms = String(date.getMilliseconds()).padStart(3, "0");
-    return `${h}:${m}:${s}.${ms}`;
+  formatIndexWithDecimal(index) {
+    return index.toFixed(1);
   },
 };
 
 class ChartManager {
   constructor() {
-    this.TIME_RENDER_CHART_MS = 20; // Duration for a timer to render chart 1000/20 = 50fps
-    this.VIEW_DURATION_MS = 10 * 1000; // Chart will show the last 10s data
-    this.MAX_DURATION_VIEW_IN_CHART = 30 * 1000; // Maximum  data point keep in chart is 30 second
+    // === CẤU HÌNH TRỤC THỜI GIAN ===
+    // BASE_TIME_UNIT: đơn vị thời gian cơ bản của trục X (10000 = 1Hz)
+    // Mọi channel sẽ được ánh xạ về đơn vị này để vẽ chung trên cùng trục X
+    this.BASE_TIME_UNIT = 10000; // 10000 units = 1 giây
 
-    this.buffer = [];
+    // VIEW_DURATION: khoảng thời gian hiển thị trên chart (10 giây)
+    this.VIEW_DURATION = this.BASE_TIME_UNIT * 10;
+
+    // MAX_DATA_KEEP: thời gian dữ liệu tối đa được giữ trong bộ nhớ (30 giây)
+    this.MAX_DATA_KEEP = this.BASE_TIME_UNIT * 30;
+
+    // === CẤU HÌNH RENDER ===
+    this.RENDER_INTERVAL_MS = 20; // 20ms = 50fps
+    this.RENDER_STEP = (this.BASE_TIME_UNIT / 1000) * this.RENDER_INTERVAL_MS;
+
+    // === GIỚI HẠN ZOOM ===
+    this.MIN_VIEW_DURATION = this.BASE_TIME_UNIT / 10; // Tối thiểu 0.1s
+    this.MAX_VIEW_DURATION = this.MAX_DATA_KEEP; // Tối đa 30s
+
+    // === TRẠNG THÁI DỮ LIỆU ===
+    this.buffer = []; // Buffer chứa dữ liệu thô từ các channel
     this.chartTimer = null;
     this.canvas = null;
     this.ctx = null;
-    this.dataPoints = {};
+    this.dataPoints = {}; // Dữ liệu đã xử lý theo channel: { channelName: [point, ...] }
     this.customLabels = [];
-    this.channelMapping = {}; // Mapping originalChannel -> R1, R2, E1, E2,...
-    this.nextChannelIndex = 1; // Start name is "ch1"
+    this.channelMapping = {};
+    this.nextChannelIndex = 1;
     this.margins = { left: 70, right: 20, top: 30, bottom: 40 };
-    this.viewOffsetMs = 0;
+
+    // === TRẠNG THÁI VIEW ===
+    this.viewOffset = 0; // Độ lệch view so với thời gian hiện tại
     this.hoverPoint = null;
     this.mouseX = null;
-    this.dragMode = null; // 'pan-x', 'pan-y', 'zoom-x', 'zoom-y'
+    this.dragMode = null;
     this.startPanX = 0;
     this.startPanY = 0;
-    this.originalViewOffsetMs = 0;
+    this.originalViewOffset = 0;
     this.originalYMin = 0;
     this.originalYMax = 0;
 
-    // chart states
-    this.isRunning = false; // Flag indicating whether the chart is actively running and rendering
-    this.isPaused = false; // Flag indicating whether the chart viewport is paused/frozen
-    this.drawPending = false; // Flag to prevent duplicate requests
-    this.isAutoFit = true; // Mặc định bật AutoFit
-    this.freezeTime = null;
+    // === TRẠNG THÁI ĐIỀU KHIỂN ===
+    this.isRunning = false;
+    this.isPaused = false;
+    this.drawPending = false;
+    this.isAutoFit = true;
+    this.frozenTime = null; // Thời gian bị đóng băng (dùng khi pause)
+    this.hasReceivedFirstData = false;
 
-    // For zoom-in  X
-    this.MIN_VIEW_DURATION_MS = 100; // Min duration for X axis in ms while zooming in
-    this.MAX_VIEW_DURATION_MS = 60000; // Max duration for X axis in ms while zooming out
-
-    // Initial limit value for Y
+    // === GIỚI HẠN TRỤC Y ===
     this.yMin = -2000;
     this.yMax = 2000;
 
-    // Drag-to-zoom trên trục (chuột trái)
-    this.axisZoomStartX = 0;
-    this.axisZoomStartY = 0;
-    this.axisZoomOriginalDuration = 0;
-    this.axisZoomOriginalYMin = 0;
-    this.axisZoomOriginalYMax = 0;
-    this.axisZoomStartDataValue = 0;
-    this.axisZoomStartMouseRatio = 0;
+    // === TRẠNG THÁI ZOOM ===
+    this.zoomStartX = 0;
+    this.zoomStartY = 0;
+    this.zoomOriginalDuration = 0;
+    this.zoomOriginalYMin = 0;
+    this.zoomOriginalYMax = 0;
+    this.zoomStartDataValue = 0;
+    this.zoomStartMouseRatio = 0;
 
+    // === SỰ KIỆN & TƯƠNG TÁC ===
     this.onAutoFitChange = () => {};
-
-    // Flag để kiểm tra xem có đang tương tác với chart không
     this.isInteracting = false;
-
-    // Lưu vị trí các button legend để xử lý click
     this.legendButtons = [];
-
-    // Lưu trạng thái click để phân biệt click và drag
     this.mouseDownX = 0;
     this.mouseDownY = 0;
     this.isDragging = false;
+
+    // === THÔNG TIN CHANNEL ===
+    this.globalIndexStep = {}; // khoảng cách 2 sample liên tiếp của channel
+    this.lastGlobalIndex = {}; // global index của sample cuối cùng của mỗi channel
+    this.localIndex = {}; // local indexcủa sample trong mỗi channel
+    this.lastRenderTime = 0; // Thời gian base của lần render gần nhất
+    this.lastMsOfMinuteFW = {}; // milisecond of minute của sample bắt đầu trong batch data trước đó
+
+    this.channelOrder = []; // Thứ tự hiển thị các channel
+    this.channelColorMap = {}; // Màu sắc cho từng channel
   }
 
-  // ==================== PUBLIC ====================
   init(canvas) {
     if (!canvas) return;
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.setupEvents();
-
-    // Bật AutoFit mặc định
     this.setAutoFit(true);
   }
 
@@ -106,6 +112,7 @@ class ChartManager {
     this.clear();
     this.unfreeze();
     this.setAutoFit(true);
+    this.lastRenderTime = this.getCurrentGlobalIndex() || 0;
     this.autoRender();
   }
 
@@ -114,31 +121,20 @@ class ChartManager {
     this.freezeCurrentView();
   }
 
-  /**
-   * Freeze viewport hiện tại để giữ đồ thị đứng yên khi có dữ liệu mới đến,
-   * nhưng vẫn cho phép cập nhật dữ liệu vào buffer
-   */
   freezeCurrentView() {
-    const baseTime = this.getBaseTime();
-    const frozenAt = baseTime + this.viewOffsetMs;
+    const currentTime = this.getCurrentGlobalIndex();
     this.isPaused = true;
-    this.freezeTime = frozenAt;
+    this.frozenTime = currentTime;
     this.requestRedraw();
   }
 
-  /**
-   * Set chart to unfreeze state, chart will auto scroll with new data comming
-   */
   unfreeze() {
     this.isPaused = false;
-    this.freezeTime = null;
-    this.viewOffsetMs = 0;
+    this.frozenTime = null;
+    this.viewOffset = 0;
     this.requestRedraw();
   }
 
-  /**
-   *  Clear all data points in chart and reset view to current time
-   */
   clear() {
     this.dataPoints = {};
     this.buffer = [];
@@ -146,102 +142,124 @@ class ChartManager {
     this.nextChannelIndex = 1;
     this.channelVisibility = {};
     this.legendButtons = [];
-    this.freezeTime = performance.now();
+    this.lastGlobalIndex = {};
+    this.lastRenderTime = 0;
+    this.globalIndexStep = {};
+    this.localIndex = {};
+    this.lastMsOfMinuteFW = {};
+    this.frozenTime = null;
+    this.channelOrder = [];
+    this.channelColorMap = {};
+    this.hasReceivedFirstData = false;
     this.requestRedraw();
   }
 
-  /**
-   * Fit the view to display all data currently available on the chart
-   */
   zoomToFitData() {
     const bounds = this.getDataBounds();
     if (!bounds) {
-      // Nếu không có dữ liệu, giữ nguyên view
       return;
     }
 
-    // Đặt viewOffset để nhìn thấy dữ liệu mới nhất (cuối cùng)
-    const baseTime = this.getBaseTime();
-    this.viewOffsetMs = bounds.maxTime - baseTime;
-
-    // Scale trục Y theo min/max của toàn bộ dữ liệu
     if (bounds.maxValue !== bounds.minValue) {
-      // Nếu có range, scale chính xác
-      const padding = (bounds.maxValue - bounds.minValue) * 0.1; // Thêm 10% padding
+      const padding = (bounds.maxValue - bounds.minValue) * 0.1;
       this.yMin = bounds.minValue - padding;
       this.yMax = bounds.maxValue + padding;
     } else {
-      // Nếu chỉ có 1 giá trị, tạo khoảng nhỏ xung quanh
       this.yMin = bounds.minValue - 1;
       this.yMax = bounds.maxValue + 1;
     }
     this.requestRedraw();
   }
 
-  /**
-   * Set AutoFit mode
-   * @param {boolean} isValue - true to enable AutoFit, false to disable
-   */
   setAutoFit(isValue) {
     this.isAutoFit = isValue;
     if (isValue) {
-      // Nếu bật AutoFit, tự động fit dữ liệu
       this.zoomToFitData();
-      // Reset trạng thái tương tác
       this.isInteracting = false;
     } else {
-      // Nếu tắt AutoFit, đánh dấu đang tương tác
       this.isInteracting = true;
     }
     this.onAutoFitChange(this.isAutoFit);
   }
 
-  /**
-   * Get current AutoFit status
-   * @returns {boolean} - true if AutoFit is enabled
-   */
   getAutoFit() {
     return this.isAutoFit;
   }
 
-  /**
-   * Toggle AutoFit mode
-   */
   toggleAutoFit() {
     this.setAutoFit(!this.isAutoFit);
   }
 
   /**
-   * Adds a batch of samples to the chart buffer for a specific channel.
-   * This buffer will be used to render automatically by an internal timer inside "chartMangager"
-   * If the channel already exists in the buffer, the new points are appended.
-   * Otherwise, a new channel entry is created.
-   *
-   * @param {number[]} samples Array of sample values.
-   * @param {number} sampleIntervalSec Time interval between consecutive samples (seconds).
-   * @param {number} baseTimestamp Timestamp of the first sample.
-   * @param {string} [channel="ch1"] Target channel name.
-   * @returns {void}
+   * Thêm dữ liệu từ một channel vào buffer
+   * @param {number[]} samples - Mảng giá trị sample
+   * @param {number} samplingRate - Tần số lấy mẫu (Hz)
+   * @param {string} channelName - Tên channel
+   * @param {number} msOfMinuteFW - Timestamp (ms) của sample đầu tiên trong batch
    */
-  addChartBuffer(samples, sampleIntervalSec, baseTimestamp, channel = "ch1") {
-    const dataPoints = [];
-    for (let i = 0; i < samples.length; i++) {
-      dataPoints.push({ value: samples[i], timestamp: baseTimestamp + i * sampleIntervalSec });
+  addChartBuffer(samples, samplingRate, channelName, msOfMinuteFW) {
+    if (!samples || samples.length === 0) return;
+
+    // Tính khoảng thời gian giữa 2 sample liên tiếp theo BASE_TIME_UNIT
+    const timeStep = this.BASE_TIME_UNIT / samplingRate;
+    this.globalIndexStep[channelName] = timeStep;
+
+    let missingSampleCount = 0;
+
+    // Lần đầu nhận data cho channel
+    if (!this.lastGlobalIndex[channelName]) {
+      this.lastGlobalIndex[channelName] = this.getCurrentGlobalIndex();
+      this.localIndex[channelName] = 0;
+    } else {
+      // Tính số sample bị thiếu dựa trên thời gian
+      let diffMsOfMinuteFW = msOfMinuteFW - this.lastMsOfMinuteFW[channelName];
+      if (diffMsOfMinuteFW < 0) {
+        diffMsOfMinuteFW = msOfMinuteFW + 60000 - this.lastMsOfMinuteFW[channelName];
+      }
+      const sampleIntervalMs = 1000 / samplingRate;
+      const estimatedSampleCount = Math.floor(diffMsOfMinuteFW / sampleIntervalMs);
+      const sampleCountInBatch = samples.length;
+
+      // Nếu số sample ước tính lớn hơn nhiều so với thực tế -> bị mất data
+      if (estimatedSampleCount > sampleCountInBatch * 1.5) {
+        missingSampleCount = estimatedSampleCount - sampleCountInBatch;
+      }
     }
-    if (dataPoints.length === 0) return;
-    const idx = this.buffer.findIndex((item) => item.channel === channel);
+    this.lastMsOfMinuteFW[channelName] = msOfMinuteFW;
+
+    const dataPoints = [];
+    let currentGlobalIndex = this.lastGlobalIndex[channelName];
+    let localIndexCounter = this.localIndex[channelName];
+
+    // Xử lý missing data: bỏ qua các sample bị thiếu (tính trực tiếp, không cần for loop)
+    if (missingSampleCount > 0) {
+      // Tính trực tiếp base time và raw index cho sample đầu tiên sau khoảng trống
+      currentGlobalIndex += missingSampleCount * timeStep;
+      localIndexCounter += missingSampleCount;
+    }
+
+    // Thêm các sample thực tế
+    for (let i = 0; i < samples.length; i++) {
+      dataPoints.push({
+        value: samples[i],
+        baseTime: currentGlobalIndex + i * timeStep, // Vị trí trên trục X (theo BASE_TIME_UNIT)
+        localIndex: localIndexCounter + i, // Chỉ số sample gốc của channel
+      });
+    }
+
+    // Cập nhật thông tin channel
+    this.lastGlobalIndex[channelName] = currentGlobalIndex + samples.length * timeStep;
+    this.localIndex[channelName] = localIndexCounter + samples.length;
+
+    // Thêm vào buffer
+    const idx = this.buffer.findIndex((item) => item.channel === channelName);
     if (idx >= 0) {
-      // Append dữ liệu vào channel đã có
       this.buffer[idx].dataPoints.push(...dataPoints);
     } else {
-      // Tạo channel mới
-      this.buffer.push({ channel, dataPoints });
+      this.buffer.push({ channel: channelName, dataPoints });
     }
   }
 
-  /**
-   * Set new chart labels
-   */
   setLabels(...labels) {
     if (labels.length === 1 && Array.isArray(labels[0])) {
       this.customLabels = labels[0];
@@ -249,8 +267,7 @@ class ChartManager {
       this.customLabels = labels;
     }
 
-    const sortedChannels = Object.keys(this.dataPoints).sort();
-    sortedChannels.forEach((ch, index) => {
+    this.channelOrder.forEach((ch, index) => {
       if (this.channelVisibility[ch] === undefined) {
         this.channelVisibility[ch] = true;
       }
@@ -259,76 +276,165 @@ class ChartManager {
     this.requestRedraw();
   }
 
-  // ==================== PRIVATE ====================
-  /**
-   * Start a timer that used to render the chart
-   */
   autoRender() {
     if (this.chartTimer !== null) return;
+
     this.chartTimer = setInterval(() => {
-      let needRedraw = false;
-      for (const item of this.buffer) {
-        if (!item.dataPoints || item.dataPoints.length === 0) {
-          continue;
-        }
-
-        const originalChannel = item.channel;
-        // Check if originalChannel is already mapped
-        let mappedChannel = this.channelMapping[originalChannel];
-        if (!mappedChannel) {
-          const match = originalChannel.match(/^(data_type_\d+)_ch_(\d+)$/);
-          if (match) {
-            const dataType = match[1];
-            const channel = Number(match[2]);
-            const prefix = CONSTANTS.DATATYPE_CHANNEL_NAME_MAPPING[dataType] ?? CONSTANTS.DEFAULT_SENSOR_NAME;
-            mappedChannel = `${prefix}${channel + 1}`;
-          } else {
-            mappedChannel = originalChannel;
-          }
-          this.channelMapping[originalChannel] = mappedChannel;
-          this.dataPoints[mappedChannel] = [];
-          this.channelVisibility[mappedChannel] = true;
-        }
-
-        const target = this.dataPoints[mappedChannel];
-
-        // Check if buffer render chart is overload we remove some old data points
-        let count = 0;
-        let now = performance.now();
-        while (count < target.length && target[count].timestamp <= now - this.MAX_DURATION_VIEW_IN_CHART) {
-          count++;
-        }
-        if (count > 0) {
-          target.splice(0, count);
-        }
-
-        // Transfer data from buffer to Chart
-        count = 0;
-        while (count < item.dataPoints.length && item.dataPoints[count].timestamp <= now) {
-          count++;
-        }
-        if (count === 0) continue;
-
-        target.push(...item.dataPoints.splice(0, count));
-
-        needRedraw = true;
-      }
-      if (needRedraw && !this.isPaused) {
-        this.requestRedraw();
-        // Nếu đang ở chế độ AutoFit, tự động fit dữ liệu
-        if (this.isAutoFit) {
-          this.zoomToFitData();
-        }
-      }
       if (!this.isRunning) {
-        if (this.chartTimer) {
-          clearInterval(this.chartTimer);
-          this.chartTimer = null;
-        }
+        clearInterval(this.chartTimer);
+        this.chartTimer = null;
         return;
       }
-    }, this.TIME_RENDER_CHART_MS);
+
+      if (this.isPaused) {
+        return;
+      }
+
+      let hasNewData = false;
+      let shouldRedraw = false;
+
+      const totalSensorCount = this.getTotalSensorCount();
+      if (!this.hasReceivedFirstData && totalSensorCount > 0) {
+        this.hasReceivedFirstData = true;
+      }
+      if (!this.hasReceivedFirstData) {
+        return;
+      }
+
+      // === BƯỚC 1: CẬP NHẬT THỜI GIAN RENDER ===
+      const newRenderTime = this.lastRenderTime + this.RENDER_STEP;
+      this.lastRenderTime = newRenderTime;
+
+      if (newRenderTime > 39700) {
+        const temp = 1;
+      }
+
+      // === BƯỚC 2: XỬ LÝ DỮ LIỆU TỪ BUFFER ===
+      let maxNewTime = 0;
+      let hasAnyData = false;
+
+      for (const item of this.buffer) {
+        if (!item.dataPoints || item.dataPoints.length === 0) continue;
+
+        const mappedChannel = this.getMappedChannel(item.channel);
+        const target = this.dataPoints[mappedChannel];
+        if (!target) continue;
+
+        // Lấy dữ liệu mới theo bước RENDER_STEP
+        const pointsToAdd = this.countPointsInRange(item.dataPoints, newRenderTime);
+
+        if (pointsToAdd > 0) {
+          const newPoints = item.dataPoints.splice(0, pointsToAdd);
+          target.push(...newPoints);
+          hasNewData = true;
+
+          if (newPoints.length > 0) {
+            const lastPoint = newPoints[newPoints.length - 1];
+            if (lastPoint && lastPoint.baseTime > maxNewTime) {
+              maxNewTime = lastPoint.baseTime;
+            }
+            hasAnyData = true;
+          }
+        }
+      }
+
+      // === BƯỚC 3: XÓA DỮ LIỆU CŨ ===
+      if (hasNewData) {
+        for (const channel in this.dataPoints) {
+          this.removeOldData(this.dataPoints[channel], this.getCurrentGlobalIndex());
+        }
+      }
+
+      // === BƯỚC 4: ĐỒNG BỘ THỜI GIAN RENDER ===
+      if (hasNewData && hasAnyData) {
+        const actualLastTime = this.getCurrentGlobalIndex();
+        if (actualLastTime > this.lastRenderTime) {
+          this.lastRenderTime = actualLastTime;
+        } else if (maxNewTime > this.lastRenderTime) {
+          this.lastRenderTime = maxNewTime;
+        }
+      }
+
+      // === BƯỚC 5: CẬP NHẬT VIEW ===
+      const currentTime = this.getCurrentGlobalIndex();
+      this.viewOffset = this.lastRenderTime - currentTime;
+
+      if (this.viewOffset < 0) {
+        this.viewOffset = 0;
+      }
+
+      shouldRedraw = true;
+
+      // === BƯỚC 6: VẼ LẠI ===
+      if (shouldRedraw) {
+        if (this.isAutoFit) {
+          this.zoomToFitData();
+        } else {
+          this.requestRedraw();
+        }
+      }
+    }, this.RENDER_INTERVAL_MS);
   }
+
+  // ==================== HELPER METHODS ====================
+
+  getTotalSensorCount() {
+    const sensorSet = new Set();
+    for (const item of this.buffer) {
+      if (!item.dataPoints || item.dataPoints.length === 0) continue;
+      const match = item.channel.match(/^(data_type_\d+)_ch_\d+$/);
+      if (match) sensorSet.add(match[1]);
+    }
+    return sensorSet.size;
+  }
+
+  getMappedChannel(originalChannel) {
+    if (this.channelMapping[originalChannel]) {
+      return this.channelMapping[originalChannel];
+    }
+
+    const match = originalChannel.match(/^(data_type_\d+)_ch_(\d+)$/);
+    if (match) {
+      const dataType = match[1];
+      const channel = Number(match[2]);
+      const prefix = CONSTANTS.DATATYPE_CHANNEL_NAME_MAPPING[dataType] ?? CONSTANTS.DEFAULT_SENSOR_NAME;
+      const mappedChannel = `${prefix}${channel + 1}`;
+      this.channelMapping[originalChannel] = mappedChannel;
+
+      if (!this.dataPoints[mappedChannel]) {
+        this.dataPoints[mappedChannel] = [];
+        this.channelVisibility[mappedChannel] = true;
+        this.channelOrder.push(mappedChannel);
+      }
+      return mappedChannel;
+    }
+
+    return originalChannel;
+  }
+
+  removeOldData(target, currentTime) {
+    let count = 0;
+    const cutoffTime = currentTime - this.MAX_DATA_KEEP;
+    while (count < target.length && target[count].baseTime <= cutoffTime) {
+      count++;
+    }
+    if (count > 0) {
+      target.splice(0, count);
+    }
+  }
+
+  countPointsInRange(dataPoints, endTime) {
+    let count = 0;
+    for (let i = 0; i < dataPoints.length; i++) {
+      if (dataPoints[i].baseTime > endTime) {
+        break;
+      }
+      count++;
+    }
+    return count;
+  }
+
+  // ==================== EVENT HANDLERS ====================
 
   setupEvents() {
     window.addEventListener("resize", () => this.resize());
@@ -339,14 +445,12 @@ class ChartManager {
     this.canvas.addEventListener("mouseup", (e) => this.handleMouseUp(e));
     this.canvas.addEventListener("click", (e) => this.handleCanvasClick(e));
 
-    // Ngăn context menu mặc định khi click chuột phải trên canvas
     this.canvas.addEventListener("contextmenu", (e) => {
       e.preventDefault();
       return false;
     });
 
     window.addEventListener("mouseup", () => {
-      // Kết thúc mọi chế độ drag
       this.dragMode = null;
     });
   }
@@ -355,32 +459,39 @@ class ChartManager {
     this.isDragging = false;
   }
 
-  clampViewDuration(durationMs) {
-    return Math.max(this.MIN_VIEW_DURATION_MS, Math.min(this.MAX_VIEW_DURATION_MS, durationMs));
+  clampViewDuration(duration) {
+    return Math.max(this.MIN_VIEW_DURATION, Math.min(this.MAX_VIEW_DURATION, duration));
   }
 
   /**
-   * Get the reference timestamp used for rendering the chart
-   *
-   * This function determines the "current time" on the chart's time axis:
-   *
-   * - **Normal mode (not paused):**
-   *   Returns the actual current time (performance.now()), allowing the chart
-   *   to auto-scroll and display new incoming data in real-time.
-   *
-   * - **Paused mode (frozen):**
-   *   Returns the frozen timestamp (freezeTime), keeping the chart static at
-   *   a specific moment. Users can analyze historical data in detail without
-   *   being pushed forward by new data.
+   * Lấy thời gian hiện tại trên trục X (theo BASE_TIME_UNIT)
+   * Nếu đang pause, trả về thời gian đã đóng băng
    */
-  getBaseTime() {
-    if (this.isPaused && this.freezeTime !== null) {
-      return this.freezeTime;
+  getCurrentGlobalIndex() {
+    if (this.isPaused && this.frozenTime !== null) {
+      return this.frozenTime;
     }
     if (Object.keys(this.dataPoints).length === 0) {
-      return this.freezeTime;
+      return this.frozenTime || 0;
     }
-    return performance.now();
+    return this.getLastGlobalIndex();
+  }
+
+  /**
+   * Lấy thời gian base lớn nhất từ tất cả các channel
+   */
+  getLastGlobalIndex() {
+    let maxTime = 0;
+    for (const channel in this.dataPoints) {
+      const points = this.dataPoints[channel];
+      if (points && points.length > 0) {
+        const lastPoint = points[points.length - 1];
+        if (lastPoint && lastPoint.baseTime > maxTime) {
+          maxTime = lastPoint.baseTime;
+        }
+      }
+    }
+    return maxTime;
   }
 
   getActiveWidthDpr(dpr) {
@@ -401,14 +512,13 @@ class ChartManager {
   }
 
   getDataBounds() {
-    const sortedChannels = Object.keys(this.dataPoints).sort();
     let minTime = Infinity;
     let maxTime = -Infinity;
     let minValue = Infinity;
     let maxValue = -Infinity;
     let hasData = false;
 
-    sortedChannels.forEach((channel) => {
+    this.channelOrder.forEach((channel) => {
       if (!this.getChannelVisibility(channel)) {
         return;
       }
@@ -417,12 +527,12 @@ class ChartManager {
       if (!Array.isArray(points) || points.length === 0) return;
 
       points.forEach((point) => {
-        const timestamp = typeof point === "object" && point !== null ? point.timestamp : null;
+        const time = typeof point === "object" && point !== null ? point.baseTime : null;
         const value = typeof point === "object" && point !== null ? point.value : point;
 
-        if (typeof timestamp === "number" && Number.isFinite(timestamp)) {
-          minTime = Math.min(minTime, timestamp);
-          maxTime = Math.max(maxTime, timestamp);
+        if (typeof time === "number" && Number.isFinite(time)) {
+          minTime = Math.min(minTime, time);
+          maxTime = Math.max(maxTime, time);
           hasData = true;
         }
 
@@ -454,22 +564,24 @@ class ChartManager {
     });
   }
 
-  getX(timestamp, minTime, activeWidth, dpr) {
-    return this.margins.left * dpr + ((timestamp - minTime) / this.VIEW_DURATION_MS) * activeWidth;
+  // ==================== HÀM CHUYỂN ĐỔI TỌA ĐỘ ====================
+
+  /**
+   * Chuyển đổi thời gian base thành tọa độ X trên canvas
+   */
+  getX(baseTime, minTime, activeWidth, dpr) {
+    return this.margins.left * dpr + ((baseTime - minTime) / this.VIEW_DURATION) * activeWidth;
   }
 
+  /**
+   * Chuyển đổi giá trị thành tọa độ Y trên canvas
+   */
   getY(val, activeHeight, height, dpr) {
     const range = this.yMax - this.yMin;
     const ratio = (val - this.yMin) / range;
     return height - this.margins.bottom * dpr - ratio * activeHeight;
   }
 
-  /**
-   * Get legend button at specific position
-   * @param {number} x - X coordinate in canvas pixel space
-   * @param {number} y - Y coordinate in canvas pixel space
-   * @returns {Object|null} - The legend button object or null if not found
-   */
   getLegendButtonAt(x, y) {
     for (const button of this.legendButtons) {
       if (x >= button.x && x <= button.x + button.width && y >= button.y && y <= button.y + button.height) {
@@ -478,6 +590,8 @@ class ChartManager {
     }
     return null;
   }
+
+  // ==================== MOUSE HANDLERS ====================
 
   handleMouseMove(e) {
     const rect = this.canvas.getBoundingClientRect();
@@ -491,17 +605,15 @@ class ChartManager {
       }
     }
 
-    // === XỬ LÝ PAN X (chuột phải + kéo ngang) ===
     if (this.dragMode === "pan-x") {
       const deltaX = e.clientX - this.startPanX;
       const activeWidth = this.canvas.width / dpr - this.margins.left - this.margins.right;
-      this.viewOffsetMs = Math.min(0, this.originalViewOffsetMs - deltaX * (this.VIEW_DURATION_MS / activeWidth));
+      this.viewOffset = Math.min(0, this.originalViewOffset - deltaX * (this.VIEW_DURATION / activeWidth));
       this.hoverPoint = null;
       this.requestRedraw();
       return;
     }
 
-    // === XỬ LÝ PAN Y (chuột phải + kéo dọc) ===
     if (this.dragMode === "pan-y") {
       const deltaY = e.clientY - this.startPanY;
       const activeHeight = this.canvas.height / dpr - this.margins.top - this.margins.bottom;
@@ -515,38 +627,36 @@ class ChartManager {
       return;
     }
 
-    // === XỬ LÝ ZOOM X (chuột trái trên trục X) ===
     if (this.dragMode === "zoom-x") {
-      const deltaX = e.clientX - this.axisZoomStartX;
+      const deltaX = e.clientX - this.zoomStartX;
       const sensitivity = 0.005;
       let factor = 1 + deltaX * sensitivity;
       factor = Math.max(0.2, Math.min(5, factor));
-      let newDuration = this.axisZoomOriginalDuration * factor;
+      let newDuration = this.zoomOriginalDuration * factor;
       newDuration = this.clampViewDuration(newDuration);
 
-      const baseTime = this.getBaseTime();
-      const targetTimestamp = this.axisZoomStartDataValue;
-      const ratio = this.axisZoomStartMouseRatio;
-      const newMinTime = targetTimestamp - ratio * newDuration;
+      const currentTime = this.getCurrentGlobalIndex();
+      const targetTime = this.zoomStartDataValue;
+      const ratio = this.zoomStartMouseRatio;
+      const newMinTime = targetTime - ratio * newDuration;
       const newNow = newMinTime + newDuration;
-      this.viewOffsetMs = newNow - baseTime;
-      this.VIEW_DURATION_MS = newDuration;
+      this.viewOffset = newNow - currentTime;
+      this.VIEW_DURATION = newDuration;
       this.requestRedraw();
       return;
     }
 
-    // === XỬ LÝ ZOOM Y (chuột trái trên trục Y) ===
     if (this.dragMode === "zoom-y") {
-      const deltaY = this.axisZoomStartY - e.clientY;
+      const deltaY = this.zoomStartY - e.clientY;
       const sensitivity = 0.005;
       let factor = 1 - deltaY * sensitivity;
       factor = Math.max(0.2, Math.min(5, factor));
-      const originalRange = this.axisZoomOriginalYMax - this.axisZoomOriginalYMin;
+      const originalRange = this.zoomOriginalYMax - this.zoomOriginalYMin;
       let newRange = originalRange * factor;
       if (newRange < 1e-9) newRange = 1e-9;
 
-      const targetValue = this.axisZoomStartDataValue;
-      const ratio = (targetValue - this.axisZoomOriginalYMin) / originalRange;
+      const targetValue = this.zoomStartDataValue;
+      const ratio = (targetValue - this.zoomOriginalYMin) / originalRange;
       const newYMin = targetValue - ratio * newRange;
       const newYMax = newYMin + newRange;
 
@@ -558,7 +668,6 @@ class ChartManager {
       return;
     }
 
-    // === HOVER THÔNG THƯỜNG (không drag) ===
     this.mouseX = (e.clientX - rect.left) * dpr;
     this.updateHoverPoint(dpr);
     this.requestRedraw();
@@ -570,7 +679,6 @@ class ChartManager {
     const mouseX = (e.clientX - rect.left) * dpr;
     const mouseY = (e.clientY - rect.top) * dpr;
 
-    // Kiểm tra legend button trước
     if (this.getLegendButtonAt(mouseX, mouseY)) {
       this.canvas.style.cursor = "pointer";
       return;
@@ -602,7 +710,6 @@ class ChartManager {
     this.mouseDownY = e.clientY;
     this.isDragging = false;
 
-    // Khi click vào chart, tắt AutoFit nếu đang bật
     if (this.isAutoFit) {
       this.setAutoFit(false);
     }
@@ -614,7 +721,6 @@ class ChartManager {
     const isRightClick = e.button === 2;
     const isLeftClick = e.button === 0;
 
-    // Xác định vùng tương tác
     const onXAxis =
       clickY >= this.canvas.height - this.margins.bottom * dpr &&
       clickX >= this.margins.left * dpr &&
@@ -625,14 +731,12 @@ class ChartManager {
       clickY <= this.canvas.height - this.margins.bottom * dpr;
     const onPlotArea = this.isInsidePlotArea(clickX, clickY, dpr);
 
-    // ========== CHUỘT PHẢI: PAN (Di chuyển đồ thị) ==========
     if (isRightClick && onPlotArea) {
       e.preventDefault();
 
-      // Lưu trạng thái ban đầu
       this.startPanX = e.clientX;
       this.startPanY = e.clientY;
-      this.originalViewOffsetMs = this.viewOffsetMs;
+      this.originalViewOffset = this.viewOffset;
       this.originalYMin = this.yMin;
       this.originalYMax = this.yMax;
 
@@ -640,19 +744,16 @@ class ChartManager {
       let moveListener = null;
       let upListener = null;
 
-      // Handler để xác định hướng drag sau khi chuột bắt đầu di chuyển
       const determineDirection = (moveEvent) => {
         if (directionDetermined) return;
 
         const deltaX = moveEvent.clientX - this.startPanX;
         const deltaY = moveEvent.clientY - this.startPanY;
 
-        // Nếu di chuyển quá ngưỡng 5px, chốt chế độ
         if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
           directionDetermined = true;
           this.dragMode = Math.abs(deltaX) > Math.abs(deltaY) ? "pan-x" : "pan-y";
 
-          // Xóa listener xác định hướng sau khi đã chốt
           if (moveListener) {
             window.removeEventListener("mousemove", moveListener);
           }
@@ -660,7 +761,6 @@ class ChartManager {
       };
 
       const onMouseUp = () => {
-        // Cleanup tất cả listeners
         if (moveListener) {
           window.removeEventListener("mousemove", moveListener);
         }
@@ -668,7 +768,6 @@ class ChartManager {
           window.removeEventListener("mouseup", upListener);
         }
 
-        // Nếu không có hướng được xác định (click không kéo), không thực hiện pan
         if (!directionDetermined) {
           this.dragMode = null;
         }
@@ -682,61 +781,54 @@ class ChartManager {
       return;
     }
 
-    // ========== CHUỘT TRÁI: ZOOM TRÊN TRỤC X ==========
     if (isLeftClick && onXAxis) {
       e.preventDefault();
       this.dragMode = "zoom-x";
-      this.axisZoomStartX = e.clientX;
-      this.axisZoomStartY = e.clientY;
-      this.axisZoomOriginalDuration = this.VIEW_DURATION_MS;
+      this.zoomStartX = e.clientX;
+      this.zoomStartY = e.clientY;
+      this.zoomOriginalDuration = this.VIEW_DURATION;
 
-      const baseTime = this.getBaseTime();
-      const now = baseTime + this.viewOffsetMs;
-      const minTime = now - this.VIEW_DURATION_MS;
+      const currentTime = this.getCurrentGlobalIndex();
+      const now = currentTime + this.viewOffset;
+      const minTime = now - this.VIEW_DURATION;
       const activeWidth = this.getActiveWidthDpr(dpr);
       const relativeX = Math.max(0, Math.min(activeWidth, clickX - this.margins.left * dpr));
       const ratio = relativeX / activeWidth;
 
-      this.axisZoomStartDataValue = minTime + ratio * this.VIEW_DURATION_MS;
-      this.axisZoomStartMouseRatio = ratio;
+      this.zoomStartDataValue = minTime + ratio * this.VIEW_DURATION;
+      this.zoomStartMouseRatio = ratio;
       return;
     }
 
-    // ========== CHUỘT TRÁI: ZOOM TRÊN TRỤC Y ==========
     if (isLeftClick && onYAxis) {
       e.preventDefault();
       this.dragMode = "zoom-y";
-      this.axisZoomStartX = e.clientX;
-      this.axisZoomStartY = e.clientY;
-      this.axisZoomOriginalYMin = this.yMin;
-      this.axisZoomOriginalYMax = this.yMax;
+      this.zoomStartX = e.clientX;
+      this.zoomStartY = e.clientY;
+      this.zoomOriginalYMin = this.yMin;
+      this.zoomOriginalYMax = this.yMax;
 
       const activeH = this.getActiveHeightDpr(dpr);
       const relativeY = Math.max(0, Math.min(activeH, clickY - this.margins.top * dpr));
       const ratio = 1 - relativeY / activeH;
 
-      this.axisZoomStartDataValue = this.yMin + ratio * (this.yMax - this.yMin);
+      this.zoomStartDataValue = this.yMin + ratio * (this.yMax - this.yMin);
       return;
     }
   }
 
   handleCanvasClick(e) {
-    // Skipping click because dragging
     if (this.isDragging) {
       return;
     }
 
     const rect = this.canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-
-    // Tính tọa độ click trong canvas coordinate (pixel của canvas)
     const clickX = (e.clientX - rect.left) * dpr;
     const clickY = (e.clientY - rect.top) * dpr;
 
-    // Tìm button được click
     const clickedButton = this.getLegendButtonAt(clickX, clickY);
     if (clickedButton) {
-      // Toggle visibility của channel này
       const channel = clickedButton.channel;
       const currentVisibility = this.getChannelVisibility(channel);
       this.channelVisibility[channel] = !currentVisibility;
@@ -746,14 +838,17 @@ class ChartManager {
     }
   }
 
+  // ==================== HOVER / TOOLTIP ====================
+
   updateHoverPoint(dpr) {
-    const baseTime = this.getBaseTime();
-    const now = baseTime + this.viewOffsetMs;
-    const minTime = now - this.VIEW_DURATION_MS;
+    const currentTime = this.getCurrentGlobalIndex();
+    const now = currentTime + this.viewOffset;
+    const minTime = now - this.VIEW_DURATION;
+    const maxTime = now;
     const activeWidth = this.getActiveWidthDpr(dpr);
 
     if (this.mouseX >= this.margins.left * dpr && this.mouseX <= this.canvas.width - this.margins.right * dpr) {
-      const targetTime = minTime + ((this.mouseX - this.margins.left * dpr) / activeWidth) * this.VIEW_DURATION_MS;
+      const targetGlobalIndex = minTime + ((this.mouseX - this.margins.left * dpr) / activeWidth) * this.VIEW_DURATION;
       const pointsAtTime = [];
 
       for (const channel in this.dataPoints) {
@@ -762,23 +857,140 @@ class ChartManager {
         }
 
         const points = this.dataPoints[channel];
-        let closestPoint = null;
-        let minDiff = Infinity;
+        if (!points || points.length === 0) continue;
 
-        for (let i = points.length - 1; i >= 0; i--) {
+        const timeStep = this.globalIndexStep[channel] || 1;
+        const MAX_TIME_GAP = (this.BASE_TIME_UNIT / 1000) * 50; // 50ms
+
+        // Tìm điểm gần nhất với target
+        let leftIdx = -1;
+        let rightIdx = -1;
+        let minDiff = Infinity;
+        let closestPoint = null;
+        let closestIndex = -1;
+
+        // Tìm điểm bên trái và bên phải gần nhất
+        for (let i = 0; i < points.length; i++) {
           const p = points[i];
-          if (p.timestamp < minTime - 500) break;
-          const diff = Math.abs(p.timestamp - targetTime);
-          if (diff < minDiff) {
-            minDiff = diff;
+          if (p.baseTime > maxTime + 500) break;
+          if (p.baseTime < minTime - 500) continue;
+
+          const diff = p.baseTime - targetGlobalIndex;
+
+          if (diff < 0) {
+            // Điểm bên trái
+            if (leftIdx === -1 || Math.abs(diff) < Math.abs(points[leftIdx].baseTime - targetGlobalIndex)) {
+              leftIdx = i;
+            }
+          } else if (diff > 0) {
+            // Điểm bên phải
+            if (rightIdx === -1 || Math.abs(diff) < Math.abs(points[rightIdx].baseTime - targetGlobalIndex)) {
+              rightIdx = i;
+            }
+          } else {
+            // Chính xác target
             closestPoint = p;
-          } else if (p.timestamp < targetTime) break;
+            closestIndex = i;
+            break;
+          }
         }
-        if (closestPoint && minDiff < 500) {
-          pointsAtTime.push({ ...closestPoint, channel });
+
+        // Nếu không tìm thấy điểm chính xác, chọn điểm gần nhất giữa left và right
+        if (!closestPoint) {
+          if (leftIdx !== -1 && rightIdx !== -1) {
+            const leftDiff = Math.abs(points[leftIdx].baseTime - targetGlobalIndex);
+            const rightDiff = Math.abs(points[rightIdx].baseTime - targetGlobalIndex);
+            if (leftDiff <= rightDiff) {
+              closestPoint = points[leftIdx];
+              closestIndex = leftIdx;
+            } else {
+              closestPoint = points[rightIdx];
+              closestIndex = rightIdx;
+            }
+          } else if (leftIdx !== -1) {
+            closestPoint = points[leftIdx];
+            closestIndex = leftIdx;
+          } else if (rightIdx !== -1) {
+            closestPoint = points[rightIdx];
+            closestIndex = rightIdx;
+          }
+        }
+
+        if (closestPoint) {
+          const minDiff = Math.abs(closestPoint.baseTime - targetGlobalIndex);
+          let shouldShow = true;
+
+          // Kiểm tra xem điểm có nằm trong vùng hiển thị không
+          if (closestPoint.baseTime < minTime || closestPoint.baseTime > maxTime) {
+            shouldShow = false;
+          }
+
+          if (shouldShow) {
+            // Kiểm tra điểm biên của segment
+            const isLeftEdge =
+              closestIndex === 0 ||
+              (closestIndex > 0 && points[closestIndex].baseTime - points[closestIndex - 1].baseTime > MAX_TIME_GAP);
+
+            const isRightEdge =
+              closestIndex === points.length - 1 ||
+              (closestIndex < points.length - 1 &&
+                points[closestIndex + 1].baseTime - points[closestIndex].baseTime > MAX_TIME_GAP);
+
+            // Nếu là điểm biên của segment, luôn hiển thị (với điều kiện khoảng cách không quá xa)
+            if (isLeftEdge || isRightEdge) {
+              // Với điểm biên, chỉ ẩn nếu khoảng cách quá xa (> 2 lần timeStep)
+              if (minDiff > timeStep * 2) {
+                shouldShow = false;
+              }
+            } else {
+              // Logic kiểm tra gap cho điểm không phải biên
+              // Kiểm tra loss data với điểm trước
+              if (closestIndex > 0) {
+                const prevPoint = points[closestIndex - 1];
+                const rawGap = closestPoint.localIndex - prevPoint.localIndex;
+
+                if (rawGap > 1) {
+                  if (minDiff > timeStep * 0.3) {
+                    shouldShow = false;
+                  }
+                }
+              }
+
+              // Kiểm tra loss data với điểm sau
+              if (shouldShow && closestIndex < points.length - 1) {
+                const nextPoint = points[closestIndex + 1];
+                const rawGap = nextPoint.localIndex - closestPoint.localIndex;
+
+                if (rawGap > 1) {
+                  if (minDiff > timeStep * 0.3) {
+                    shouldShow = false;
+                  }
+                }
+              }
+
+              // Trường hợp đặc biệt: điểm đơn lẻ (cả 2 bên đều bị gap)
+              if (shouldShow && closestIndex > 0 && closestIndex < points.length - 1) {
+                const prevPoint = points[closestIndex - 1];
+                const nextPoint = points[closestIndex + 1];
+                const prevGap = closestPoint.localIndex - prevPoint.localIndex;
+                const nextGap = nextPoint.localIndex - closestPoint.localIndex;
+
+                if (prevGap > 1 && nextGap > 1) {
+                  if (minDiff > timeStep * 0.2) {
+                    shouldShow = false;
+                  }
+                }
+              }
+            }
+          }
+
+          if (shouldShow) {
+            pointsAtTime.push({ ...closestPoint, channel });
+          }
         }
       }
-      this.hoverPoint = pointsAtTime.length > 0 ? { timestamp: targetTime, points: pointsAtTime } : null;
+
+      this.hoverPoint = pointsAtTime.length > 0 ? { baseTime: targetGlobalIndex, points: pointsAtTime } : null;
     } else {
       this.hoverPoint = null;
     }
@@ -788,6 +1000,8 @@ class ChartManager {
     return this.channelVisibility[channel] !== undefined ? this.channelVisibility[channel] : true;
   }
 
+  // ==================== VẼ CHART ====================
+
   draw() {
     if (!this.ctx) return;
 
@@ -795,14 +1009,14 @@ class ChartManager {
     const dpr = window.devicePixelRatio || 1;
     this.ctx.clearRect(0, 0, width, height);
 
-    const baseTime = this.getBaseTime();
-    const now = baseTime + this.viewOffsetMs;
-    const minTime = now - this.VIEW_DURATION_MS;
+    const currentTime = this.getCurrentGlobalIndex();
+    const now = currentTime + this.viewOffset;
+    const minTime = now - this.VIEW_DURATION;
     const maxTime = now;
     const activeW = width - (this.margins.left + this.margins.right) * dpr;
     const activeH = height - (this.margins.top + this.margins.bottom) * dpr;
 
-    // Grid Y
+    // ===== VẼ LƯỚI NGANG (Y-AXIS) =====
     const rangeY = this.yMax - this.yMin;
     const roughStep = rangeY / 5;
     const exponent = Math.floor(Math.log10(roughStep));
@@ -826,15 +1040,14 @@ class ChartManager {
       this.ctx.fillText(v.toFixed(1), (this.margins.left - 10) * dpr, y);
     }
 
-    // Grid X
-    const minRT = Utils.bootTime + minTime;
-    const maxRT = Utils.bootTime + maxTime;
-    const firstSec = Math.ceil(minRT / 1000) * 1000;
+    // ===== VẼ LƯỚI DỌC (X-AXIS) =====
+    const stepX = Math.ceil(this.VIEW_DURATION / 10 / 100) * 100;
+    const startTime = Math.ceil(minTime / stepX) * stepX;
     this.ctx.textAlign = "center";
     this.ctx.textBaseline = "top";
 
-    for (let t = firstSec; t <= maxRT; t += 1000) {
-      const x = this.getX(t - Utils.bootTime, minTime, activeW, dpr);
+    for (let t = startTime; t <= maxTime; t += stepX) {
+      const x = this.getX(t, minTime, activeW, dpr);
       if (x >= this.margins.left * dpr && x <= width - this.margins.right * dpr) {
         this.ctx.strokeStyle = "rgba(30, 41, 59, 0.4)";
         this.ctx.beginPath();
@@ -843,11 +1056,17 @@ class ChartManager {
         this.ctx.stroke();
         this.ctx.fillStyle = "rgba(148, 163, 184, 0.8)";
         this.ctx.font = `${9 * dpr}px Inter`;
-        this.ctx.fillText(Utils.formatRealTime(new Date(t)), x, height - (this.margins.bottom - 8) * dpr);
+
+        // Hiển thị giá trị GLOBAL INDEX in x-axis (đã làm tròn)
+        const SHOW_X_LABEL = false;
+        if (SHOW_X_LABEL) {
+          const displayTime = Math.round(t);
+          this.ctx.fillText(displayTime.toString(), x, height - this.margins.bottom * dpr + 5 * dpr);
+        }
       }
     }
 
-    // Axis lines
+    // ===== VẼ KHUNG BIỂU ĐỒ =====
     this.ctx.strokeStyle = "rgba(51, 65, 85, 0.8)";
     this.ctx.lineWidth = 1.5 * dpr;
     this.ctx.beginPath();
@@ -859,86 +1078,138 @@ class ChartManager {
     this.ctx.lineTo(width - this.margins.right * dpr, height - this.margins.bottom * dpr);
     this.ctx.stroke();
 
-    // Waveform - clip area
+    // ===== CLIP VÙNG VẼ =====
     this.ctx.save();
     this.ctx.beginPath();
     this.ctx.rect(this.margins.left * dpr, this.margins.top * dpr, activeW, activeH);
     this.ctx.clip();
 
+    // ===== PALETTE MÀU =====
     const palette = [
-      { color: "#3b82f6", fill: "rgba(59,130,246,0.15)" }, // Blue
-      { color: "#ef4444", fill: "rgba(239,68,68,0.15)" }, // Red
-      { color: "#22c55e", fill: "rgba(34,197,94,0.15)" }, // Green
-      { color: "#eab308", fill: "rgba(234,179,8,0.15)" }, // Yellow
-      { color: "#a855f7", fill: "rgba(168,85,247,0.15)" }, // Purple
-      { color: "#06b6d4", fill: "rgba(6,182,212,0.15)" }, // Cyan
-      { color: "#f97316", fill: "rgba(249,115,22,0.15)" }, // Orange
-      { color: "#84cc16", fill: "rgba(132,204,22,0.15)" }, // Lime
-      { color: "#14b8a6", fill: "rgba(20,184,166,0.15)" }, // Teal
-      { color: "#4B5563", fill: "rgba(75,85,99,0.15)" }, // Slate
+      { color: "#3b82f6", fill: "rgba(59,130,246,0.15)" },
+      { color: "#ef4444", fill: "rgba(239,68,68,0.15)" },
+      { color: "#22c55e", fill: "rgba(34,197,94,0.15)" },
+      { color: "#eab308", fill: "rgba(234,179,8,0.15)" },
+      { color: "#a855f7", fill: "rgba(168,85,247,0.15)" },
+      { color: "#06b6d4", fill: "rgba(6,182,212,0.15)" },
+      { color: "#f97316", fill: "rgba(249,115,22,0.15)" },
+      { color: "#84cc16", fill: "rgba(132,204,22,0.15)" },
+      { color: "#14b8a6", fill: "rgba(20,184,166,0.15)" },
+      { color: "#4B5563", fill: "rgba(75,85,99,0.15)" },
     ];
 
     let hasData = false;
-    const sortedChannels = Object.keys(this.dataPoints).sort();
+    const sortedChannels = this.channelOrder;
 
+    // ===== VẼ DỮ LIỆU CHO TỪNG CHANNEL =====
     sortedChannels.forEach((channel, idx) => {
       if (!this.getChannelVisibility(channel)) {
         return;
       }
 
       const points = this.dataPoints[channel];
-      const config = palette[idx % palette.length];
-      let firstIdx = -1;
-      let lastIdx = -1;
+      if (!Array.isArray(points) || points.length === 0) return;
 
+      const config = palette[idx % palette.length];
+      const timeStep = this.globalIndexStep[channel] || 1;
+
+      // Khoảng cách tối đa cho phép giữa 2 điểm (50ms)
+      const MAX_TIME_GAP = (this.BASE_TIME_UNIT / 1000) * 50;
+
+      // Tìm các điểm trong vùng hiển thị
+      let visiblePoints = [];
       for (let i = 0; i < points.length; i++) {
         const p = points[i];
-        if (p.timestamp >= minTime && p.timestamp <= maxTime) {
-          if (firstIdx === -1) firstIdx = i;
-          lastIdx = i;
+        if (p.baseTime >= minTime && p.baseTime <= maxTime) {
+          visiblePoints.push(p);
         }
       }
 
-      if (firstIdx !== -1 && lastIdx > firstIdx) {
-        hasData = true;
+      if (visiblePoints.length === 0) return;
+      hasData = true;
 
-        this.ctx.beginPath();
-        this.ctx.moveTo(
-          this.getX(points[firstIdx].timestamp, minTime, activeW, dpr),
-          this.getY(this.yMin, activeH, height, dpr),
-        );
-        for (let i = firstIdx; i <= lastIdx; i++) {
-          this.ctx.lineTo(
-            this.getX(points[i].timestamp, minTime, activeW, dpr),
-            this.getY(points[i].value, activeH, height, dpr),
-          );
+      // ===== Tìm các segment (khoảng dữ liệu liên tục) =====
+      const segments = [];
+      let currentSegment = [];
+
+      for (let i = 0; i < visiblePoints.length; i++) {
+        const p = visiblePoints[i];
+
+        if (i === 0) {
+          currentSegment.push(p);
+        } else {
+          const prevP = visiblePoints[i - 1];
+          const gap = p.baseTime - prevP.baseTime;
+
+          if (gap > MAX_TIME_GAP) {
+            if (currentSegment.length > 0) {
+              segments.push(currentSegment);
+              currentSegment = [];
+            }
+          }
+          currentSegment.push(p);
         }
-        this.ctx.lineTo(
-          this.getX(points[lastIdx].timestamp, minTime, activeW, dpr),
-          this.getY(this.yMin, activeH, height, dpr),
-        );
+      }
 
-        const grad = this.ctx.createLinearGradient(
-          0,
-          this.getY(this.yMax, activeH, height, dpr),
-          0,
-          this.getY(this.yMin, activeH, height, dpr),
-        );
-        grad.addColorStop(0, config.fill);
-        grad.addColorStop(1, "rgba(0, 0, 0, 0)");
-        this.ctx.fillStyle = grad;
-        this.ctx.fill();
+      if (currentSegment.length > 0) {
+        segments.push(currentSegment);
+      }
+
+      // ===== VẼ FILL AREA cho từng segment =====
+      const IS_FILL_AREA_CHART = false;
+      if (IS_FILL_AREA_CHART) {
+        segments.forEach((segment) => {
+          if (segment.length < 2) return;
+
+          this.ctx.beginPath();
+
+          const firstP = segment[0];
+          const lastP = segment[segment.length - 1];
+
+          this.ctx.moveTo(
+            this.getX(firstP.baseTime, minTime, activeW, dpr),
+            this.getY(firstP.value, activeH, height, dpr),
+          );
+
+          for (let i = 1; i < segment.length; i++) {
+            const p = segment[i];
+            this.ctx.lineTo(this.getX(p.baseTime, minTime, activeW, dpr), this.getY(p.value, activeH, height, dpr));
+          }
+
+          this.ctx.lineTo(this.getX(lastP.baseTime, minTime, activeW, dpr), this.getY(this.yMin, activeH, height, dpr));
+          this.ctx.lineTo(
+            this.getX(firstP.baseTime, minTime, activeW, dpr),
+            this.getY(this.yMin, activeH, height, dpr),
+          );
+          this.ctx.closePath();
+
+          const grad = this.ctx.createLinearGradient(
+            0,
+            this.getY(this.yMax, activeH, height, dpr),
+            0,
+            this.getY(this.yMin, activeH, height, dpr),
+          );
+          grad.addColorStop(0, config.fill);
+          grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          this.ctx.fillStyle = grad;
+          this.ctx.fill();
+        });
+      }
+
+      // ===== VẼ ĐƯỜNG LINE cho từng segment =====
+      segments.forEach((segment) => {
+        if (segment.length < 2) return;
 
         this.ctx.beginPath();
+
         this.ctx.moveTo(
-          this.getX(points[firstIdx].timestamp, minTime, activeW, dpr),
-          this.getY(points[firstIdx].value, activeH, height, dpr),
+          this.getX(segment[0].baseTime, minTime, activeW, dpr),
+          this.getY(segment[0].value, activeH, height, dpr),
         );
-        for (let i = firstIdx + 1; i <= lastIdx; i++) {
-          this.ctx.lineTo(
-            this.getX(points[i].timestamp, minTime, activeW, dpr),
-            this.getY(points[i].value, activeH, height, dpr),
-          );
+
+        for (let i = 1; i < segment.length; i++) {
+          const p = segment[i];
+          this.ctx.lineTo(this.getX(p.baseTime, minTime, activeW, dpr), this.getY(p.value, activeH, height, dpr));
         }
 
         this.ctx.strokeStyle = config.color;
@@ -949,9 +1220,10 @@ class ChartManager {
         this.ctx.shadowBlur = 4 * dpr;
         this.ctx.stroke();
         this.ctx.shadowBlur = 0;
-      }
+      });
     });
 
+    // ===== HIỂN THỊ THÔNG BÁO KHI KHÔNG CÓ DỮ LIỆU =====
     if (!hasData) {
       this.ctx.fillStyle = "rgba(148, 163, 184, 0.4)";
       this.ctx.font = `${12 * dpr}px Inter`;
@@ -960,24 +1232,23 @@ class ChartManager {
     }
     this.ctx.restore();
 
-    // Legend - Toggle buttons
+    // ===== VẼ LEGEND =====
     this.ctx.save();
     this.ctx.textBaseline = "middle";
     this.ctx.textAlign = "left";
     let legendX = (this.margins.left + 10) * dpr;
     const legendY = (this.margins.top + 15) * dpr;
 
-    // Reset legend buttons - LƯU Ý: lưu trực tiếp trong canvas coordinate (đã nhân DPR)
     this.legendButtons = [];
 
     sortedChannels.forEach((channel, i) => {
+      if (!this.getChannelVisibility(channel)) {
+        return;
+      }
+
       const config = palette[i % palette.length];
       const isVisible = this.getChannelVisibility(channel);
-      // Set label the same with channel name
       const label = this.customLabels[i] || channel;
-
-      // Set label default is Sensor if not have a custom name
-      // const label = (this.customLabels[i] || `Sensor ${String.fromCharCode(65 + (i % 26))}`).toUpperCase();
 
       this.ctx.font = `bold ${10 * dpr}px Inter`;
       const textWidth = this.ctx.measureText(label).width;
@@ -986,7 +1257,6 @@ class ChartManager {
       const buttonX = legendX - 2 * dpr;
       const buttonY = legendY - buttonHeight / 2;
 
-      // Lưu button với tọa độ canvas (đã nhân DPR)
       this.legendButtons.push({
         x: buttonX,
         y: buttonY,
@@ -1028,15 +1298,16 @@ class ChartManager {
     });
     this.ctx.restore();
 
-    // Tooltip
-    // Check if not have data points in chart, we skip draw tooltiop to avoid error when hover without data
+    // ===== VẼ TOOLTIP =====
     if (Object.keys(this.dataPoints).length === 0) {
       return;
     }
+
     if (this.hoverPoint && this.hoverPoint.points && this.mouseX !== null) {
-      const hx = this.getX(this.hoverPoint.timestamp, minTime, activeW, dpr);
+      const hx = this.getX(this.hoverPoint.baseTime, minTime, activeW, dpr);
 
       if (hx >= this.margins.left * dpr && hx <= width - this.margins.right * dpr) {
+        // Vẽ đường thẳng đứng tại vị trí hover
         this.ctx.strokeStyle = "rgba(226, 232, 240, 0.3)";
         this.ctx.lineWidth = 1 * dpr;
         this.ctx.setLineDash([4 * dpr, 4 * dpr]);
@@ -1046,6 +1317,7 @@ class ChartManager {
         this.ctx.stroke();
         this.ctx.setLineDash([]);
 
+        // Vẽ các điểm tròn tại vị trí hover
         this.hoverPoint.points.forEach((p) => {
           const hy = this.getY(p.value, activeH, height, dpr);
           const channelIdx = sortedChannels.indexOf(p.channel);
@@ -1059,8 +1331,9 @@ class ChartManager {
           this.ctx.stroke();
         });
 
+        // Vẽ tooltip box
         const lineH = 18 * dpr;
-        const tw = 160 * dpr;
+        const tw = 200 * dpr;
         const th = (28 + this.hoverPoint.points.length * lineH) * dpr;
         let tx = hx + 15 * dpr;
         let ty = height / 2 - th / 2;
@@ -1073,27 +1346,22 @@ class ChartManager {
         this.ctx.fill();
         this.ctx.stroke();
 
+        // Nội dung tooltip
         this.ctx.textAlign = "left";
         this.ctx.textBaseline = "top";
-
-        this.ctx.fillStyle = "rgba(148, 163, 184, 0.9)";
-        this.ctx.font = `${9 * dpr}px Inter`;
-        const pointDate = Utils.getRealTime(this.hoverPoint.timestamp);
-        this.ctx.fillText(`Time: ${Utils.formatRealTimeWithMs(pointDate)}`, tx + 10 * dpr, ty + 10 * dpr);
 
         this.hoverPoint.points.forEach((p, i) => {
           const channelIdx = sortedChannels.indexOf(p.channel);
           const config = palette[channelIdx % palette.length];
-          const label = this.customLabels[channelIdx] || `Sensor ${String.fromCharCode(65 + (channelIdx % 26))}`;
+          const label = this.customLabels[channelIdx] || `Sensor ${String.fromCharCode(65 + (channelIdx % 26))}: `;
 
           this.ctx.textAlign = "left";
           this.ctx.fillStyle = config.color;
           this.ctx.font = `bold ${10 * dpr}px Inter`;
-          this.ctx.fillText(`${label}:`, tx + 10 * dpr, ty + (26 + i * lineH) * dpr);
 
-          this.ctx.fillStyle = "#ffffff";
-          this.ctx.textAlign = "right";
-          this.ctx.fillText(p.value.toFixed(1), tx + tw - 10 * dpr, ty + (26 + i * lineH) * dpr);
+          const rawIdx = p.localIndex !== undefined ? p.localIndex : p.baseTime;
+          const displayText = `${label}   ${p.value.toFixed(2)}   (id: ${Math.round(rawIdx)})`;
+          this.ctx.fillText(displayText, tx + 10 * dpr, ty + (26 + i * lineH) * dpr);
         });
       }
     }
@@ -1113,8 +1381,8 @@ export default {
   setAutoFit: (isValue) => CHART.setAutoFit(isValue),
   getAutoFit: () => CHART.getAutoFit(),
   toggleAutoFit: () => CHART.toggleAutoFit(),
-  addChartBuffer: (samples, sampleIntervalSec, baseTimestamp, channel) =>
-    CHART.addChartBuffer(samples, sampleIntervalSec, baseTimestamp, channel),
+  addChartBuffer: (samples, samplingRate, channelName, msOfMinuteFW) =>
+    CHART.addChartBuffer(samples, samplingRate, channelName, msOfMinuteFW),
   setLabels: (...labels) => CHART.setLabels(...labels),
   onAutoFitChange: (fn) => (CHART.onAutoFitChange = fn),
 };

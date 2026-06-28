@@ -16,6 +16,8 @@ class FileLogManager {
 
     this.channelMapping = {}; // Mapping originalChannel -> R1, R2, E1, E2,...
 
+    this.lastIndex = {};
+    this.lastMsOfMinuteFW = {};
     /**
      *  Callback to update the notification message UI
      * @param {string} text - content to display in notification area
@@ -86,7 +88,7 @@ class FileLogManager {
   /**
    * Adds a batch of samples to the chart buffer for a specific channel.
    */
-  async addFileLogBuffer(sensorData, sampleIntervalSec, baseTimestamp, sensorName = "data_type_0") {
+  async addFileLogBuffer(sensorData, samplingRate, sensorName, msOfMinuteFW) {
     // Kiểm tra nếu logging không active thì không thêm dữ liệu
     if (!this.isLoggingActive) {
       return;
@@ -94,17 +96,42 @@ class FileLogManager {
 
     if (sensorData.length === 0) return;
 
+    let isDataMissing = false;
+    let missingSampleCount = 0;
+
+    if (!this.lastIndex[sensorData]) {
+      this.lastIndex[sensorData] = 0;
+      isDataMissing = false;
+    } else {
+      let diffMsOfMinuteFW = msOfMinuteFW - this.lastMsOfMinuteFW[sensorData];
+      if (diffMsOfMinuteFW < 0) {
+        diffMsOfMinuteFW = msOfMinuteFW + 60000 - this.lastMsOfMinuteFW[sensorData];
+      }
+      const SAMPLE_INTERVAL_MS = 1000 / samplingRate;
+      const estimatedSampleCount = Math.floor(diffMsOfMinuteFW / SAMPLE_INTERVAL_MS);
+      const sampleCountInBatch = samples.length;
+      const ratio = estimatedSampleCount / sampleCountInBatch;
+      if (ratio > 1.5) {
+        isDataMissing = true;
+        missingSampleCount = (Math.floor(ratio) - 1) * samples.length;
+      }
+    }
+    this.lastMsOfMinuteFW[sensorData] = msOfMinuteFW;
+    let currentIndex = this.lastIndex[sensorData] + missingSampleCount;
+
     const dataPoints = [];
-    const no_sensor = sensorData.length;
+    const channel_count = sensorData.length;
     const n_sample = sensorData[0].length;
 
     for (let k = 0; k < n_sample; k++) {
-      let sample = [baseTimestamp + k * sampleIntervalSec];
-      for (let i = 0; i < no_sensor; i++) {
-        sample.push(sensorData[i][k]);
+      let sample = [currentIndex]; // sample index
+      for (let i = 0; i < channel_count; i++) {
+        sample.push(sensorData[i][k]); // sample value of each channel
       }
       dataPoints.push({ sample });
+      currentIndex++;
     }
+    this.lastIndex[sensorName] = currentIndex;
 
     if (dataPoints.length === 0) return;
 

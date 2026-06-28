@@ -10,9 +10,25 @@ import CHART from "./chartManager.js";
 import PARSER_STREAMING from "./parserStreaming.js";
 import { DATA_SIM } from "./simulator/dataSimulation.js";
 import { FILE_LOG_MANAGER } from "./fileLogManager.js";
+import { UTILS } from "./utils.js";
 
 // Kết quả hiển thị trong Console sẽ có dạng: 08:45:30 19/05/2026
 // console.log("Thời gian load mới nhất:", new Date().toLocaleString('vi-VN'));
+
+function isDeviceConnected() {
+  if (AppState.connectionType === CONSTANTS.CONNECTION_TYPE.NONE) {
+    logger.log("warning", "No device connected. Please connect to a device first.");
+    return false;
+  }
+  return true;
+}
+
+async function updateUIwithDeviceMessage(text) {
+  if (text.includes("Sensor Info:")) {
+    const sensorStatus = await UTILS.parseSensorStatus(text);
+    UI.updateSensorStatusUI(sensorStatus);
+  }
+}
 
 function terminal_send(cmd) {
   if (!cmd) return;
@@ -24,8 +40,7 @@ function terminal_send(cmd) {
       break;
 
     default:
-      if (AppState.connectionType === CONSTANTS.CONNECTION_TYPE.NONE) {
-        logger.log("warning", "No device connected. Please connect to a device first.");
+      if (!isDeviceConnected()) {
         return;
       }
       logger.log("default", `> ${cmd}`); // In ra terminal output
@@ -159,6 +174,7 @@ window.addEventListener("DOMContentLoaded", () => {
       }
       UI.updateConnectionUartStatus(true);
       AppState.setConnectionType(CONSTANTS.CONNECTION_TYPE.UART);
+      terminal_send("status"); // Gửi lệnh "status" để lấy thông tin trạng thái thiết bị
     } else {
       UI.updateConnectionUartStatus(false);
       if (AppState.connectionType == CONSTANTS.CONNECTION_TYPE.UART) {
@@ -174,6 +190,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   // Set callback for UART data reception to log incoming data to terminal
   UART.onDataReceived((data) => {
+    updateUIwithDeviceMessage(data);
     if (String(data).toUpperCase().includes("ERR")) {
       logger.log("error", data);
     } else {
@@ -268,7 +285,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   // Set callback when DATA_SIM has new data then we feed it to PARSER_STREAMING
-  DATA_SIM.setupDemoType(DATA_SIM.DEMO_MODE.EXAMPLE_3);
+  DATA_SIM.setupDemoType(DATA_SIM.DEMO_MODE.EXAMPLE_1);
   DATA_SIM.onDataGenerated = (info) => {
     PARSER_STREAMING.processStreamingData(info);
   };
@@ -279,33 +296,34 @@ window.addEventListener("DOMContentLoaded", () => {
     if (AppState.chartStatus != CONSTANTS.CHART_STATUS.NONE) {
       // console.log("[NEW STREAMING DATA]", result);
 
-      const sampleIntervalMs = 1000.0 / result.samplingRate;
-      const baseTimestamp = result.perfTimeMs;
+      const samplingRate = result.samplingRate;
+      const msOfMinuteFW = result.msOfMinuteFW;
+      
       for (let i = 0; i < result.samples.length; i++) {
         const samples = result.samples[i];
         const channelName = "data_type_" + result.streamType + "_ch_" + i;
-        CHART.addChartBuffer(samples, sampleIntervalMs, baseTimestamp, channelName);
+        CHART.addChartBuffer(samples, samplingRate, channelName, msOfMinuteFW);
       }
       const sensorName = "data_type_" + result.streamType;
       const sensorData = result.samples;
-      const baseLogTimestamp = result.unixTimeMs;
-      FILE_LOG_MANAGER.addFileLogBuffer(sensorData, sampleIntervalMs, baseLogTimestamp, sensorName);
+      FILE_LOG_MANAGER.addFileLogBuffer(sensorData, samplingRate, sensorName,msOfMinuteFW);
     }
   });
 
-  UI.elements.btnStartStreaming.onclick = async () => {
-    if (AppState.connectionType != CONSTANTS.CONNECTION_TYPE.UART) {
-      logger.log("warning", "Not connected via UART. Streaming is only available for UART connection.");
+  UI.elements.checkboxStreaming.addEventListener("change", async () => {
+    if (!isDeviceConnected()) {
+      UI.elements.checkboxStreaming.checked = false;
       return;
     }
-    STREAMING.startStreaming();
-    UI.elements.btnStartChart.click();
-  };
-
-  UI.elements.btnStopStreaming.onclick = async () => {
-    STREAMING.stopStreaming();
-    UI.elements.btnStopChart.click();
-  };
+    const isStreaming = UI.elements.checkboxStreaming.checked;
+    if (isStreaming) {
+      STREAMING.startStreaming();
+      UI.elements.btnStartChart.click();
+    } else {
+      STREAMING.stopStreaming();
+      UI.elements.btnStopChart.click();
+    }
+  });
 
   STREAMING.onSendFrame((cmd, payload) => {
     UART.sendFrame(cmd, payload);
@@ -315,7 +333,7 @@ window.addEventListener("DOMContentLoaded", () => {
   UI.elements.btnStartChart.onclick = async () => {
     AppState.setChartStatus(CONSTANTS.CHART_STATUS.RENDERING);
     CHART.start();
-    // DATA_SIM.start();
+    DATA_SIM.start();
   };
 
   UI.elements.btnStopChart.onclick = async () => {
@@ -413,28 +431,37 @@ window.addEventListener("DOMContentLoaded", () => {
   };
 
   // ================== SENSOR  =================
-  async function updateSensorToogleUI(toogleComponent) {
-    const isChecked = toogleComponent.checked;
-    // If no device is connected, force toggle OFF and reset UI
-    if (AppState.connectionType === CONSTANTS.CONNECTION_TYPE.NONE) {
-      toogleComponent.checked = false;
-      toogleComponent.textContent = "OFF";
-      toogleComponent.classList.replace("text-green-400", "text-gray-400");
+  UI.elements.checkboxHX712.addEventListener("change", async () => {
+    if (!isDeviceConnected()) {
+      UI.elements.checkboxHX712.checked = false;
       return;
     }
-    // Determine UI state based on toggle status
-    const statusText = isChecked ? "ON" : "OFF";
-    const statusClass = isChecked ? "text-green-400" : "text-gray-400";
-    const removeClass = isChecked ? "text-gray-400" : "text-green-400";
-    toogleComponent.textContent = statusText;
-    toogleComponent.classList.replace(removeClass, statusClass);
-  }
+    const isAllowSaveSDcard = UI.elements.sdHX712.checked ? 1 : 0;
+    const isSensorEnabled = UI.elements.checkboxHX712.checked;
+    if (isSensorEnabled) {
+      terminal_send(`sensor hx712 1 40 31 ${isAllowSaveSDcard}`);
+    } else {
+      terminal_send(`sensor hx712 0`);
+    }
+  });
 
-  UI.elements.checkboxHX712.addEventListener("change", async () => {
-    await updateSensorToogleUI(UI.elements.checkboxHX712);
-    const isChecked = UI.elements.checkboxHX712.checked;
-    if (isChecked) terminal_send("sensor hx712 1 40 31 0");
-    else terminal_send("sensor hx712 0");
+  UI.elements.checkboxPiezo.addEventListener("change", async () => {
+    if (!isDeviceConnected()) {
+      UI.elements.checkboxPiezo.checked = false;
+      return;
+    }
+    const isAllowSaveSDcard = UI.elements.sdPiezo.checked ? 1 : 0;
+    const isSensorEnabled = UI.elements.checkboxPiezo.checked;
+    if (isSensorEnabled) {
+      terminal_send(`sensor piezo 1 1000 31 ${isAllowSaveSDcard}`);
+    } else {
+      terminal_send(`sensor piezo 0`);
+    }
+  });
+
+  UI.elements.checkboxADS1115.addEventListener("change", async () => {
+    // TODO: Firmware Not implemented yet for ADS1115 sensor
+    logger.log("warning", "ADS1115 sensor is not implemented yet in firmware.");
   });
 
   // End of DOMContentLoaded
