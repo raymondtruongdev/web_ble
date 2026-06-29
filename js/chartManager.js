@@ -1232,7 +1232,7 @@ class ChartManager {
     }
     this.ctx.restore();
 
-    // ===== VẼ LEGEND =====
+    // ===== VẼ LEGEND (HIỂN THỊ TẤT CẢ CHANNEL, KỂ CẢ ĐANG ẨN) =====
     this.ctx.save();
     this.ctx.textBaseline = "middle";
     this.ctx.textAlign = "left";
@@ -1241,11 +1241,8 @@ class ChartManager {
 
     this.legendButtons = [];
 
+    // Duyệt qua TẤT CẢ channel (không chỉ channel đang hiển thị)
     sortedChannels.forEach((channel, i) => {
-      if (!this.getChannelVisibility(channel)) {
-        return;
-      }
-
       const config = palette[i % palette.length];
       const isVisible = this.getChannelVisibility(channel);
       const label = this.customLabels[i] || channel;
@@ -1257,6 +1254,7 @@ class ChartManager {
       const buttonX = legendX - 2 * dpr;
       const buttonY = legendY - buttonHeight / 2;
 
+      // Lưu thông tin button để xử lý click
       this.legendButtons.push({
         x: buttonX,
         y: buttonY,
@@ -1265,35 +1263,41 @@ class ChartManager {
         channel: channel,
       });
 
+      // Vẽ background button
       this.ctx.beginPath();
       this.ctx.roundRect(buttonX, buttonY, buttonWidth, buttonHeight, 4 * dpr);
 
       if (isVisible) {
-        this.ctx.fillStyle = config.color + "33";
+        this.ctx.fillStyle = config.color + "33"; // Màu nền khi hiển thị
       } else {
-        this.ctx.fillStyle = "rgba(51, 65, 85, 0.6)";
+        this.ctx.fillStyle = "rgba(51, 65, 85, 0.6)"; // Màu nền khi ẩn (tối hơn)
       }
       this.ctx.fill();
 
+      // Vẽ viền button
       this.ctx.strokeStyle = isVisible ? config.color : "rgba(100, 116, 139, 0.5)";
       this.ctx.lineWidth = 1.5 * dpr;
       this.ctx.stroke();
 
+      // Vẽ dot (hình tròn nhỏ bên trái label)
       this.ctx.beginPath();
       this.ctx.arc(legendX + 6 * dpr, legendY, 4 * dpr, 0, Math.PI * 2);
       this.ctx.fillStyle = isVisible ? config.color : "rgba(100, 116, 139, 0.4)";
       this.ctx.fill();
 
+      // Nếu đang hiển thị, vẽ viền trắng cho dot
       if (isVisible) {
         this.ctx.strokeStyle = "#ffffff";
         this.ctx.lineWidth = 1 * dpr;
         this.ctx.stroke();
       }
 
+      // Vẽ text label
       this.ctx.fillStyle = isVisible ? "rgba(226, 232, 240, 0.9)" : "rgba(148, 163, 184, 0.5)";
       this.ctx.font = `bold ${10 * dpr}px Inter`;
       this.ctx.fillText(label, legendX + 14 * dpr, legendY);
 
+      // Cập nhật vị trí cho button tiếp theo
       legendX += buttonWidth + 12 * dpr;
     });
     this.ctx.restore();

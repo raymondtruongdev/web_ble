@@ -222,8 +222,11 @@ class FileTransfer {
           return;
         }
         var send_chunk_cnt = 0;
-        this.no_free_chunks = startResp.data[1];
-
+        if (AppState.connectionType === CONSTANTS.CONNECTION_TYPE.BLE) {
+          this.no_free_chunks = this.uploadTotalChunks + 1;
+        } else {
+          this.no_free_chunks = startResp.data[1];
+        }
         console.log("no_free_chunks:", `0x${this.no_free_chunks.toString(16).padStart(2, "0")}`);
         if (this.no_free_chunks === 0) {
           await new Promise((resolve) => setTimeout(resolve, 50)); // Avoid busy loop when device has no free chunk
@@ -244,9 +247,9 @@ class FileTransfer {
 
             // TODO: In transfering with BLE, we delay here for FW to process the chunk and update free chunk count,
             //  need more investigation to optimize here
-            // if (AppState.connectionType === CONSTANTS.CONNECTION_TYPE.BLE) {
-            //   await new Promise((resolve) => setTimeout(resolve, 500));
-            // }
+            if (AppState.connectionType === CONSTANTS.CONNECTION_TYPE.BLE) {
+              await new Promise((resolve) => setTimeout(resolve, 50));
+            }
 
             send_chunk_cnt += 1;
             this.uploadChunkId += 1;
