@@ -27,6 +27,15 @@ class BLEManager {
      */
     this.onFileTransferStatus = () => {};
 
+    /**
+     * Callback to notify streaming status updates from the UART device
+     * @param {object} info - object contains streaming status info, including:
+     *   - cmd: command code from device (number)
+     *   - data: raw payload data (Uint8Array)
+     *   - data_len: length of the payload (number)
+     */
+    this.onStreamingStatus = () => {};
+
     // =============== Variables ===============
     this.device = null; // BluetoothDevice object
     this.server = null; // BluetoothRemoteGATTServer object
@@ -34,6 +43,7 @@ class BLEManager {
     this.defaultWriteCharacteristic = null; // BluetoothRemoteGATTCharacteristic for writing
     this.defaultNotifyCharacteristic = null; // BluetoothRemoteGATTCharacteristic for notifications
     this.isConnected = false;
+    this.no_package = 0;
 
     // GATT operation queue — prevents "GATT operation already in progress" errors
     this._gattOpQueue = [];
@@ -106,15 +116,16 @@ class BLEManager {
       this.device.addEventListener("gattserverdisconnected", this.boundDisconnectHandler);
 
       this.server = await this._queueGattOp(() => this.device.gatt.connect());
-      this.updateConnectionStatus(true);
-      this.onMessageNotify("success", "BLE Connected ✅");
-
       if (this.device.name && this.device.name.includes("T2D OS")) {
         await this.autoSetup(this.server);
       }
+      this.onMessageNotify("success", "BLE Connected ✅");
+      this.updateConnectionStatus(true);
+
     } catch (err) {
       this.onMessageNotify("error", `BLE Connection error: ${err.message || err}`);
     }
+    this.no_package = 0;
   }
 
   // Disconnect by user request
@@ -149,36 +160,59 @@ class BLEManager {
   handleData(event) {
     const dataView = event.target.value;
     const bytes = new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength);
-    const toHexString = (data) =>
-      Array.from(data)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join(" ");
-    console.log("RX [BLE] Raw (hex):", toHexString(bytes));
+
+    // const toHexString = (data) =>
+    //   Array.from(data)
+    //     .map((b) => b.toString(16).padStart(2, "0"))
+    //     .join(" ");
+    // console.log("RX [BLE] Raw (hex):", toHexString(bytes));
 
     const startByte = bytes[0];
 
     // Start byte 0x00 indicates a text frame ASCII
     if (startByte == 0x00) {
       const text = new TextDecoder("utf-8").decode(bytes);
-      console.log("RX [BLE] ASCII:", text);
+      // console.log("RX [BLE] ASCII:", text);
       this.onDataReceived(text);
       return;
     }
-    // Start byte 0x01 indicates a frame with command and payload
-    if (startByte == 0x01) {
-      const command = bytes[1];
-      const payload = bytes.slice(2);
-      console.log("RX [BLE] Command:", `0x${command.toString(16).padStart(2, "0")}`);
-      console.log("RX [BLE] Payload:", toHexString(payload));
-      const crcOk = true; // No need to check CRC for BLE frames as they are handled by the protocol layer
-      const info = {
-        cmd: command,
-        command,
-        data: payload,
-        data_len: payload.length,
-        crcOk,
-      };
+
+    const command = bytes[1];
+    const payload = bytes.slice(2);
+    console.log("RX [BLE] Command:", `0x${command.toString(16).padStart(2, "0")}`);
+    console.log("RX [BLE] Payload length:", payload.length);
+    // console.log("RX [BLE] Payload:", toHexString(payload));
+    const crcOk = true; // No need to check CRC for BLE frames as they are handled by the protocol layer
+    const info = {
+      cmd: command,
+      data: payload,
+      data_len: payload.length,
+      crcOk,
+    };
+
+    //  console.log("------------->[BLE] New frame", performance.now(), info.data_len);
+
+    const filetransferCmds = new Set([0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89]);
+    if (filetransferCmds.has(command)) {
       this.onFileTransferStatus(info);
+      return;
+    }
+
+    const streamingCmds = new Set([0x91, 0x92, 0x93, 0x94]);
+    if (streamingCmds.has(command)) {
+      // console.log(
+      //   "RX Payload (hex):",
+      //   Array.from(payload)
+      //   .map((b) => b.toString(16).padStart(2, "0"))
+      //   .join(" "),
+      // );
+      if (command == 0x92) {
+        this.no_package++;
+        // console.log("========== DATA[0x92] package ID:", this.no_package, info.data_len);
+      }
+
+      this.onStreamingStatus(info);
+      return;
     }
   }
 
@@ -229,12 +263,13 @@ class BLEManager {
     frame.set(payload, offset);
 
     console.log("TX [BLE] Command:", `0x${messageType.toString(16).padStart(2, "0")}`);
-    console.log(
-      "TX [BLE] Frame (hex):",
-      Array.from(frame)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join(" "),
-    );
+    console.log("TX [BLE] Payload length:", payload.length);
+    // console.log(
+    //   "TX [BLE] Frame (hex):",
+    //   Array.from(frame)
+    //     .map((b) => b.toString(16).padStart(2, "0"))
+    //     .join(" "),
+    // );
 
     const method = this.defaultWriteCharacteristic.properties.write
       ? "writeValueWithResponse"
@@ -254,4 +289,5 @@ export default {
   onStatusChange: (fn) => (BLE.onStatusChange = fn),
   onDataReceived: (fn) => (BLE.onDataReceived = fn),
   onFileTransferStatus: (fn) => (BLE.onFileTransferStatus = fn),
+  onStreamingStatus: (fn) => (BLE.onStreamingStatus = fn),
 };

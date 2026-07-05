@@ -12,54 +12,26 @@ class ParserStreaming {
     this.MAX_POINTS = 5000;
   }
 
-  parseStreamingConfig(data) {
-    if (data.length < 5) {
-      throw new Error("Invalid streaming config");
-    }
-    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-    const typeMap = {
-      0: "HX712",
-      1: "PIEZO",
-      2: "STREAMING_TEST",
-    };
-    const type = view.getUint8(0);
-    return {
-      type,
-      typeName: typeMap[type] || "sensor",
-      channels: view.getUint8(1),
-      samplingRate: view.getUint16(2, true),
-      sampleSize: view.getUint8(4),
-    };
-  }
-
   /**
-   * Parse a streaming data frame received from the device.
+   * Parse streaming data frame from device.
    *
-   * The frame format is:
-   * - Byte 0      : stream type
-   * - Byte 1..2   : milliseconds-of-minute when the firmware created the frame
-   * - Remaining   : interleaved sample data
+   * Frame: [type(1B)] [msOfMinute(2B)] [interleaved samples...]
+   * Samples are stored as: samples[channel][sampleIndex]
    *
-   * @param {Uint8Array} frame - Raw frame received from the device.
-   * @param {Object} config - Stream configuration.
-   * @param {number} config.channels - Number of channels.
-   * @param {number} config.sampleSize - Bytes per sample (1, 2, or 4).
-   * @param {number} config.samplingRate - Sampling rate in Hz.
+   * @param {Uint8Array} frame - Raw frame from device
+   * @param {Object} config  Streaming configuration object with:
+   * - config.channels - Number of channels
+   * - config.sampleSize - Bytes/sample (1, 2, or 4)
+   * - config.samplingRate - Sampling rate in Hz
    *
-   * @returns {Promise<Object>} Parsed streaming data.
-   * @returns {number} returns.streamType - Stream type identifier.
-   * @returns {number} returns.perfTimeMs - Monotonic timestamp from performance.now()
-   *                                        when the frame was parsed.
-   * @returns {number} returns.unixTimeMs - Unix timestamp in milliseconds from
-   *                                        Date.now() when the frame was parsed.
-   * @returns {number} returns.msOfMinuteFW - Milliseconds within the current minute
-   *                                        (0..59999) recorded by the firmware
-   *                                        when the frame was generated.
-   *                                        This value is only used to check for missing data.
-   * @returns {number} returns.samplingRate - Sampling rate in Hz.
-   * @returns {number} returns.sampleCount - Number of samples per channel.
-   * @returns {number[][]} returns.samples - Sample data organized as
-   *                                         samples[channel][sampleIndex].
+   * @returns {Promise<Object>} data - Parsed data with:
+   *   - streamType: Stream type ID
+   *   - perfTimeMs: performance.now() timestamp at parse time
+   *   - unixTimeMs: Date.now() timestamp at parse time
+   *   - msOfMinuteFW: Device millisecond counter (0-59999)
+   *   - samplingRate: Sample frequency (Hz)
+   *   - sampleCount: Samples per channel
+   *   - samples: [[ch1_val_1,ch1_val_2,...],[ch2_val_2,ch2_val_2,...]]
    */
   async parseStreamingFrame(frame, config) {
     const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
@@ -77,7 +49,7 @@ class ParserStreaming {
     const sampleCount = Math.floor(payloadLength / bytesPerSample);
 
     // High-resolution elapsed time since page load.
-    const perfTimeMs = performance.now();
+    const perfTimeMs = Math.round(performance.now() * 10) / 10;
 
     // Milliseconds since Unix Epoch (1970-01-01 UTC).
     // Example: 1782076609123 -> 2026-06-21 21:16:49.123 UTC
@@ -119,33 +91,81 @@ class ParserStreaming {
     };
   }
 
-  getChannelData(sensorType, sensorName, channel) {
-    let item = this.data.find((d) => d.sensorType === sensorType && d.channel === channel);
-    if (!item) {
-      item = {
-        sensorType,
-        sensorName,
-        channel,
-        values: [],
-      };
-      this.data.push(item);
+  /**
+   * Parse streaming configuration from device data.
+   *
+   * Config format: [type(1B)] [channels(1B)] [samplingRate(2B)] [sampleSize(1B)]
+   *
+   * @param {Uint8Array} data - Raw config data from device
+   * @returns {Object} Parsed "config" object:
+   * - config.type - Stream type identifier
+   * - config.typeName - Human-readable stream type name
+   * - config.channels - Number of channels
+   * - config.samplingRate - Sampling rate in Hz
+   * - config.sampleSize - Bytes per sample (1, 2, or 4)
+   */
+  parseStreamingConfig(data) {
+    if (data.length < 5) {
+      throw new Error("Invalid streaming config");
     }
-    return item;
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    const type = view.getUint8(0);
+    const config = {
+      type,
+      typeName: this.getStreamTypeName(type),
+      channels: view.getUint8(1),
+      samplingRate: view.getUint16(2, true),
+      sampleSize: view.getUint8(4),
+    };
+    return config;
   }
 
+  // Update the existing configuration for the given stream type,
+  // or add it if it doesn't already exist.
+  async updateStreamingConfig(config) {
+    const existingIdx = this.configs.findIndex((c) => c.type === config.type);
+    if (existingIdx >= 0) {
+      this.configs[existingIdx] = config;
+    } else {
+      this.configs.push(config);
+      console.log("[ALL CONFIGS]", this.configs);
+    }
+  }
+
+  // Update a configuration from the device status message,
+  async updateStreamingConfigFromDeviceStatus(deviceStatus) {
+    const dataTypes = deviceStatus.filter((s) => s.name && s.name.startsWith("data_type_"));
+    for (let dataType of dataTypes) {
+      const typeInfo = CONSTANTS.STREAM_TYPES[dataType.name];
+      if (!typeInfo) continue;
+      const type = typeInfo.id;
+      if (!dataType.channels || !dataType.samplingRate || !dataType.sampleSize) {
+        console.warn(`[STREAM] Missing config for ${dataType.name}`);
+        continue;
+      }
+      const samplingRate = parseInt(dataType.samplingRate);
+      const channels = parseInt(dataType.channels);
+      const sampleSize = parseInt(dataType.sampleSize);
+
+      const config = {
+        type: type,
+        typeName: typeInfo.name,
+        channels: channels,
+        samplingRate: samplingRate,
+        sampleSize: sampleSize,
+      };
+      this.updateStreamingConfig(config);
+    }
+  }
+
+  // Process incoming streaming data from the device.
   async processStreamingData(info) {
     const startTime = performance.now();
     const { cmd, data } = info;
     switch (cmd) {
       case 0x93: {
         const config = this.parseStreamingConfig(data);
-        const idx = this.configs.findIndex((c) => c.type === config.type);
-        if (idx >= 0) {
-          this.configs[idx] = config;
-        } else {
-          this.configs.push(config);
-        }
-        // console.log("[ALL CONFIGS]", this.configs);
+        this.updateStreamingConfig(config);
         break;
       }
       case 0x92: {
@@ -168,6 +188,16 @@ class ParserStreaming {
 
     return;
   }
+
+  // =============== HELPER FUNCTIONS ================
+  getStreamTypeName(typeId) {
+    for (const [key, info] of Object.entries(CONSTANTS.STREAM_TYPES)) {
+      if (info.id === typeId) {
+        return info.name;
+      }
+    }
+    return "sensor";
+  }
 }
 
 const PARSER_STREAMING = new ParserStreaming();
@@ -177,4 +207,6 @@ export default {
   onSendFrame: (fn) => (PARSER_STREAMING.onSendFrame = fn),
   onNewStreamingData: (fn) => (PARSER_STREAMING.onNewStreamingData = fn),
   processStreamingData: (info) => PARSER_STREAMING.processStreamingData(info),
+  updateStreamingConfigFromDeviceStatus: (deviceStatus) =>
+    PARSER_STREAMING.updateStreamingConfigFromDeviceStatus(deviceStatus),
 };

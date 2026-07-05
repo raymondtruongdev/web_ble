@@ -1,6 +1,10 @@
 class Utils1 {
   constructor() {}
 
+  delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   async saveFrame2JsonFile(frame) {
     // const frame = new Uint8Array([0x01, 0x92, 0x03, 0x10, 0x02, 0x5e, 0x60, 0x02, 0xff, 0x07, 0xff, 0x07]);
     const json = {
@@ -19,7 +23,10 @@ class Utils1 {
 
   async parseSensorStatus(str) {
     // Loại bỏ các dấu backtick và ký tự xuống dòng thừa
-    const cleanStr = str.replace(/`/g, "").trim();
+    const cleanStr = str
+      .replace(/`/g, "") // Backtick
+      .replace(/\0/g, "") // Null character
+      .trim();
     // Tách thành các dòng
     const lines = cleanStr.split("\n").filter((line) => line.trim() !== "");
     const result = [];
@@ -38,16 +45,31 @@ class Utils1 {
       // Parse các field
       const fields = info.split(",").map((f) => f.trim());
 
+      // Exmaple iput:
+      // "Sensor Info:
+      // hx712: OFF, freq=0 Hz, log=OFF
+      // piezo: OFF, freq=0 Hz, log=OFF
+      // ads1115: OFF, freq=0 Hz, log=OFF
+      // Stream status: OFF
+      // data_type_0: samplingRate=0, channels =0, sampleSize=0
+      // data_type_1: samplingRate=0, channels =0, sampleSize=0"
+
       let active = "OFF";
       let freq = "0";
       let enableSDcardLog = "OFF";
-
+      let samplingRate=0, channels =0, sampleSize=0
       for (let field of fields) {
         if (field.includes("freq")) {
           freq = field.split("=")[1].trim().replace(" Hz", "");
         } else if (field.includes("log")) {
           enableSDcardLog = field.split("=")[1].trim();
-        } else {
+        } else if (field.includes("samplingRate")) {
+          samplingRate = field.split("=")[1].trim();
+        } else if (field.includes("channels")) {
+          channels = field.split("=")[1].trim();
+        } else if (field.includes("sampleSize")) {
+          sampleSize = field.split("=")[1].trim();
+        }else {
           // Field còn lại là status (OFF/ON)
           active = field;
         }
@@ -56,8 +78,11 @@ class Utils1 {
       result.push({
         name: name,
         active: active,
-        freq: freq,
         enableSDcardLog: enableSDcardLog,
+        freq: freq,
+        samplingRate: samplingRate,
+        channels: channels,
+        sampleSize: sampleSize,
       });
     }
 

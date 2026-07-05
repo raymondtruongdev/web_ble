@@ -34,7 +34,7 @@ class ChartManager {
     this.RENDER_STEP = (this.BASE_TIME_UNIT / 1000) * this.RENDER_INTERVAL_MS;
 
     // === GIỚI HẠN ZOOM ===
-    this.MIN_VIEW_DURATION = this.BASE_TIME_UNIT / 10; // Tối thiểu 0.1s
+    this.MIN_VIEW_DURATION = this.BASE_TIME_UNIT / 100; // Tối thiểu 0.01s
     this.MAX_VIEW_DURATION = this.MAX_DATA_KEEP; // Tối đa 30s
 
     // === TRẠNG THÁI DỮ LIỆU ===
@@ -92,11 +92,18 @@ class ChartManager {
     this.globalIndexStep = {}; // khoảng cách 2 sample liên tiếp của channel
     this.lastGlobalIndex = {}; // global index của sample cuối cùng của mỗi channel
     this.localIndex = {}; // local indexcủa sample trong mỗi channel
-    this.lastRenderTime = 0; // Thời gian base của lần render gần nhất
+    this.lastGlobalIndexRender = 0; //  value Global index dùng để render chart (cập nhật theo thời gian thực)
     this.lastMsOfMinuteFW = {}; // milisecond of minute của sample bắt đầu trong batch data trước đó
 
     this.channelOrder = []; // Thứ tự hiển thị các channel
     this.channelColorMap = {}; // Màu sắc cho từng channel
+
+    /**
+     * Callback to notify a message from BLE manager
+     * @param {string} type - Type of the message (e.g., "info", "warning", "error")
+     * @param {string} text - Message text to display
+     */
+    this.onMessageNotify = () => {};
   }
 
   init(canvas) {
@@ -112,7 +119,7 @@ class ChartManager {
     this.clear();
     this.unfreeze();
     this.setAutoFit(true);
-    this.lastRenderTime = this.getCurrentGlobalIndex() || 0;
+    this.lastGlobalIndexRender = this.getCurrentGlobalIndex() || 0;
     this.autoRender();
   }
 
@@ -143,7 +150,7 @@ class ChartManager {
     this.channelVisibility = {};
     this.legendButtons = [];
     this.lastGlobalIndex = {};
-    this.lastRenderTime = 0;
+    this.lastGlobalIndexRender = 0;
     this.globalIndexStep = {};
     this.localIndex = {};
     this.lastMsOfMinuteFW = {};
@@ -208,8 +215,8 @@ class ChartManager {
 
     // Lần đầu nhận data cho channel
     if (!this.lastGlobalIndex[channelName]) {
-      this.lastGlobalIndex[channelName] = this.getCurrentGlobalIndex();
-      this.localIndex[channelName] = 0;
+      this.lastGlobalIndex[channelName] = this.lastGlobalIndexRender;
+      this.localIndex[channelName] = 1; // Start local index from 1
     } else {
       // Tính số sample bị thiếu dựa trên thời gian
       let diffMsOfMinuteFW = msOfMinuteFW - this.lastMsOfMinuteFW[channelName];
@@ -223,6 +230,23 @@ class ChartManager {
       // Nếu số sample ước tính lớn hơn nhiều so với thực tế -> bị mất data
       if (estimatedSampleCount > sampleCountInBatch * 1.5) {
         missingSampleCount = estimatedSampleCount - sampleCountInBatch;
+        console.warn(
+          `[CHART] Wrong msOfMinuteFW (Δ = ${diffMsOfMinuteFW} ms) [${channelName}]. Previous: ${this.lastMsOfMinuteFW[channelName]}, Current: ${msOfMinuteFW}`,
+        );
+        this.onMessageNotify(
+          "warning",
+          `[CHART] Missing samples [ Δ = ${missingSampleCount}, ${channelName}, freq = ${samplingRate} Hz]. Estimated: ${estimatedSampleCount}, Actual: ${sampleCountInBatch}`,
+        );
+      }
+        if (estimatedSampleCount < sampleCountInBatch * 0.5) {
+        const overtSampleCount = -estimatedSampleCount - sampleCountInBatch;
+        console.warn(
+          `[CHART] Wrong msOfMinuteFW (Δ = ${diffMsOfMinuteFW} ms) [${channelName}]. Previous: ${this.lastMsOfMinuteFW[channelName]}, Current: ${msOfMinuteFW}`,
+        );
+        this.onMessageNotify(
+          "warning",
+          `[CHART] Over samples [ Δ = ${overtSampleCount}, ${channelName}, freq = ${samplingRate} Hz]. Estimated: ${estimatedSampleCount}, Actual: ${sampleCountInBatch}`,
+        );
       }
     }
     this.lastMsOfMinuteFW[channelName] = msOfMinuteFW;
@@ -250,6 +274,8 @@ class ChartManager {
     // Cập nhật thông tin channel
     this.lastGlobalIndex[channelName] = currentGlobalIndex + samples.length * timeStep;
     this.localIndex[channelName] = localIndexCounter + samples.length;
+
+    // console.log(`[CHART - addChartBuffer -new] ${channelName}: lastGlobalIndexRender: ${this.lastGlobalIndexRender}`);
 
     // Thêm vào buffer
     const idx = this.buffer.findIndex((item) => item.channel === channelName);
@@ -285,6 +311,7 @@ class ChartManager {
         this.chartTimer = null;
         return;
       }
+      this.lastGlobalIndexRender = this.lastGlobalIndexRender + this.RENDER_STEP;
 
       if (this.isPaused) {
         return;
@@ -302,12 +329,7 @@ class ChartManager {
       }
 
       // === BƯỚC 1: CẬP NHẬT THỜI GIAN RENDER ===
-      const newRenderTime = this.lastRenderTime + this.RENDER_STEP;
-      this.lastRenderTime = newRenderTime;
-
-      if (newRenderTime > 39700) {
-        const temp = 1;
-      }
+      const newRenderTime = this.lastGlobalIndexRender;
 
       // === BƯỚC 2: XỬ LÝ DỮ LIỆU TỪ BUFFER ===
       let maxNewTime = 0;
@@ -348,16 +370,16 @@ class ChartManager {
       // === BƯỚC 4: ĐỒNG BỘ THỜI GIAN RENDER ===
       if (hasNewData && hasAnyData) {
         const actualLastTime = this.getCurrentGlobalIndex();
-        if (actualLastTime > this.lastRenderTime) {
-          this.lastRenderTime = actualLastTime;
-        } else if (maxNewTime > this.lastRenderTime) {
-          this.lastRenderTime = maxNewTime;
+        if (actualLastTime > this.lastGlobalIndexRender) {
+          this.lastGlobalIndexRender = actualLastTime;
+        } else if (maxNewTime > this.lastGlobalIndexRender) {
+          this.lastGlobalIndexRender = maxNewTime;
         }
       }
 
       // === BƯỚC 5: CẬP NHẬT VIEW ===
       const currentTime = this.getCurrentGlobalIndex();
-      this.viewOffset = this.lastRenderTime - currentTime;
+      this.viewOffset = this.lastGlobalIndexRender - currentTime;
 
       if (this.viewOffset < 0) {
         this.viewOffset = 0;
@@ -377,7 +399,36 @@ class ChartManager {
   }
 
   // ==================== HELPER METHODS ====================
+  /**
+   * Lấy thời gian hiện tại trên trục X (theo BASE_TIME_UNIT)
+   * Nếu đang pause, trả về thời gian đã đóng băng
+   */
+  getCurrentGlobalIndex() {
+    if (this.isPaused && this.frozenTime !== null) {
+      return this.frozenTime;
+    }
+    if (Object.keys(this.dataPoints).length === 0) {
+      return this.frozenTime || 0;
+    }
+    return this.getLastGlobalIndex();
+  }
 
+  /**
+   * Lấy thời gian base lớn nhất từ tất cả các channel
+   */
+  getLastGlobalIndex() {
+    let maxTime = 0;
+    for (const channel in this.dataPoints) {
+      const points = this.dataPoints[channel];
+      if (points && points.length > 0) {
+        const lastPoint = points[points.length - 1];
+        if (lastPoint && lastPoint.baseTime > maxTime) {
+          maxTime = lastPoint.baseTime;
+        }
+      }
+    }
+    return maxTime;
+  }
   getTotalSensorCount() {
     const sensorSet = new Set();
     for (const item of this.buffer) {
@@ -397,7 +448,7 @@ class ChartManager {
     if (match) {
       const dataType = match[1];
       const channel = Number(match[2]);
-      const prefix = CONSTANTS.DATATYPE_CHANNEL_NAME_MAPPING[dataType] ?? CONSTANTS.DEFAULT_SENSOR_NAME;
+      const prefix = CONSTANTS.STREAM_TYPES[dataType].nameChartLabel ?? CONSTANTS.DEFAULT_SENSOR_NAME;
       const mappedChannel = `${prefix}${channel + 1}`;
       this.channelMapping[originalChannel] = mappedChannel;
 
@@ -461,37 +512,6 @@ class ChartManager {
 
   clampViewDuration(duration) {
     return Math.max(this.MIN_VIEW_DURATION, Math.min(this.MAX_VIEW_DURATION, duration));
-  }
-
-  /**
-   * Lấy thời gian hiện tại trên trục X (theo BASE_TIME_UNIT)
-   * Nếu đang pause, trả về thời gian đã đóng băng
-   */
-  getCurrentGlobalIndex() {
-    if (this.isPaused && this.frozenTime !== null) {
-      return this.frozenTime;
-    }
-    if (Object.keys(this.dataPoints).length === 0) {
-      return this.frozenTime || 0;
-    }
-    return this.getLastGlobalIndex();
-  }
-
-  /**
-   * Lấy thời gian base lớn nhất từ tất cả các channel
-   */
-  getLastGlobalIndex() {
-    let maxTime = 0;
-    for (const channel in this.dataPoints) {
-      const points = this.dataPoints[channel];
-      if (points && points.length > 0) {
-        const lastPoint = points[points.length - 1];
-        if (lastPoint && lastPoint.baseTime > maxTime) {
-          maxTime = lastPoint.baseTime;
-        }
-      }
-    }
-    return maxTime;
   }
 
   getActiveWidthDpr(dpr) {
@@ -848,149 +868,115 @@ class ChartManager {
     const activeWidth = this.getActiveWidthDpr(dpr);
 
     if (this.mouseX >= this.margins.left * dpr && this.mouseX <= this.canvas.width - this.margins.right * dpr) {
-      const targetGlobalIndex = minTime + ((this.mouseX - this.margins.left * dpr) / activeWidth) * this.VIEW_DURATION;
+      const ratio = (this.mouseX - this.margins.left * dpr) / activeWidth;
+      const targetGlobalIndex = minTime + ratio * this.VIEW_DURATION;
+
       const pointsAtTime = [];
 
-      for (const channel in this.dataPoints) {
-        if (!this.getChannelVisibility(channel)) {
+      // Tạo reverse mapping từ mappedChannel -> originalChannel
+      const reverseMapping = {};
+      for (const [orig, mapped] of Object.entries(this.channelMapping)) {
+        reverseMapping[mapped] = orig;
+      }
+
+      for (const mappedChannel in this.dataPoints) {
+        if (!this.getChannelVisibility(mappedChannel)) {
           continue;
         }
 
-        const points = this.dataPoints[channel];
+        const points = this.dataPoints[mappedChannel];
         if (!points || points.length === 0) continue;
 
-        const timeStep = this.globalIndexStep[channel] || 1;
-        const MAX_TIME_GAP = (this.BASE_TIME_UNIT / 1000) * 50; // 50ms
+        // Lấy original channel name để tìm timeStep
+        const originalChannel = reverseMapping[mappedChannel] || mappedChannel;
+        const timeStep = this.globalIndexStep[originalChannel] || this.BASE_TIME_UNIT * 0.1;
 
-        // Tìm điểm gần nhất với target
-        let leftIdx = -1;
-        let rightIdx = -1;
-        let minDiff = Infinity;
+        const MAX_TIME_GAP = this.BASE_TIME_UNIT / 2; // 0.5s gap threshold
+
         let closestPoint = null;
         let closestIndex = -1;
+        let minDiff = Infinity;
 
-        // Tìm điểm bên trái và bên phải gần nhất
+        const searchMargin = this.VIEW_DURATION * 0.1;
         for (let i = 0; i < points.length; i++) {
           const p = points[i];
-          if (p.baseTime > maxTime + 500) break;
-          if (p.baseTime < minTime - 500) continue;
+          if (p.baseTime < minTime - searchMargin || p.baseTime > maxTime + searchMargin) {
+            continue;
+          }
 
-          const diff = p.baseTime - targetGlobalIndex;
-
-          if (diff < 0) {
-            // Điểm bên trái
-            if (leftIdx === -1 || Math.abs(diff) < Math.abs(points[leftIdx].baseTime - targetGlobalIndex)) {
-              leftIdx = i;
-            }
-          } else if (diff > 0) {
-            // Điểm bên phải
-            if (rightIdx === -1 || Math.abs(diff) < Math.abs(points[rightIdx].baseTime - targetGlobalIndex)) {
-              rightIdx = i;
-            }
-          } else {
-            // Chính xác target
+          const diff = Math.abs(p.baseTime - targetGlobalIndex);
+          if (diff < minDiff) {
+            minDiff = diff;
             closestPoint = p;
             closestIndex = i;
-            break;
           }
         }
 
-        // Nếu không tìm thấy điểm chính xác, chọn điểm gần nhất giữa left và right
-        if (!closestPoint) {
-          if (leftIdx !== -1 && rightIdx !== -1) {
-            const leftDiff = Math.abs(points[leftIdx].baseTime - targetGlobalIndex);
-            const rightDiff = Math.abs(points[rightIdx].baseTime - targetGlobalIndex);
-            if (leftDiff <= rightDiff) {
-              closestPoint = points[leftIdx];
-              closestIndex = leftIdx;
-            } else {
-              closestPoint = points[rightIdx];
-              closestIndex = rightIdx;
-            }
-          } else if (leftIdx !== -1) {
-            closestPoint = points[leftIdx];
-            closestIndex = leftIdx;
-          } else if (rightIdx !== -1) {
-            closestPoint = points[rightIdx];
-            closestIndex = rightIdx;
-          }
+        if (!closestPoint) continue;
+
+        let shouldShow = true;
+
+        if (minDiff > timeStep * 2) {
+          shouldShow = false;
         }
 
-        if (closestPoint) {
-          const minDiff = Math.abs(closestPoint.baseTime - targetGlobalIndex);
-          let shouldShow = true;
+        if (closestPoint.baseTime < minTime || closestPoint.baseTime > maxTime) {
+          shouldShow = false;
+        }
 
-          // Kiểm tra xem điểm có nằm trong vùng hiển thị không
-          if (closestPoint.baseTime < minTime || closestPoint.baseTime > maxTime) {
-            shouldShow = false;
-          }
-
-          if (shouldShow) {
-            // Kiểm tra điểm biên của segment
-            const isLeftEdge =
-              closestIndex === 0 ||
-              (closestIndex > 0 && points[closestIndex].baseTime - points[closestIndex - 1].baseTime > MAX_TIME_GAP);
-
-            const isRightEdge =
-              closestIndex === points.length - 1 ||
-              (closestIndex < points.length - 1 &&
-                points[closestIndex + 1].baseTime - points[closestIndex].baseTime > MAX_TIME_GAP);
-
-            // Nếu là điểm biên của segment, luôn hiển thị (với điều kiện khoảng cách không quá xa)
-            if (isLeftEdge || isRightEdge) {
-              // Với điểm biên, chỉ ẩn nếu khoảng cách quá xa (> 2 lần timeStep)
-              if (minDiff > timeStep * 2) {
+        if (shouldShow && closestIndex >= 0) {
+          if (closestIndex > 0) {
+            const prevPoint = points[closestIndex - 1];
+            if (prevPoint.baseTime >= minTime && prevPoint.baseTime <= maxTime) {
+              const rawGap = closestPoint.localIndex - prevPoint.localIndex;
+              if (rawGap > 1 && minDiff > timeStep * 0.5) {
                 shouldShow = false;
               }
-            } else {
-              // Logic kiểm tra gap cho điểm không phải biên
-              // Kiểm tra loss data với điểm trước
-              if (closestIndex > 0) {
-                const prevPoint = points[closestIndex - 1];
-                const rawGap = closestPoint.localIndex - prevPoint.localIndex;
-
-                if (rawGap > 1) {
-                  if (minDiff > timeStep * 0.3) {
-                    shouldShow = false;
-                  }
-                }
-              }
-
-              // Kiểm tra loss data với điểm sau
-              if (shouldShow && closestIndex < points.length - 1) {
-                const nextPoint = points[closestIndex + 1];
-                const rawGap = nextPoint.localIndex - closestPoint.localIndex;
-
-                if (rawGap > 1) {
-                  if (minDiff > timeStep * 0.3) {
-                    shouldShow = false;
-                  }
-                }
-              }
-
-              // Trường hợp đặc biệt: điểm đơn lẻ (cả 2 bên đều bị gap)
-              if (shouldShow && closestIndex > 0 && closestIndex < points.length - 1) {
-                const prevPoint = points[closestIndex - 1];
-                const nextPoint = points[closestIndex + 1];
-                const prevGap = closestPoint.localIndex - prevPoint.localIndex;
-                const nextGap = nextPoint.localIndex - closestPoint.localIndex;
-
-                if (prevGap > 1 && nextGap > 1) {
-                  if (minDiff > timeStep * 0.2) {
-                    shouldShow = false;
-                  }
-                }
-              }
             }
           }
 
-          if (shouldShow) {
-            pointsAtTime.push({ ...closestPoint, channel });
+          if (shouldShow && closestIndex < points.length - 1) {
+            const nextPoint = points[closestIndex + 1];
+            if (nextPoint.baseTime >= minTime && nextPoint.baseTime <= maxTime) {
+              const rawGap = nextPoint.localIndex - closestPoint.localIndex;
+              if (rawGap > 1 && minDiff > timeStep * 0.5) {
+                shouldShow = false;
+              }
+            }
           }
+        }
+
+        if (shouldShow) {
+          // LƯU GIỮ NGUYÊN baseTime CỦA TỪNG ĐIỂM
+          pointsAtTime.push({
+            ...closestPoint,
+            channel: mappedChannel,
+            // Thêm trường displayTime để hiển thị trên tooltip
+            displayTime: closestPoint.baseTime,
+          });
         }
       }
 
-      this.hoverPoint = pointsAtTime.length > 0 ? { baseTime: targetGlobalIndex, points: pointsAtTime } : null;
+      // SỬA: Nếu có điểm tìm được, sử dụng baseTime của điểm đầu tiên làm vị trí hover
+      if (pointsAtTime.length > 0) {
+        // Lấy baseTime của điểm đầu tiên (hoặc điểm có giá trị gần nhất với cursor)
+        // Sắp xếp các điểm theo khoảng cách đến targetGlobalIndex
+        pointsAtTime.sort((a, b) => {
+          const diffA = Math.abs(a.baseTime - targetGlobalIndex);
+          const diffB = Math.abs(b.baseTime - targetGlobalIndex);
+          return diffA - diffB;
+        });
+
+        // Sử dụng baseTime của điểm gần nhất với cursor làm vị trí đường thẳng đứng
+        const closestPoint = pointsAtTime[0];
+        this.hoverPoint = {
+          baseTime: closestPoint.baseTime, // Dùng baseTime của điểm gần nhất
+          points: pointsAtTime,
+          cursorTime: targetGlobalIndex, // Lưu lại cursor time để tham khảo
+        };
+      } else {
+        this.hoverPoint = null;
+      }
     } else {
       this.hoverPoint = null;
     }
@@ -1015,6 +1001,8 @@ class ChartManager {
     const maxTime = now;
     const activeW = width - (this.margins.left + this.margins.right) * dpr;
     const activeH = height - (this.margins.top + this.margins.bottom) * dpr;
+
+    // console.log(`[draw] min_view_X=${minTime}, max_view_X=${maxTime}`);
 
     // ===== VẼ LƯỚI NGANG (Y-AXIS) =====
     const rangeY = this.yMax - this.yMin;
@@ -1058,7 +1046,7 @@ class ChartManager {
         this.ctx.font = `${9 * dpr}px Inter`;
 
         // Hiển thị giá trị GLOBAL INDEX in x-axis (đã làm tròn)
-        const SHOW_X_LABEL = false;
+        const SHOW_X_LABEL = true;
         if (SHOW_X_LABEL) {
           const displayTime = Math.round(t);
           this.ctx.fillText(displayTime.toString(), x, height - this.margins.bottom * dpr + 5 * dpr);
@@ -1113,9 +1101,6 @@ class ChartManager {
       const config = palette[idx % palette.length];
       const timeStep = this.globalIndexStep[channel] || 1;
 
-      // Khoảng cách tối đa cho phép giữa 2 điểm (50ms)
-      const MAX_TIME_GAP = (this.BASE_TIME_UNIT / 1000) * 50;
-
       // Tìm các điểm trong vùng hiển thị
       let visiblePoints = [];
       for (let i = 0; i < points.length; i++) {
@@ -1129,6 +1114,8 @@ class ChartManager {
       hasData = true;
 
       // ===== Tìm các segment (khoảng dữ liệu liên tục) =====
+      // Maximum allowed distance between two points to split segments
+      const MAX_TIME_GAP = this.BASE_TIME_UNIT / 2;
       const segments = [];
       let currentSegment = [];
 
@@ -1308,6 +1295,7 @@ class ChartManager {
     }
 
     if (this.hoverPoint && this.hoverPoint.points && this.mouseX !== null) {
+      // Sử dụng baseTime của điểm gần nhất với cursor để vẽ đường thẳng đứng
       const hx = this.getX(this.hoverPoint.baseTime, minTime, activeW, dpr);
 
       if (hx >= this.margins.left * dpr && hx <= width - this.margins.right * dpr) {
@@ -1321,13 +1309,15 @@ class ChartManager {
         this.ctx.stroke();
         this.ctx.setLineDash([]);
 
-        // Vẽ các điểm tròn tại vị trí hover
+        // Vẽ các điểm tròn tại vị trí hover - SỬ DỤNG baseTime CỦA TỪNG ĐIỂM
         this.hoverPoint.points.forEach((p) => {
-          const hy = this.getY(p.value, activeH, height, dpr);
+          // Sử dụng baseTime riêng của từng điểm để vẽ
+          const px = this.getX(p.baseTime, minTime, activeW, dpr);
+          const py = this.getY(p.value, activeH, height, dpr);
           const channelIdx = sortedChannels.indexOf(p.channel);
           const config = palette[channelIdx % palette.length];
           this.ctx.beginPath();
-          this.ctx.arc(hx, hy, 5 * dpr, 0, Math.PI * 2);
+          this.ctx.arc(px, py, 5 * dpr, 0, Math.PI * 2);
           this.ctx.fillStyle = config.color;
           this.ctx.strokeStyle = "#ffffff";
           this.ctx.lineWidth = 1.5 * dpr;
@@ -1350,21 +1340,26 @@ class ChartManager {
         this.ctx.fill();
         this.ctx.stroke();
 
-        // Nội dung tooltip
+        // Nội dung tooltip - HIỂN THỊ ĐÚNG GIÁ TRỊ CỦA TỪNG ĐIỂM
         this.ctx.textAlign = "left";
         this.ctx.textBaseline = "top";
 
-        this.hoverPoint.points.forEach((p, i) => {
+        // Sắp xếp các điểm theo channel order để hiển thị nhất quán
+        const sortedPoints = this.hoverPoint.points.sort((a, b) => {
+          return sortedChannels.indexOf(a.channel) - sortedChannels.indexOf(b.channel);
+        });
+
+        sortedPoints.forEach((p, i) => {
           const channelIdx = sortedChannels.indexOf(p.channel);
           const config = palette[channelIdx % palette.length];
-          const label = this.customLabels[channelIdx] || `Sensor ${String.fromCharCode(65 + (channelIdx % 26))}: `;
+          const label = this.customLabels[channelIdx] || `Sensor ${String.fromCharCode(65 + (channelIdx % 26))}`;
 
-          this.ctx.textAlign = "left";
+          // HIỂN THỊ GIÁ TRỊ THỰC TẾ CỦA ĐIỂM (p.value) và localIndex thực tế (p.localIndex)
+          const rawIdx = p.localIndex !== undefined ? Math.round(p.localIndex) : Math.round(p.baseTime);
+
           this.ctx.fillStyle = config.color;
           this.ctx.font = `bold ${10 * dpr}px Inter`;
-
-          const rawIdx = p.localIndex !== undefined ? p.localIndex : p.baseTime;
-          const displayText = `${label}   ${p.value.toFixed(2)}   (id: ${Math.round(rawIdx)})`;
+          const displayText = `${label}   ${p.value.toFixed(2)}   (idx: ${rawIdx}, global: ${Math.round(p.baseTime)})`;
           this.ctx.fillText(displayText, tx + 10 * dpr, ty + (26 + i * lineH) * dpr);
         });
       }
@@ -1389,4 +1384,5 @@ export default {
     CHART.addChartBuffer(samples, samplingRate, channelName, msOfMinuteFW),
   setLabels: (...labels) => CHART.setLabels(...labels),
   onAutoFitChange: (fn) => (CHART.onAutoFitChange = fn),
+  onMessageNotify: (fn) => (CHART.onMessageNotify = fn),
 };

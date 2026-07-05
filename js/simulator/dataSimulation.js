@@ -14,6 +14,7 @@ class DataSimulation {
     this.isRunning = false;
     this.onDataGenerated = null;
     this.counter = 0;
+    this.msOfMinuteFW = 0;
 
     // Cấu trúc config dạng array
     this.sensorConfigs = {
@@ -22,7 +23,7 @@ class DataSimulation {
         sampleSize: 2,
         samplingRate: 50,
         isFirstTime: true,
-        msOfMinuteFW: 0,
+        msOfMinuteFW: 200,
         configInfo: null,
         frameInfo: null,
         channels: 1,
@@ -36,7 +37,7 @@ class DataSimulation {
         msOfMinuteFW: 0,
         configInfo: null,
         frameInfo: null,
-        channels: 5,
+        channels: 1,
         magnitudeOffset: 500,
       },
     };
@@ -59,8 +60,8 @@ class DataSimulation {
 
   start() {
     this.counter = 0;
-    if (this.timerId) return;
     this.isRunning = true;
+    if (this.timerId) return;
     this.timerId = setInterval(() => this.tick(), this.TIMER_TICK_DURATION_MS);
   }
 
@@ -71,10 +72,20 @@ class DataSimulation {
       this.timerId = null;
     }
   }
+  pause() {
+    this.isRunning = false;
+  }
+
+  reset() {
+    this.msOfMinuteFW = 0;
+  }
 
   tick() {
+    this.msOfMinuteFW += 1000;
+    if (this.msOfMinuteFW >= 60000) {
+      this.msOfMinuteFW -= 60000;
+    }
     if (!this.isRunning) return;
-
     const demoType = this.demoType;
     switch (demoType) {
       case this.DEMO_MODE.EXAMPLE_1:
@@ -87,6 +98,7 @@ class DataSimulation {
         this.handleExample3();
         break;
     }
+    console.log(`[DATA_SIM] msOfMinuteFW: ${this.msOfMinuteFW}`);
   }
 
   async handleSingleSensor(sensorId, counter = 0) {
@@ -101,7 +113,7 @@ class DataSimulation {
       await this.updateTimestampInFrame(config);
 
       // Giả lập việc bỏ qua dữ liệu cho sensorId
-      if (counter > 0 && counter % 2 === 0) {
+      if (counter > 0 && counter % 3 === 0) {
         return;
       }
       this.onDataGenerated(config.frameInfo);
@@ -112,6 +124,7 @@ class DataSimulation {
     // if (this.counter>=6){return;}
     await this.handleSingleSensor(1, this.counter);
     this.counter++;
+    // await this.handleSingleSensor(1);
   }
 
   async handleExample2() {
@@ -131,28 +144,26 @@ class DataSimulation {
     if (this.counter < COUNTER_THRESHOLD) {
       await this.handleSingleSensor(2);
     } else {
-      // await this.handleSingleSensor(1, this.counter);
-      // await this.handleSingleSensor(2);
-      await this.handleSingleSensor(1);
-      await this.handleSingleSensor(2, this.counter);
+      await this.handleSingleSensor(1, this.counter);
+      await this.handleSingleSensor(2);
+      // await this.handleSingleSensor(1);
+      // await this.handleSingleSensor(2, this.counter);
     }
     this.counter++;
   }
 
   // Cập nhật timestamp trong frameInfo mà không tạo lại dữ liệu
   async updateTimestampInFrame(config) {
-    // Cập nhật giá trị msOfMinuteFW
-    config.msOfMinuteFW += 1000;
-    if (config.msOfMinuteFW >= 60000) {
-      config.msOfMinuteFW -= 60000;
-    }
-
     // Cập nhật trực tiếp vào payload của frameInfo (vị trí byte 1 và 2)
     if (config.frameInfo && config.frameInfo.data) {
+      let msOfMinuteFW = this.msOfMinuteFW + config.msOfMinuteFW;
+      if (msOfMinuteFW >= 60000) {
+        msOfMinuteFW -= 60000;
+      }
       // Byte 1: timestamp low byte
-      config.frameInfo.data[1] = config.msOfMinuteFW & 0xff;
+      config.frameInfo.data[1] = msOfMinuteFW & 0xff;
       // Byte 2: timestamp high byte
-      config.frameInfo.data[2] = (config.msOfMinuteFW >> 8) & 0xff;
+      config.frameInfo.data[2] = (msOfMinuteFW >> 8) & 0xff;
     }
   }
 

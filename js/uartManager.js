@@ -50,12 +50,12 @@ class UARTManager {
       this.port = await navigator.serial.requestPort();
       // baudRate: 1000000, 921600 , 460800 (max value for MACOS)
       await this.port.open({
-        baudRate: 460800,
-        // dataBits: 8,
-        // stopBits: 1,
-        // parity: "none",
-        // hwFlowControl: true,
-        // bufferSize: 8192,
+        baudRate: 1000000,
+        dataBits: 8,
+        stopBits: 1,
+        parity: "none",
+        hwFlowControl: true,
+        bufferSize: 8192,
       });
 
       this.writer = this.port.writable.getWriter();
@@ -71,8 +71,8 @@ class UARTManager {
 
       // KHÔNG sử dụng await ở đây để tránh chặn luồng kết nối
       this.readLoop();
-      this.onStatusChange(true);
       this.onMessageNotify("success", "UART Connected ✅");
+      this.onStatusChange(true);
     } catch (err) {
       this.onMessageNotify("error", "UART Failed to connect: " + err.message);
     }
@@ -202,12 +202,12 @@ class UARTManager {
 
     console.log("TX Command:", `0x${messageType.toString(16).padStart(2, "0")}`);
     console.log("TX Payload length:", payload.length);
-    console.log(
-      "TX Frame (hex):",
-      Array.from(frame)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join(" "),
-    );
+    // console.log(
+    //   "TX Frame (hex):",
+    //   Array.from(frame)
+    //     .map((b) => b.toString(16).padStart(2, "0"))
+    //     .join(" "),
+    // );
 
     await this.writer.write(frame);
   }
@@ -266,14 +266,14 @@ class UARTManager {
     //     .map((b) => b.toString(16).padStart(2, "0"))
     //     .join(" "),
     // );
-    console.log("RX Command:", `0x${command.toString(16).padStart(2, "0")}`);
+    // console.log("RX Command:", `0x${command.toString(16).padStart(2, "0")}`);
     // console.log("RX ACK:", `0x${ack.toString(16).padStart(2, "0")}`);
-    console.log("RX Payload length:", payloadLen);
-    console.log(
-      "RX CRC:",
-      crcOk ? "✓ Valid" : "✗ Invalid",
-      `(calc: 0x${crcCalc.toString(16).padStart(4, "0")}, recv: 0x${receivedCrc.toString(16).padStart(4, "0")})`,
-    );
+    // console.log("RX Payload length:", payloadLen);
+    // console.log(
+    //   "RX CRC:",
+    //   crcOk ? "✓ Valid" : "✗ Invalid",
+    //   `(calc: 0x${crcCalc.toString(16).padStart(4, "0")}, recv: 0x${receivedCrc.toString(16).padStart(4, "0")})`,
+    // );
 
     // Match firmware struct file_transfer_send_2_web_t ack layout:
     // ACK frame payload format from device is [code][data0][data1][data2][data3] for ACK type,
@@ -284,7 +284,7 @@ class UARTManager {
       data_len: payloadLen,
       crcOk,
     };
-
+    // console.log("------------->New frame", performance.now().toFixed(1), info.data_len);
     //This means terminal display screen
     if (command === 0x81) {
       const decoder = new TextDecoder();
@@ -308,7 +308,7 @@ class UARTManager {
       //   .join(" "),
       // );
       if (command == 0x92) {
-        console.log("========== DATA[0x92] package ID:", this.no_package);
+        console.log("========== DATA[0x92] package ID:", this.no_package, info.data_len);
         this.no_package++;
       }
 
@@ -404,7 +404,6 @@ class UARTManager {
               } else {
                 const curEndByte = `0x${buffer[buffer.length - 1].toString(16).padStart(2, "0")}`;
                 this.onMessageNotify("error", `Frame complete but missing stop byte (0x04). Got ${curEndByte}`);
-                console.warn("Discard corrupted frame. Missing stop byte. Got:", curEndByte);
                 // Reset parser state
                 buffer = [];
                 inFrame = false;

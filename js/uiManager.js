@@ -69,13 +69,14 @@ class UIManager {
       allowFileLoggingToggle: document.getElementById("file-logging-toggle"),
       loggingConfigPanel: document.getElementById("logging-config-panel"),
       pathLoggingText: document.getElementById("path-logging-text"), // It set is "hidden", we do not use it now
-      setFileLoggingBtn: document.getElementById("set-file-logging-btn"),
+      setFolderLoggingBtn: document.getElementById("set-folder-logging-btn"),
       startFileLoggingBtn: document.getElementById("start-file-logging-btn"),
       finishFileLoggingBtn: document.getElementById("finish-file-logging-btn"),
     };
 
     // STREAMING ELEMENTS
     this.elements.checkboxStreaming = document.getElementById("checkboxStreaming");
+    this.elements.checkboxSimulationData = document.getElementById("checkboxSimulationData");
 
     // SENSOR PANEL
     this.elements.checkboxHX712 = document.getElementById("checkboxHX712");
@@ -205,12 +206,12 @@ class UIManager {
   setLoggingPanelStatus(loggingStatus) {
     switch (loggingStatus) {
       case CONSTANTS.LOGGING_FILE_STATUS.NONE:
-        this.elements.setFileLoggingBtn.classList.remove("hidden");
+        this.elements.setFolderLoggingBtn.classList.remove("hidden");
         this.elements.startFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
         this.elements.finishFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
         break;
       case CONSTANTS.LOGGING_FILE_STATUS.READY:
-        this.elements.setFileLoggingBtn.classList.add("hidden");
+        this.elements.setFolderLoggingBtn.classList.add("hidden");
         this.elements.startFileLoggingBtn.classList.remove("opacity-20", "pointer-events-none");
         this.elements.finishFileLoggingBtn.classList.add("opacity-20", "pointer-events-none");
         break;
@@ -256,9 +257,11 @@ class UIManager {
     for (let sensor of sensorStatus) {
       if (!sensor.name) continue;
       switch (sensor.name) {
-        case "Sensor Info":
-          break;
         case "Stream status":
+          // Change state of checkboxStreaming
+          this.elements.checkboxStreaming.checked = sensor.active === "ON";
+          // Manually trigger "change" event since setting checked programmatically doesn't fire it
+          this.elements.checkboxStreaming.dispatchEvent(new Event("change", { bubbles: true }));
           break;
         case "hx712":
           this.elements.checkboxHX712.checked = sensor.active === "ON";
@@ -271,13 +274,20 @@ class UIManager {
           break;
 
         case "ads1115":
-
           break;
 
         default:
           break;
       }
     }
+  }
+  resetSensorStatusPanel() {
+    this.elements.checkboxStreaming.checked = false;
+    this.elements.checkboxHX712.checked = false;
+    this.elements.sdHX712.checked = false;
+    this.elements.checkboxPiezo.checked = false;
+    this.elements.sdPiezo.checked = false;
+    // this.elements.btnStopChart.click(); // Stop chart
   }
 }
 

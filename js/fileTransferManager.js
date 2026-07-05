@@ -429,6 +429,7 @@ class FileTransfer {
 
     this.onMessageNotify("Transfer stopped");
     this.text_progress = "Transfer aborted";
+    this.value_progress = "0%";
     this.onUpdateProgress(this.value_progress, this.text_progress);
     this.enableStop(false);
   }

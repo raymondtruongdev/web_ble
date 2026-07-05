@@ -15,6 +15,22 @@ export const AppState = {
   },
   setConnectionType(newType) {
     state.connectionType = newType;
+    switch (newType) {
+      case CONSTANTS.CONNECTION_TYPE.UART:
+        UI.updateConnectionUartStatus(true);
+        break;
+      case CONSTANTS.CONNECTION_TYPE.BLE:
+        UI.updateConnectionBLEStatus(true);
+        break;
+      case CONSTANTS.CONNECTION_TYPE.NONE:
+        UI.updateConnectionUartStatus(false);
+        UI.updateConnectionBLEStatus(false);
+        UI.resetSensorStatusPanel();
+        break;
+
+      default:
+        break;
+    }
   },
   get chartStatus() {
     return state.chartStatus;

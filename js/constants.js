@@ -23,19 +23,26 @@ export const CONSTANTS = {
     WRITE_BUFFER: 1, // ghi tạm vào bộ nhớ, cuối cùng mới xuất file
   },
 
-  DATATYPE_CHANNEL_NAME_MAPPING: {
-    data_type_0: "R",
-    data_type_1: "E",
-    data_type_2: "SIM",
-    data_type_3: "N",
-  },
-
-  DATATYPE_FILENAME_MAPPING: {
-    data_type_0: "Resistive",
-    data_type_1: "Electric",
-    data_type_2: "Simulation",
-    data_type_3: "NOT_DEFINE",
-  },
-  
   DEFAULT_SENSOR_NAME: "SENSOR",
+
+  STREAM_TYPES: {
+    data_type_0: {
+      id: 0,
+      name: "HX712",
+      nameChartLabel: "R",
+      nameLoggingFile: "Resistive",
+    },
+    data_type_1: {
+      id: 1,
+      name: "PIEZO",
+      nameChartLabel: "E",
+      nameLoggingFile: "Electric",
+    },
+    data_type_2: {
+      id: 2,
+      name: "STREAMING_TEST",
+      nameChartLabel: "SIM",
+      nameLoggingFile: "Simulation",
+    },
+  },
 };

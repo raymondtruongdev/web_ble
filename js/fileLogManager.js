@@ -49,10 +49,10 @@ class FileLogManager {
         mode: "readwrite",
       });
 
-      this.onMessageNotify("success", `Logging folder selected by user: ${this.dirHandle.name}`);
+      this.onMessageNotify("success", `✅ User selected a directory to save the log files: ${this.dirHandle.name}`);
       return true;
     } catch (error) {
-      console.error("Error initializing directory:", error);
+      this.onMessageNotify("error", "Error initializing directory");
       return false;
     }
   }
@@ -69,7 +69,7 @@ class FileLogManager {
    */
   async initNewSession() {
     // Generate a new session ID based on the current timestamp.
-    this.sessionId = Date.now();
+    this.sessionId = Math.floor(new Date() / 1000); // Unix timestamp in seconds
     this.isLoggingActive = true;
 
     // Reset mappings and file handlers to create new log files.
@@ -78,8 +78,7 @@ class FileLogManager {
     this.buffer.forEach((sensor) => {
       sensor.dataPoints = [];
     });
-    this.onMessageNotify("success", `New logging session started: ${this.sessionId}`);
-
+    this.onMessageNotify("success", `✅ Started a new logging session. Session ID: ${this.sessionId}`);
     return this.sessionId;
   }
 
@@ -96,34 +95,33 @@ class FileLogManager {
 
     if (sensorData.length === 0) return;
 
+    const channel_count = sensorData.length;
+    const sampleCountInBatch = sensorData[0].length;
+
     let isDataMissing = false;
     let missingSampleCount = 0;
 
-    if (!this.lastIndex[sensorData]) {
-      this.lastIndex[sensorData] = 0;
+    if (!this.lastIndex[sensorName]) {
+      this.lastIndex[sensorName] = 1; // Start index from 1
       isDataMissing = false;
     } else {
-      let diffMsOfMinuteFW = msOfMinuteFW - this.lastMsOfMinuteFW[sensorData];
+      let diffMsOfMinuteFW = msOfMinuteFW - this.lastMsOfMinuteFW[sensorName];
       if (diffMsOfMinuteFW < 0) {
-        diffMsOfMinuteFW = msOfMinuteFW + 60000 - this.lastMsOfMinuteFW[sensorData];
+        diffMsOfMinuteFW = msOfMinuteFW + 60000 - this.lastMsOfMinuteFW[sensorName];
       }
       const SAMPLE_INTERVAL_MS = 1000 / samplingRate;
       const estimatedSampleCount = Math.floor(diffMsOfMinuteFW / SAMPLE_INTERVAL_MS);
-      const sampleCountInBatch = samples.length;
       const ratio = estimatedSampleCount / sampleCountInBatch;
       if (ratio > 1.5) {
         isDataMissing = true;
-        missingSampleCount = (Math.floor(ratio) - 1) * samples.length;
+        missingSampleCount = (Math.floor(ratio) - 1) * sampleCountInBatch;
       }
     }
-    this.lastMsOfMinuteFW[sensorData] = msOfMinuteFW;
-    let currentIndex = this.lastIndex[sensorData] + missingSampleCount;
+    this.lastMsOfMinuteFW[sensorName] = msOfMinuteFW;
+    let currentIndex = this.lastIndex[sensorName] + missingSampleCount;
 
     const dataPoints = [];
-    const channel_count = sensorData.length;
-    const n_sample = sensorData[0].length;
-
-    for (let k = 0; k < n_sample; k++) {
+    for (let k = 0; k < sampleCountInBatch; k++) {
       let sample = [currentIndex]; // sample index
       for (let i = 0; i < channel_count; i++) {
         sample.push(sensorData[i][k]); // sample value of each channel
@@ -139,37 +137,36 @@ class FileLogManager {
     if (idx >= 0) {
       this.buffer[idx].dataPoints.push(...dataPoints);
     } else {
-      this.buffer.push({ name: sensorName, dataPoints });
+      this.buffer.push({ name: sensorName, samplingRate: samplingRate, dataPoints });
     }
   }
 
   // ==================== MAPPING SENSOR ====================
-  getMappedName(originalSensorName, mappingTable = CONSTANTS.DATATYPE_CHANNEL_NAME_MAPPING) {
-    let mappedSensorName = originalSensorName;
-    const match = originalSensorName.match(/^(data_type_\d+)/);
-    if (match) {
-      const dataType = match[1];
-      mappedSensorName = mappingTable[dataType] ?? CONSTANTS.DEFAULT_SENSOR_NAME;
-    }
-    return mappedSensorName;
-  }
+  getFileName(data_type_id_str, samplingRate) {
+    if (!this.fileNameMapping[data_type_id_str]) {
+      const date = new Date(this.sessionId * 1000);
+      const pad = (n) => String(n).padStart(2, "0");
+      const dateStr =
+        `${date.getFullYear()}` +
+        `${pad(date.getMonth() + 1)}` +
+        `${pad(date.getDate())}_` +
+        `${pad(date.getHours())}` +
+        `${pad(date.getMinutes())}` +
+        `${pad(date.getSeconds())}`;
 
-  getFileName(originalSensorName) {
-    if (!this.fileNameMapping[originalSensorName]) {
       // Thêm session ID vào tên file để phân biệt các session
-      const sessionPrefix = this.sessionId ? `session_${this.sessionId}` : "";
-      const mappedSensorName = this.getMappedName(originalSensorName, CONSTANTS.DATATYPE_FILENAME_MAPPING);
+      const sessionPrefix = this.sessionId ? `session_${this.sessionId}_${dateStr}` : "";
 
-      const fileName = `${sessionPrefix}_${mappedSensorName}.txt`;
-
-      this.fileNameMapping[originalSensorName] = fileName;
-      console.log(`Mapped sensor: ${originalSensorName} -> ${fileName}`);
+      const nameLoggingFile = CONSTANTS.STREAM_TYPES[data_type_id_str].nameLoggingFile ?? CONSTANTS.DEFAULT_SENSOR_NAME;
+      const fileName = `${sessionPrefix}_${nameLoggingFile}_${samplingRate}Hz.txt`;
+      this.fileNameMapping[data_type_id_str] = fileName;
+      // console.log(`Mapped sensor: ${data_type_id_str} -> ${fileName}`);
     }
-    return this.fileNameMapping[originalSensorName];
+    return this.fileNameMapping[data_type_id_str];
   }
 
-  async getOrCreateFileHandler(originalSensorName) {
-    const fileName = this.getFileName(originalSensorName);
+  async getOrCreateFileHandler(data_type_id_str, samplingRate) {
+    const fileName = this.getFileName(data_type_id_str, samplingRate);
 
     if (!this.fileHandlers[fileName]) {
       try {
@@ -182,19 +179,16 @@ class FileLogManager {
         try {
           // Thử lấy file đã tồn tại
           fileHandle = await this.dirHandle.getFileHandle(fileName);
-          console.log(`File already exists: ${fileName}`);
         } catch (error) {
           // File không tồn tại, tạo mới
           fileHandle = await this.dirHandle.getFileHandle(fileName, {
             create: true,
           });
-          console.log(`Created new file: ${fileName}`);
+          this.onMessageNotify("success", `Writing to file: ${fileName}`);
         }
-
         this.fileHandlers[fileName] = fileHandle;
-        console.log(`File handler ready for: ${fileName}`);
       } catch (error) {
-        console.error(`Error creating file handler for ${fileName}:`, error);
+        this.onMessageNotify("error", `Error creating file handler for ${fileName}`);
         throw error;
       }
     }
@@ -222,14 +216,13 @@ class FileLogManager {
 
       // ===== HEADER =====
       if (isEmptyFile) {
+        const dataType = sensor.name; // Assuming sensor.name is like "data_type_0"
         const firstPoint = sensor.dataPoints[0].sample;
-
-        const mappedSensorName = this.getMappedName(sensor.name, CONSTANTS.DATATYPE_CHANNEL_NAME_MAPPING);
-
+        const prefix = CONSTANTS.STREAM_TYPES[dataType].nameChartLabel ?? CONSTANTS.DEFAULT_SENSOR_NAME;
+        const header1 =
+          `timestamp,` + Array.from({ length: firstPoint.length - 1 }, (_, i) => `${prefix}${i + 1}`).join(",") + "\n";
         const header =
-          `timestamp,` +
-          Array.from({ length: firstPoint.length - 1 }, (_, i) => `${mappedSensorName}${i + 1}`).join(",") +
-          "\n";
+          `index,` + Array.from({ length: firstPoint.length - 1 }, (_, i) => `${prefix}${i + 1}`).join(",") + "\n";
 
         await writable.write(header);
       }
@@ -242,8 +235,9 @@ class FileLogManager {
           const dateObj = point[0] instanceof Date ? point[0] : new Date(point[0]);
           if (isNaN(dateObj.getTime())) return null;
           const timestamp = dateObj.toISOString().replace("Z", "");
-          const values = point.slice(1).join(",");
-          return `${timestamp},${values}\n`;
+          const [index, ...restValues] = point;
+          const values = restValues.join(",");
+          return `${index},${values}\n`;
         })
         .filter(Boolean)
         .join("");
@@ -273,7 +267,7 @@ class FileLogManager {
     if (this.timer !== null) {
       return;
     }
-    console.log("Starting auto-write...");
+    // console.log("Starting auto-write...");
 
     this.timer = setInterval(async () => {
       // Kiểm tra buffer có dữ liệu không và logging đang active
@@ -300,7 +294,7 @@ class FileLogManager {
           }
 
           try {
-            const fileHandle = await this.getOrCreateFileHandler(sensor.name);
+            const fileHandle = await this.getOrCreateFileHandler(sensor.name, sensor.samplingRate);
             await this.writeDataToFile(fileHandle, sensor);
           } catch (error) {
             console.error(`Failed to write sensor ${sensor.name}:`, error);
@@ -326,7 +320,7 @@ class FileLogManager {
     this.isLoggingActive = false; // Set this flag to stop the timer in autoWriteFile()
     this.onMessageNotify(
       "success",
-      `Logging session finished: ${this.sessionId}, Files saved to folder: ${this.dirHandle.name}`,
+      `✅ Logging session finished. Session ID: ${this.sessionId}, Files saved to folder: ${this.dirHandle.name}`,
     );
   }
 }

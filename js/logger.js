@@ -22,6 +22,12 @@ class Logger {
   log(type = "info", message) {
     if (!this.terminalComponent) return;
 
+    if (type === "warning" || type === "error") {
+      console.warn(message);
+    } else {
+      console.log(message);
+    }
+
     const logLine = document.createElement("div");
     const colorMap = {
       error: "#f85149",

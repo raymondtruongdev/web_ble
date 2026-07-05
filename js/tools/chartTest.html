@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advanced CSV Analytics Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4">
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js">
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom">
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .mono-text {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .chart-container {
+      position: relative;
+      user-select: none;
+      touch-action: none;
+    }
+
+    #myChart {
+      cursor: default;
+    }
+
+    #myChart.pan-mode {
+      cursor: grab;
+    }
+
+    #myChart.pan-mode:active {
+      cursor: grabbing;
+    }
+
+    #myChart.zoom-x-mode {
+      cursor: ew-resize;
+    }
+
+    #myChart.zoom-y-mode {
+      cursor: ns-resize;
+    }
+
+    /* Custom Tooltip Styling */
+    .custom-tooltip {
+      position: fixed;
+      background: rgba(15, 23, 42, 0.95);
+      color: #f8fafc;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 11px;
+      pointer-events: none;
+      z-index: 1000;
+      display: none;
+      font-family: 'JetBrains Mono', monospace;
+      min-width: 220px;
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+      line-height: 1.6;
+    }
+
+    .custom-tooltip .tooltip-title {
+      color: #94a3b8;
+      font-size: 11px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 6px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .custom-tooltip .tooltip-title strong {
+      color: #38bdf8;
+      font-weight: 700;
+    }
+
+    .custom-tooltip .tooltip-point {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 3px 0;
+    }
+
+    .custom-tooltip .tooltip-color {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 1.5px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .custom-tooltip .tooltip-label {
+      color: #cbd5e1;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .custom-tooltip .tooltip-value {
+      font-weight: 600;
+      color: #f8fafc;
+      margin-left: auto;
+      font-size: 12px;
+    }
+
+    .custom-tooltip .tooltip-index {
+      color: #64748b;
+      font-size: 10px;
+      margin-left: 6px;
+    }
+
+    /* Gridlines, Laserlines and glowing node points */
+    .highlight-point {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      pointer-events: none;
+      display: none;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 16px rgba(255, 255, 255, 0.8);
+      z-index: 100;
+      transform: translate(-50%, -50%);
+      transition: background-color 0.1s ease;
+    }
+
+    .vertical-line {
+      position: absolute;
+      width: 1px;
+      pointer-events: none;
+      display: none;
+      z-index: 99;
+      border-left: 1px dashed rgba(99, 102, 241, 0.4);
+    }
+
+    .horizontal-line-custom {
+      position: absolute;
+      height: 1px;
+      pointer-events: none;
+      display: none;
+      z-index: 98;
+      border-top: 1px dashed;
+      opacity: 0.4;
+    }
+
+    /* Floating Status Badge */
+    .interaction-indicator {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(15, 23, 42, 0.85);
+      color: #38bdf8;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      display: none;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      z-index: 50;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .interaction-indicator.active {
+      display: flex;
+    }
+
+    .point-glow {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      pointer-events: none;
+      display: none;
+      z-index: 99;
+      transform: translate(-50%, -50%);
+    }
+
+    /* Scrollbars customizer */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #1e293b;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #6366f1;
+    }
+
+    /* Legend wrapper - positioned at top-left */
+    .chart-legend-wrapper {
+      position: absolute;
+      z-index: 40;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 14px;
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(8px);
+      padding: 6px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(71, 85, 105, 0.4);
+      pointer-events: none;
+      max-width: 60%;
+      justify-content: flex-start;
+    }
+
+    .chart-legend-wrapper .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      font-weight: 500;
+      color: #e2e8f0;
+      pointer-events: auto;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .chart-legend-wrapper .legend-item:hover {
+      background: rgba(99, 102, 241, 0.15);
+    }
+
+    .chart-legend-wrapper .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255, 255, 255, 0.2);
+      flex-shrink: 0;
+    }
+
+    .chart-legend-wrapper .legend-label {
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    /* Hide Chart.js default legend */
+    .chartjs-legend {
+      display: none !important;
+    }
+
+    /* Stat cards */
+    .stat-card {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 1rem;
+      padding: 1rem 1.25rem;
+      transition: all 0.2s;
+    }
+
+    .stat-card:hover {
+      border-color: #334155;
+      background: #111d35;
+    }
+
+    .stat-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      font-weight: 600;
+    }
+
+    .stat-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-top: 0.2rem;
+    }
+
+    .stat-value.indigo {
+      color: #818cf8;
+    }
+
+    .stat-value.emerald {
+      color: #34d399;
+    }
+
+    .stat-value.amber {
+      color: #fbbf24;
+    }
+  </style>
+</head>
+
+<body class="bg-[#0b0f19] text-slate-100 p-4 md:p-6 flex flex-col">
+
+  <div class="max-w-10xl mx-auto w-full flex-grow flex flex-col gap-4 h-full">
+
+    <!-- Header - fixed height -->
+    <header
+      class="flex-shrink-0 flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-slate-800 gap-3">
+      <div class="flex items-center gap-3">
+        <div class="p-2.5 bg-indigo-600/10 rounded-xl border border-indigo-500/30 text-indigo-400">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold text-slate-50">CSV Chart Visualizer</h1>
+          <p class="text-xs text-slate-400">Dataset Visualization</p>
+        </div>
+      </div>
+
+      <!-- Live Status -->
+      <div class="flex items-center gap-4">
+        <div class="bg-slate-800/40 border border-slate-700/60 rounded-xl px-4 py-2 flex items-center gap-3">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span class="text-xs text-slate-300 font-medium">Ready</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main - flex-1 chiếm phần còn lại -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0">
+
+      <!-- Left Panel - fixed width, scrollable if needed -->
+      <section
+        class="lg:col-span-3 bg-[#111827] border border-slate-800/80 rounded-2xl p-5 flex flex-col gap-4 shadow-xl overflow-y-auto">
+        <div class="flex items-center gap-2 pb-3 border-b border-slate-800/60 flex-shrink-0">
+          <span class="w-1.5 h-4 bg-indigo-500 rounded-full"></span>
+          <h2 class="text-xl font-semibold uppercase tracking-wider text-slate-300">Configuration</h2>
+        </div>
+
+        <!-- 1. File Upload -->
+        <div class="flex-shrink-0">
+          <label class="block text-xm font-semibold text-yellow-200 uppercase tracking-wider mb-2">1. Select CSV
+            Dataset</label>
+          <div class="relative flex items-center justify-center w-full">
+            <label
+              class="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-600 border-dashed rounded-xl cursor-pointer bg-slate-900/50 hover:bg-slate-900 hover:border-indigo-500/50 transition-all duration-200">
+              <div class="flex flex-col items-center justify-center pt-5 pb-6 px-4">
+                <svg class="w-6 h-6 mb-2 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+                <p id="fileNameLabel" class="text-xm text-slate-300 font-medium text-center truncate max-w-[240px]">
+                  Upload a .csv file
+                </p>
+              </div>
+              <input type="file" id="csvFile" accept=".csv" class="hidden" />
+            </label>
+          </div>
+        </div>
+
+        <!-- 2. Select X Axis -->
+        <div class="flex-shrink-0">
+          <label for="selectX" class="block text-xm font-semibold text-yellow-200 uppercase tracking-wider mb-2">2. X
+            Axis (single)</label>
+          <div class="relative">
+            <select id="selectX"
+              class="w-full gap-3 p-2.5 bg-slate-900 border border-slate-600 rounded-lg text-[16px] text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all cursor-pointer">
+              <option value="" disabled selected>Awaiting CSV...</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 3. Select Y Axis -->
+        <div class="flex-shrink-0">
+          <label for="selectY" class="block text-xm font-semibold text-yellow-200 uppercase tracking-wider mb-1">3. Y
+            Axis (multiple)</label>
+          <p class="text-[16px] text-red-500 mb-2">Hold Ctrl/Cmd to multi-select</p>
+          <select id="selectY" multiple
+            class="w-full p-2.5 bg-slate-900 border border-slate-600 rounded-lg text-[16px] text-slate-100 h-28 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all cursor-pointer scrollbar">
+            <option value="" disabled selected style="background-color: #0f172a;">Awaiting CSV...
+            </option>
+          </select>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex flex-col gap-2.5 pt-2 flex-shrink-0">
+          <button id="btnDraw"
+            class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm py-2.5 px-4 rounded-xl transition-all duration-200 shadow-lg shadow-indigo-600/10 active:scale-[0.98] cursor-pointer">
+            DRAW CHART
+          </button>
+        </div>
+
+        <!-- mini hint -->
+        <div class="mt-1 text-xm text-slate-300 border-t border-slate-800/50 pt-3 flex-shrink-0">
+          <span class="flex items-center gap-1"><i class="fa-regular fa-circle-check text-indigo-400"></i> CSV with
+            header recommended</span>
+        </div>
+      </section>
+
+      <!-- Right Panel - flex-1 chiếm phần còn lại -->
+      <section class="lg:col-span-9 flex flex-col gap-4 min-h-0">
+
+        <!-- 3 Stat Cards - fixed height -->
+        <div class="flex-shrink-0 grid grid-cols-3 gap-3">
+          <div class="stat-card">
+            <div class="stat-label">Total Data Rows</div>
+            <div id="statPoints" class="stat-value indigo">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Active Filename</div>
+            <div id="statFileName" class="stat-value text-sm font-semibold text-slate-300 truncate max-w-[180px]">—
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Plotted Datasets</div>
+            <div id="statDatasets" class="stat-value emerald">—</div>
+          </div>
+        </div>
+
+        <!-- Chart Container - flex-1 chiếm phần còn lại -->
+        <div class="flex-1 min-h-0 bg-[#111827] border border-slate-800 rounded-2xl p-4 shadow-xl">
+          <div
+            class="chart-container relative border border-slate-800/80 rounded-xl p-2 bg-slate-950/40 h-full flex items-center justify-center">
+
+            <!-- Custom Legend (top-left) -->
+            <div id="customLegend" class="absolute top-3 left-20 z-40 chart-legend-wrapper max-w-[calc(100%-90px)]"
+              style="display:none;"></div>
+
+            <!-- FIT button (top-right) -->
+            <button id="btnFit" type="button" class="absolute top-3 right-3 z-50 flex items-center gap-2
+              rounded-lg border border-slate-700/60 bg-slate-800/90 px-3 py-2 text-xs font-semibold
+              text-slate-300 shadow-lg backdrop-blur-sm transition-all duration-200
+              hover:bg-slate-700 hover:text-white active:scale-95">
+              <i class="fa-solid fa-maximize text-[11px]"></i>
+              <span>FIT</span>
+            </button>
+
+            <!-- Canvas -->
+            <canvas id="myChart" class="w-full h-full z-10"></canvas>
+
+            <!-- Dynamic overlays -->
+            <div class="vertical-line" id="verticalLine"></div>
+            <div class="point-glow" id="pointGlow"></div>
+            <div class="highlight-point" id="highlightPoint"></div>
+            <div class="custom-tooltip" id="customTooltip"></div>
+
+            <!-- Empty placeholder -->
+            <div id="chartPlaceholder"
+              class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 pointer-events-none z-0">
+              <div class="p-4 bg-slate-900/60 rounded-full border border-slate-800/60 mb-3 text-slate-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24"
+                  stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M7 12l3-3 3 3 4-4M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <p class="text-xl font-medium text-slate-400">No chart data generated yet</p>
+              <p class="text-xm text-slate-600 mt-1">Upload CSV, select axes, then DRAW</p>
+            </div>
+          </div>
+
+          <!-- shortcut footer inside right panel -->
+          <div
+            class="mt-3 flex-shrink-0 flex flex-wrap justify-between gap-2 text-[16px] text-yellow-200 border-t border-slate-800/60 pt-5">
+            <span><span class="bg-slate-800 px-1.5 py-2.5 rounded mono-text text-slate-300">Right Click + Drag</span>
+              Pan</span>
+            <span><span class="bg-slate-800 px-1.5 py-2.5 rounded mono-text text-slate-300">X-axis drag</span>Zoom
+              X</span>
+            <span><span class="bg-slate-800 px-1.5 py-2.5 rounded mono-text text-slate-300">Y-axis drag</span> Zoom
+              Y</span>
+            <span><span class="bg-slate-800 px-1.5 py-2.5 rounded mono-text text-slate-300">Hover</span> Inspect
+              points</span>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer  -->
+    <footer
+      class="flex-shrink-0 mt-10 p-3 bg-gradient-to-r from-blue-900 to-blue-700  border border-slate-800/60 rounded-xl flex items-center justify-center text-gray-200 text-center uppercase tracking-[0.25em] font-bold">
+      <div>
+        T2DTECH Co. Ltd © 2026
+      </div>
+    </footer>
+
+  </div>
+
+  <script>
+    let parsedData = [];
+    let headers = [];
+    let chartInstance = null;
+    let allDatasets = [];
+    let chartData = [];
+    let currentXCol = "";
+    let hasHeader = true;
+
+    let datasetVisibility = {};
+
+    // DOM refs
+    const canvas = document.getElementById('myChart');
+    const tooltip = document.getElementById('customTooltip');
+    const highlightPoint = document.getElementById('highlightPoint');
+    const pointGlow = document.getElementById('pointGlow');
+    const verticalLine = document.getElementById('verticalLine');
+    const customLegend = document.getElementById('customLegend');
+    const fileNameLabel = document.getElementById('fileNameLabel');
+    const statPoints = document.getElementById('statPoints');
+    const statFileName = document.getElementById('statFileName');
+    const statDatasets = document.getElementById('statDatasets');
+    const chartPlaceholder = document.getElementById('chartPlaceholder');
+
+    // interaction states
+    let isRightDragging = false;
+    let isLeftDraggingX = false;
+    let isLeftDraggingY = false;
+    let lastMouseX = 0, lastMouseY = 0;
+    let startX = 0, startY = 0;
+    let startMinX = 0, startMaxX = 0;
+    let startMinY = 0, startMaxY = 0;
+    let isMouseOverChart = false;
+
+    // ---- CSV Parser ----
+    document.getElementById('csvFile').addEventListener('change', function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      fileNameLabel.textContent = file.name;
+      statFileName.textContent = file.name;
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        const text = event.target.result;
+        parseCSV(text);
+      };
+      reader.readAsText(file);
+    });
+
+    function parseCSV(text) {
+      const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      if (lines.length < 1) return alert('Invalid CSV');
+
+      const delimiter = lines[0].includes(';') ? ';' : ',';
+      const firstLineValues = lines[0].split(delimiter).map(h => h.replace(/['"]/g, '').trim());
+      const isNumeric = val => val !== '' && !isNaN(val) && !isNaN(parseFloat(val));
+      const hasNoHeader = firstLineValues.length > 0 && firstLineValues.every(val => val === '' || isNumeric(val));
+
+      let startRowIndex = 1;
+      if (hasNoHeader) {
+        headers = firstLineValues.map((_, idx) => `COL${idx + 1}`);
+        startRowIndex = 0;
+        hasHeader = false;
+      } else {
+        headers = firstLineValues;
+        startRowIndex = 1;
+        hasHeader = true;
+      }
+
+      parsedData = [];
+      for (let i = startRowIndex; i < lines.length; i++) {
+        const values = lines[i].split(delimiter).map(v => v.trim());
+        if (values.length === headers.length) {
+          let row = {};
+          headers.forEach((header, index) => {
+            let val = values[index];
+            row[header] = isNaN(val) || val === '' ? val : parseFloat(val);
+          });
+          parsedData.push(row);
+        }
+      }
+      statPoints.textContent = parsedData.length.toLocaleString('en-US');
+      updateSelectOptions();
+    }
+
+    function updateSelectOptions() {
+      const selectX = document.getElementById('selectX');
+      const selectY = document.getElementById('selectY');
+      selectX.innerHTML = '';
+      selectY.innerHTML = '';
+      headers.forEach(header => {
+        let optX = document.createElement('option');
+        optX.value = header;
+        optX.textContent = header;
+        selectX.appendChild(optX);
+        let optY = document.createElement('option');
+        optY.value = header;
+        optY.textContent = header;
+        selectY.appendChild(optY);
+      });
+    }
+
+    // ---- Custom Legend ----
+    function renderCustomLegend(datasets) {
+      customLegend.innerHTML = '';
+      customLegend.style.display = 'flex';
+      datasets.forEach((dataset, index) => {
+        const isVisible = datasetVisibility[dataset.label] !== undefined ? datasetVisibility[dataset.label] : true;
+        const item = document.createElement('div');
+        item.className = 'legend-item';
+        item.style.opacity = isVisible ? '1' : '0.35';
+        const colorDot = document.createElement('span');
+        colorDot.className = 'legend-color';
+        colorDot.style.backgroundColor = dataset.borderColor;
+        const label = document.createElement('span');
+        label.className = 'legend-label';
+        label.textContent = dataset.label;
+        item.appendChild(colorDot);
+        item.appendChild(label);
+        item.addEventListener('click', function (e) {
+          e.stopPropagation();
+          const newVisibility = !datasetVisibility[dataset.label];
+          datasetVisibility[dataset.label] = newVisibility;
+          if (chartInstance) {
+            chartInstance.data.datasets.forEach(ds => {
+              if (ds.label === dataset.label) ds.hidden = !newVisibility;
+            });
+            chartInstance.update();
+          }
+          item.style.opacity = newVisibility ? '1' : '0.35';
+        });
+        customLegend.appendChild(item);
+      });
+    }
+
+    // ---- DRAW CHART ----
+    document.getElementById('btnDraw').addEventListener('click', drawChart);
+
+    function drawChart() {
+      const xCol = document.getElementById('selectX').value;
+      const yOptions = document.getElementById('selectY').selectedOptions;
+      const yCols = Array.from(yOptions).map(opt => opt.value);
+      if (!xCol || yCols.length === 0) {
+        return alert('Please select X axis and at least one Y axis column!');
+      }
+      currentXCol = xCol;
+      if (chartPlaceholder) chartPlaceholder.style.display = 'none';
+      statDatasets.textContent = yCols.length;
+
+      const colors = ['#6366f1', '#10b981', '#38bdf8', '#f59e0b', '#ec4899', '#8b5cf6', '#f97316', '#14b8a6', '#06b6d4', '#e2e8f0'];
+
+      chartData = [];
+      allDatasets = yCols.map((col, index) => {
+        const dataPoints = parsedData.map((row, idx) => ({
+          x: row[xCol],
+          y: row[col],
+          rawIndex: idx
+        }));
+        chartData.push(dataPoints);
+        if (datasetVisibility[col] === undefined) datasetVisibility[col] = true;
+        return {
+          label: col,
+          data: dataPoints,
+          borderColor: colors[index % colors.length],
+          backgroundColor: 'transparent',
+          borderWidth: 2.5,
+          pointRadius: 0,
+          pointHoverRadius: 6,
+          tension: 0.35,
+          cubicInterpolationMode: 'monotone',
+          fill: false,
+          spanGaps: false,
+          hidden: datasetVisibility[col] === false
+        };
+      });
+
+      if (chartInstance) chartInstance.destroy();
+
+      const ctx = canvas.getContext('2d');
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: { datasets: allDatasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          layout: { padding: { top: 35, bottom: 5, left: 5, right: 15 } },
+          animation: { duration: 400, easing: 'easeOutQuart' },
+          scales: {
+            x: {
+              type: 'linear',
+              position: 'bottom',
+              grid: { color: 'rgba(255,255,255,0.04)' },
+              ticks: { maxTicksLimit: 12, color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 } }
+            },
+            y: {
+              type: 'linear',
+              grid: { color: 'rgba(255,255,255,0.04)' },
+              ticks: { maxTicksLimit: 10, color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 } }
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false },
+            zoom: { zoom: { drag: { enabled: false }, mode: 'xy' }, pan: { enabled: false } }
+          }
+        }
+      });
+
+      renderCustomLegend(allDatasets);
+      setupCustomInteractions();
+      setupCustomTooltip();
+    }
+
+    // ---- Interactions ----
+    function setupCustomInteractions() {
+      canvas.removeEventListener('contextmenu', e => e.preventDefault());
+      canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+      canvas.addEventListener('mousedown', function (e) {
+        if (!chartInstance) return;
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const chartArea = chartInstance.chartArea;
+        const isOnXScale = mouseY >= chartArea.bottom && mouseY <= rect.height && mouseX >= chartArea.left && mouseX <= chartArea.right;
+        const isOnYScale = mouseX >= 0 && mouseX <= chartArea.left && mouseY >= chartArea.top && mouseY <= chartArea.bottom;
+
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+
+        if (e.button === 2) {
+          isRightDragging = true;
+          canvas.className = 'pan-mode';
+        } else if (e.button === 0) {
+          if (isOnXScale) {
+            isLeftDraggingX = true;
+            canvas.className = 'zoom-x-mode';
+            const xScale = chartInstance.scales.x;
+            startMinX = xScale.min;
+            startMaxX = xScale.max;
+            startX = e.clientX;
+          } else if (isOnYScale) {
+            isLeftDraggingY = true;
+            canvas.className = 'zoom-y-mode';
+            const yScale = chartInstance.scales.y;
+            startMinY = yScale.min;
+            startMaxY = yScale.max;
+            startY = e.clientY;
+          }
+        }
+      });
+
+      window.addEventListener('mousemove', function (e) {
+        if (!chartInstance) return;
+        const xScale = chartInstance.scales.x;
+        const yScale = chartInstance.scales.y;
+
+        if (isRightDragging) {
+          const deltaX = e.clientX - lastMouseX;
+          const deltaY = e.clientY - lastMouseY;
+          const xRange = xScale.max - xScale.min;
+          const yRange = yScale.max - yScale.min;
+          const chartArea = chartInstance.chartArea;
+          const unitPerPixelX = xRange / chartArea.width;
+          const unitPerPixelY = yRange / chartArea.height;
+          xScale.options.min = xScale.min - deltaX * unitPerPixelX;
+          xScale.options.max = xScale.max - deltaX * unitPerPixelX;
+          yScale.options.min = yScale.min + deltaY * unitPerPixelY;
+          yScale.options.max = yScale.max + deltaY * unitPerPixelY;
+          chartInstance.update('none');
+          lastMouseX = e.clientX;
+          lastMouseY = e.clientY;
+        } else if (isLeftDraggingX) {
+          const deltaX = e.clientX - startX;
+          const centerX = (startMinX + startMaxX) / 2;
+          const halfRange = (startMaxX - startMinX) / 2;
+          const scaleFactor = Math.exp(-deltaX / 200);
+          const newHalfRange = halfRange * scaleFactor;
+          if (newHalfRange > 0.001) {
+            xScale.options.min = centerX - newHalfRange;
+            xScale.options.max = centerX + newHalfRange;
+            chartInstance.update('none');
+          }
+        } else if (isLeftDraggingY) {
+          const deltaY = e.clientY - startY;
+          const centerY = (startMinY + startMaxY) / 2;
+          const halfRange = (startMaxY - startMinY) / 2;
+          const scaleFactor = Math.exp(deltaY / 200);
+          const newHalfRange = halfRange * scaleFactor;
+          if (newHalfRange > 0.001) {
+            yScale.options.min = centerY - newHalfRange;
+            yScale.options.max = centerY + newHalfRange;
+            chartInstance.update('none');
+          }
+        }
+      });
+
+      window.addEventListener('mouseup', function () {
+        if (isRightDragging || isLeftDraggingX || isLeftDraggingY) {
+          isRightDragging = false;
+          isLeftDraggingX = false;
+          isLeftDraggingY = false;
+          canvas.className = '';
+        }
+      });
+
+      canvas.addEventListener('mouseleave', function () {
+        isMouseOverChart = false;
+        tooltip.style.display = 'none';
+        highlightPoint.style.display = 'none';
+        pointGlow.style.display = 'none';
+        verticalLine.style.display = 'none';
+        document.querySelectorAll('.horizontal-line-custom').forEach(el => el.remove());
+        canvas.className = '';
+      });
+
+      canvas.addEventListener('mouseenter', function () {
+        isMouseOverChart = true;
+      });
+    }
+
+    // ---- Tooltip ----
+    function setupCustomTooltip() {
+      const container = document.querySelector(".chart-container");
+      canvas.addEventListener("mousemove", function (e) {
+        if (!chartInstance || !isMouseOverChart) return;
+        const canvasRect = canvas.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const offsetX = canvasRect.left - containerRect.left;
+        const offsetY = canvasRect.top - containerRect.top;
+        const mouseX = e.clientX - canvasRect.left;
+        const mouseY = e.clientY - canvasRect.top;
+        const chartArea = chartInstance.chartArea;
+
+        if (mouseX < chartArea.left || mouseX > chartArea.right || mouseY < chartArea.top || mouseY > chartArea.bottom) {
+          tooltip.style.display = "none";
+          highlightPoint.style.display = "none";
+          pointGlow.style.display = "none";
+          verticalLine.style.display = "none";
+          document.querySelectorAll(".horizontal-line-custom").forEach(el => el.remove());
+          return;
+        }
+
+        const xScale = chartInstance.scales.x;
+        const yScale = chartInstance.scales.y;
+        const mouseValueX = xScale.getValueForPixel(mouseX);
+
+        let closestPoints = [];
+        let anchorPoint = null;
+        let minDist = Infinity;
+
+        const visibleDatasets = allDatasets.filter((ds, idx) => !chartInstance.data.datasets[idx].hidden);
+
+        visibleDatasets.forEach((dataset, datasetIndex) => {
+          const originalIndex = allDatasets.indexOf(dataset);
+          let nearest = null;
+          let nearestDist = Infinity;
+          dataset.data.forEach(point => {
+            if (point.x == null || point.y == null) return;
+            const d = Math.abs(point.x - mouseValueX);
+            if (d < nearestDist) {
+              nearestDist = d;
+              nearest = point;
+            }
+          });
+          if (nearest) {
+            closestPoints.push({
+              ...nearest, datasetIndex: originalIndex, label: dataset.label, color: dataset
+                .borderColor
+            });
+            if (nearestDist < minDist) {
+              minDist = nearestDist;
+              anchorPoint = nearest;
+            }
+          }
+        });
+
+        if (!anchorPoint) { tooltip.style.display = "none"; return; }
+
+        verticalLine.style.left = (offsetX + mouseX) + "px";
+        verticalLine.style.top = (offsetY + chartArea.top) + "px";
+        verticalLine.style.height = (chartArea.bottom - chartArea.top) + "px";
+        verticalLine.style.display = "block";
+        document.querySelectorAll(".horizontal-line-custom").forEach(el => el.remove());
+
+        let html = `<div class="tooltip-title">${currentXCol} = <strong>${anchorPoint.x.toFixed(4)}</strong></div>`;
+        closestPoints.sort((a, b) => a.datasetIndex - b.datasetIndex);
+
+        closestPoints.forEach(point => {
+          const pixelX = xScale.getPixelForValue(point.x);
+          const pixelY = yScale.getPixelForValue(point.y);
+          const hLine = document.createElement("div");
+          hLine.className = "horizontal-line-custom";
+          hLine.style.left = (offsetX + chartArea.left) + "px";
+          hLine.style.width = (chartArea.right - chartArea.left) + "px";
+          hLine.style.top = (offsetY + pixelY) + "px";
+          hLine.style.borderTopColor = point.color;
+          hLine.style.display = "block";
+          container.appendChild(hLine);
+
+          if (point.rawIndex === anchorPoint.rawIndex && point.datasetIndex === closestPoints.find(p => p.rawIndex ===
+            anchorPoint.rawIndex)?.datasetIndex) {
+            highlightPoint.style.left = (offsetX + pixelX) + "px";
+            highlightPoint.style.top = (offsetY + pixelY) + "px";
+            highlightPoint.style.display = "block";
+            highlightPoint.style.backgroundColor = point.color;
+            highlightPoint.style.borderColor = "#ffffff";
+            highlightPoint.style.boxShadow = `0 0 16px ${point.color}, 0 0 4px rgba(0,0,0,0.8)`;
+            pointGlow.style.left = (offsetX + pixelX) + "px";
+            pointGlow.style.top = (offsetY + pixelY) + "px";
+            pointGlow.style.display = "block";
+            pointGlow.style.background = `radial-gradient(circle, ${point.color}50 0%, transparent 70%)`;
+          }
+          const csvLine = hasHeader ? point.rawIndex + 1 : point.rawIndex;
+          html += `<div class="tooltip-point">
+              <span class="tooltip-color" style="background:${point.color}"></span>
+              <span class="tooltip-label">${point.label}</span>
+              <span class="tooltip-value">${point.y.toFixed(4)}</span>
+              <span class="tooltip-index">(csv_line:${csvLine})</span>
+            </div>`;
+        });
+
+        tooltip.innerHTML = html;
+        let tooltipX = e.clientX + 15,
+          tooltipY = e.clientY - 10;
+        const w = 240,
+          h = 40 + closestPoints.length * 26;
+        if (tooltipX + w > window.innerWidth) tooltipX = e.clientX - w - 15;
+        if (tooltipY + h > window.innerHeight) tooltipY = window.innerHeight - h - 10;
+        if (tooltipY < 10) tooltipY = 10;
+        tooltip.style.left = tooltipX + "px";
+        tooltip.style.top = tooltipY + "px";
+        tooltip.style.display = "block";
+      });
+    }
+
+    // ---- FIT ----
+    document.getElementById('btnFit').addEventListener('click', function () {
+      if (chartInstance) {
+        chartInstance.scales.x.options.min = undefined;
+        chartInstance.scales.x.options.max = undefined;
+        chartInstance.scales.y.options.min = undefined;
+        chartInstance.scales.y.options.max = undefined;
+        if (typeof chartInstance.resetZoom === 'function') chartInstance.resetZoom();
+        else chartInstance.update();
+        tooltip.style.display = 'none';
+        highlightPoint.style.display = 'none';
+        pointGlow.style.display = 'none';
+        verticalLine.style.display = 'none';
+        document.querySelectorAll('.horizontal-line-custom').forEach(el => el.remove());
+        canvas.className = '';
+      }
+    });
+  </script>
+</body>
+
+</html>

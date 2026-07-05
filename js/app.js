@@ -23,10 +23,14 @@ function isDeviceConnected() {
   return true;
 }
 
-async function updateUIwithDeviceMessage(text) {
+async function updateUIFromDeviceStatus(text) {
   if (text.includes("Sensor Info:")) {
-    const sensorStatus = await UTILS.parseSensorStatus(text);
-    UI.updateSensorStatusUI(sensorStatus);
+    const deviceStatus = await UTILS.parseSensorStatus(text);
+    const streamingDeviceStatus = deviceStatus.filter((s) => s.name && s.name.startsWith("Stream status"));
+    if (streamingDeviceStatus.length > 0 && streamingDeviceStatus[0].active === "ON") {
+      await PARSER_STREAMING.updateStreamingConfigFromDeviceStatus(deviceStatus);
+    }
+    UI.updateSensorStatusUI(deviceStatus);
   }
 }
 
@@ -37,6 +41,15 @@ function terminal_send(cmd) {
   switch (cmd.toLowerCase()) {
     case "clear":
       logger.clear();
+      break;
+    case "sim reset":
+      DATA_SIM.reset();
+      break;
+    case "sim stop":
+      DATA_SIM.stop();
+      break;
+    case "sim pause":
+      DATA_SIM.pause();
       break;
 
     default:
@@ -121,10 +134,8 @@ window.addEventListener("DOMContentLoaded", () => {
   BLE.onStatusChange((isConnected, deviceName = "", deviceId = "") => {
     UI.updateConnectionBLEStatus(isConnected, deviceName, deviceId);
     if (isConnected) {
-      if (AppState.connectionType == CONSTANTS.CONNECTION_TYPE.UART) {
-        UI.elements.disconnectUartBtn.click(); // Tự động ngắt UART nếu đang kết nối để tránh xung đột
-      }
       AppState.setConnectionType(CONSTANTS.CONNECTION_TYPE.BLE);
+      terminal_send("status"); // Send command to get device status for UI update
     } else {
       if (AppState.connectionType == CONSTANTS.CONNECTION_TYPE.BLE) {
         AppState.setConnectionType(CONSTANTS.CONNECTION_TYPE.NONE);
@@ -136,12 +147,16 @@ window.addEventListener("DOMContentLoaded", () => {
     logger.log(type, text);
   });
   // Set callback for BLE data reception to log incoming data to terminal
-  BLE.onDataReceived((textData) => {
-    logger.log("info", textData);
+  BLE.onDataReceived((text) => {
+    logger.log("info", text);
+    updateUIFromDeviceStatus(text);
   });
 
   UI.elements.connectBLEBtn.onclick = async () => {
     try {
+      if (AppState.connectionType == CONSTANTS.CONNECTION_TYPE.UART) {
+        await UI.elements.disconnectUartBtn.click(); // Disconnect UART to avoid conflicts.
+      }
       logger.log("info", "Scanning...");
       await BLE.connect();
     } catch (err) {
@@ -159,6 +174,10 @@ window.addEventListener("DOMContentLoaded", () => {
 
   //================= UART CONNECTION PANEL =================
   UI.elements.connectUartBtn.onclick = async () => {
+    if (AppState.connectionType == CONSTANTS.CONNECTION_TYPE.BLE) {
+      // Disconnect BLE to avoid conflicts.
+      await UI.elements.disconnectBLEBtn.click();
+    }
     await UART.connect();
   };
 
@@ -167,16 +186,12 @@ window.addEventListener("DOMContentLoaded", () => {
   };
 
   // Set callback functions for UART to update UI
-  UART.onStatusChange((isConnected) => {
+  UART.onStatusChange(async (isConnected) => {
     if (isConnected) {
-      if (AppState.connectionType == CONSTANTS.CONNECTION_TYPE.BLE) {
-        UI.elements.disconnectBLEBtn.click(); // Tự động ngắt BLE nếu đang kết nối để tránh xung đột
-      }
-      UI.updateConnectionUartStatus(true);
       AppState.setConnectionType(CONSTANTS.CONNECTION_TYPE.UART);
-      terminal_send("status"); // Gửi lệnh "status" để lấy thông tin trạng thái thiết bị
+      await UTILS.delay(500);
+      terminal_send("status"); // Send command to get device status for UI update
     } else {
-      UI.updateConnectionUartStatus(false);
       if (AppState.connectionType == CONSTANTS.CONNECTION_TYPE.UART) {
         AppState.setConnectionType(CONSTANTS.CONNECTION_TYPE.NONE);
       }
@@ -189,12 +204,12 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   // Set callback for UART data reception to log incoming data to terminal
-  UART.onDataReceived((data) => {
-    updateUIwithDeviceMessage(data);
-    if (String(data).toUpperCase().includes("ERR")) {
-      logger.log("error", data);
+  UART.onDataReceived((text) => {
+    updateUIFromDeviceStatus(text);
+    if (String(text).toUpperCase().includes("ERR")) {
+      logger.log("error", text);
     } else {
-      logger.log("info", data);
+      logger.log("info", text);
     }
   });
 
@@ -283,6 +298,9 @@ window.addEventListener("DOMContentLoaded", () => {
   UART.onStreamingStatus((info) => {
     PARSER_STREAMING.processStreamingData(info);
   });
+  BLE.onStreamingStatus((info) => {
+    PARSER_STREAMING.processStreamingData(info);
+  });
 
   // Set callback when DATA_SIM has new data then we feed it to PARSER_STREAMING
   DATA_SIM.setupDemoType(DATA_SIM.DEMO_MODE.EXAMPLE_3);
@@ -298,7 +316,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
       const samplingRate = result.samplingRate;
       const msOfMinuteFW = result.msOfMinuteFW;
-      
+
       for (let i = 0; i < result.samples.length; i++) {
         const samples = result.samples[i];
         const channelName = "data_type_" + result.streamType + "_ch_" + i;
@@ -306,7 +324,7 @@ window.addEventListener("DOMContentLoaded", () => {
       }
       const sensorName = "data_type_" + result.streamType;
       const sensorData = result.samples;
-      FILE_LOG_MANAGER.addFileLogBuffer(sensorData, samplingRate, sensorName,msOfMinuteFW);
+      FILE_LOG_MANAGER.addFileLogBuffer(sensorData, samplingRate, sensorName, msOfMinuteFW);
     }
   });
 
@@ -321,12 +339,16 @@ window.addEventListener("DOMContentLoaded", () => {
       UI.elements.btnStartChart.click();
     } else {
       STREAMING.stopStreaming();
-      UI.elements.btnStopChart.click();
+      // UI.elements.btnStopChart.click();
     }
   });
 
   STREAMING.onSendFrame((cmd, payload) => {
-    UART.sendFrame(cmd, payload);
+    if (AppState.connectionType == CONSTANTS.CONNECTION_TYPE.UART) {
+      UART.sendFrame(cmd, payload);
+    } else {
+      BLE.sendFrame(cmd, payload);
+    }
   });
 
   //================= CHART CONTROLS =================
@@ -368,6 +390,10 @@ window.addEventListener("DOMContentLoaded", () => {
     AppState.updateAutoFitState(isValue);
   });
 
+  CHART.onMessageNotify((type, text) => {
+    logger.log(type, text);
+  });
+
   // ================== FILE LOGGING  =================
   UI.elements.allowFileLoggingToggle.addEventListener("change", async () => {
     const isAllowDirectStream = FILE_LOG_MANAGER.isDirectFileWriteAvailable();
@@ -396,7 +422,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   // Set a file location to write data if browser support WRITE_FILE_DIRECTLY
-  UI.elements.setFileLoggingBtn.onclick = async () => {
+  UI.elements.setFolderLoggingBtn.onclick = async () => {
     try {
       const isOK = await FILE_LOG_MANAGER.initializeDirectory();
       if (!isOK) return;
@@ -439,7 +465,8 @@ window.addEventListener("DOMContentLoaded", () => {
     const isAllowSaveSDcard = UI.elements.sdHX712.checked ? 1 : 0;
     const isSensorEnabled = UI.elements.checkboxHX712.checked;
     if (isSensorEnabled) {
-      terminal_send(`sensor hx712 1 40 31 ${isAllowSaveSDcard}`);
+      terminal_send(`sensor hx712 1 40 31 ${isAllowSaveSDcard}`); // stream 5 channels, sample rate 40Hz
+      // terminal_send(`sensor hx712 1 40 1 ${isAllowSaveSDcard}`);  // stream 1 channels, sample rate 40Hz
     } else {
       terminal_send(`sensor hx712 0`);
     }
@@ -453,7 +480,8 @@ window.addEventListener("DOMContentLoaded", () => {
     const isAllowSaveSDcard = UI.elements.sdPiezo.checked ? 1 : 0;
     const isSensorEnabled = UI.elements.checkboxPiezo.checked;
     if (isSensorEnabled) {
-      terminal_send(`sensor piezo 1 1000 31 ${isAllowSaveSDcard}`);
+      terminal_send(`sensor piezo 1 1000 31 ${isAllowSaveSDcard}`); // stream 5 channels, sample rate 1000Hz
+      // terminal_send(`sensor piezo 1 1000 1 ${isAllowSaveSDcard}`); // stream 1 channels, sample rate 1000Hz
     } else {
       terminal_send(`sensor piezo 0`);
     }
