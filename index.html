@@ -175,7 +175,7 @@
       <section class="flex items-center gap-3">
         <a href="https://t2dtech.io.vn/" target="_blank" class="flex items-center gap-3">
 
-          <img src="./res/h2t_logo.png" class="w-20 h-20 bg-white rounded-lg shadow object-contain"
+          <img src="./res/h2t_logo.png" class="hidden w-20 h-20 bg-white rounded-lg shadow object-contain"
             onerror="this.src='https://via.placeholder.com/40?text=LOGO'" />
 
           <span class="text-xl font-black tracking-tighter text-white uppercase">
@@ -185,49 +185,12 @@
       </section>
 
       <!-- Desktop Menu -->
-      <nav class="hidden md:flex items-center px-4 gap-3 text-md font-semibold text-blue-100">
+      <nav class="flex items-center px-4 gap-3 text-md font-semibold text-blue-100">
         <a href="https://t2dtech.io.vn/"
           class="px-4 py-2 rounded-lg hover:bg-white/15 hover:text-white transition duration-200">
-          Our website
-        </a>
-
-        <button class="px-4 py-2 rounded-lg hover:bg-white/15 hover:text-white transition duration-200">
-          Contact Us
-        </button>
-
-        <a href="mailto:t2dtech.vn@gmail.com"
-          class="px-4 py-2 rounded-lg hover:bg-white/15 hover:text-white transition duration-200">
-          Email
+          GUIDELINES
         </a>
       </nav>
-
-      <!-- Mobile Menu Button -->
-      <button id="mobileMenuBtn"
-        class="md:hidden p-2 text-slate-200 rounded-lg hover:bg-white/15 hover:text-white transition">
-        <i data-lucide="menu" class="h-6 w-6"></i>
-      </button>
-
-      <!-- Mobile Popup Menu -->
-      <div id="mobileMenu"
-        class="hidden md:hidden absolute top-full right-4 mt-2 w-56 bg-white/15 rounded-xl shadow-2xl border border-slate-200 overflow-hidden z-50">
-
-        <div class="flex flex-col py-2 text-base font-semibold text-slate-700">
-
-          <a href="https://t2dtech.io.vn/" class="px-5 py-3 hover:bg-gray-100 hover:text-blue-600 transition">
-            Our website
-          </a>
-
-          <button class="text-left px-5 py-3 hover:bg-gray-100 hover:text-blue-600 transition">
-            Contact Us
-          </button>
-
-          <a href="mailto:t2dtech.vn@gmail.com" class="px-5 py-3 hover:bg-gray-100 hover:text-blue-600 transition">
-            Email
-          </a>
-
-        </div>
-      </div>
-
     </nav>
   </header>
   <!-- Green Bar -->
@@ -433,7 +396,19 @@
             </div>
           </div>
 
-          <div class=" flex flex-col gap-3 items-center py-2">
+          <!-- Baudrate Row (Added) -->
+          <div class="w-full flex items-center justify-between py-1">
+            <span class="font-bold text-[12px] text-blue-400 truncate">BAUDRATE</span>
+            <select id="baudrateSelect"
+              class=" bg-gray-50  text-black text-[14px] font-bold border border-[#30363d] rounded px-1 py-2 outline-none focus:border-blue-500 cursor-pointer">
+              <option value="115200">115200</option>
+              <option value="460800">460800</option>
+              <option value="921600">921600</option>
+            </select>
+          </div>
+
+          <!-- Buttons Row -->
+          <div class="flex flex-col gap-3 items-center py-2">
             <button id="connectUartBtn"
               class="w-[160px] bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold py-2 px-4 rounded-md transition flex items-center justify-center gap-2 shadow-lg">
               <i data-lucide="radio" class="w-4 h-4"></i> START SCAN
@@ -461,7 +436,7 @@
               Send File
             </label>
 
-            <div class="flex space-x-2 pb-1">
+            <div class="flex space-x-2 pb-2">
               <input id="remoteSendDir" type="text" value="/home/Downloads/" placeholder="/home/Downloads/"
                 class="flex-1 text-[14px] bg-gray-50 border border-gray-400 px-2 rounded-lg truncate text-left py-2">
             </div>
@@ -525,7 +500,7 @@
                   <div id="progressBar" class="h-full w-0 bg-green-500 rounded-full transition-all duration-300"></div>
                 </div>
                 <!-- Progress text -->
-                <div id="progressText" class="flex justify-between text-[13px] text-gray-500">
+                <div id="progressText" class="flex justify-between text-[12px] text-gray-500">
                   <span>Progress: 0% | Speed: 0 KB/s | ETA: 0s</span>
                 </div>
               </div>
@@ -588,15 +563,15 @@
     </aside>
 
     <!-- CỘT PHẢI -->
-    <section id="right-container" class="min-w-[320px] flex-1 flex flex-col gap-4 overflow-hidden h-full">
+    <section id="right-container" class="min-w-[320px] flex-1 flex flex-col gap-2 overflow-hidden h-full">
       <!-- Terminal Section -->
       <section id="terminal-section"
         class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col flex-shrink-0">
-        <div class="px-6 py-4 flex justify-between items-center bg-gray-800">
+        <div class="px-6 py-2 flex justify-between items-center bg-gray-800">
           <h2 class="text-sm font-bold uppercase tracking-wider text-gray-200">Terminal Output</h2>
         </div>
         <div id="terminal"
-          class="terminal-bg h-[150px] md:h-[180px] p-4 text-green-400 text-sm overflow-y-auto custom-scrollbar leading-relaxed font-mono">
+          class="terminal-bg h-[260px] p-4 text-green-400 text-sm overflow-y-auto custom-scrollbar leading-relaxed font-mono">
         </div>
         <div class="p-3 bg-gray-800 flex items-stretch space-x-2">
           <span class="text-gray-500 font-mono pl-2 flex items-center">$</span>
@@ -610,12 +585,12 @@
       </section>
       <!-- Chart Section -->
       <section id="chart-section"
-        class="flex-1 flex flex-col bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 min-h-0 overflow-hidden">
-        <div class="flex justify-between items-center mb-4 flex-shrink-0">
+        class="flex-1 flex flex-col bg-gray-800 pb-4 rounded-2xl shadow-sm border border-gray-100 min-h-0 overflow-hidden">
+        <div class="flex justify-between items-center ml-6 py-2 flex-shrink-0">
           <h2 class="text-sm font-bold uppercase tracking-wider text-white">Real-time Data</h2>
         </div>
         <!-- Chart Container -->
-        <div class="relative bg-slate-950/80 border border-slate-900 rounded-xl overflow-hidden flex-1 w-full min-h-0">
+        <div class="relative bg-slate-950/80 border border-slate-900  overflow-hidden flex-1 w-full min-h-0">
           <canvas id="chart-canvas" class="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing">
           </canvas>
           <!-- Toolbar -->
@@ -686,7 +661,8 @@
 
   <footer
     class="bg-gradient-to-r from-blue-900 to-blue-700 p-3 text-[11px] text-gray-200 text-center uppercase tracking-[0.25em] font-bold flex-shrink-0">
-    T2DTECH Co. Ltd © 2026
+    <!-- T2DTECH Co. Ltd © 2026 -->
+    © 2026
   </footer>
 
   <script>

@@ -1046,7 +1046,7 @@ class ChartManager {
         this.ctx.font = `${9 * dpr}px Inter`;
 
         // Hiển thị giá trị GLOBAL INDEX in x-axis (đã làm tròn)
-        const SHOW_X_LABEL = true;
+        const SHOW_X_LABEL = false;
         if (SHOW_X_LABEL) {
           const displayTime = Math.round(t);
           this.ctx.fillText(displayTime.toString(), x, height - this.margins.bottom * dpr + 5 * dpr);
@@ -1359,7 +1359,15 @@ class ChartManager {
 
           this.ctx.fillStyle = config.color;
           this.ctx.font = `bold ${10 * dpr}px Inter`;
-          const displayText = `${label}   ${p.value.toFixed(2)}   (idx: ${rawIdx}, global: ${Math.round(p.baseTime)})`;
+
+          // Show only local index in tooltip for simplicity
+          let displayText = `${label}   ${p.value.toFixed(2)}   (idx: ${rawIdx})`;
+          const SHOW_GLOBAL_LOCAL_INDEX = false;
+          if (SHOW_GLOBAL_LOCAL_INDEX) {
+            // Show local and global index in tooltip for clarity
+            displayText = `${label}   ${p.value.toFixed(2)}   (idx: ${rawIdx}, global: ${Math.round(p.baseTime)})`;
+          }
+
           this.ctx.fillText(displayText, tx + 10 * dpr, ty + (26 + i * lineH) * dpr);
         });
       }

@@ -24,7 +24,7 @@ function isDeviceConnected() {
 }
 
 async function updateUIFromDeviceStatus(text) {
-  if (text.includes("Sensor Info:")) {
+  if (text.includes("Sen Info:")) {
     const deviceStatus = await UTILS.parseSensorStatus(text);
     const streamingDeviceStatus = deviceStatus.filter((s) => s.name && s.name.startsWith("Stream status"));
     if (streamingDeviceStatus.length > 0 && streamingDeviceStatus[0].active === "ON") {
@@ -77,7 +77,8 @@ function terminal_send(cmd) {
 window.addEventListener("DOMContentLoaded", () => {
   //  Khởi tạo cấu trúc các phần tử UI
   UI.init();
-
+  // Set default baudrate
+  UI.elements.baudrateSelect.value = AppState.baudrate.toString();
   // Khởi tạo Chart Manager với canvas từ UI
   CHART.init(UI.elements.canvas);
 
@@ -178,12 +179,17 @@ window.addEventListener("DOMContentLoaded", () => {
       // Disconnect BLE to avoid conflicts.
       await UI.elements.disconnectBLEBtn.click();
     }
-    await UART.connect();
+    await UART.connect(AppState.baudrate);
   };
 
   UI.elements.disconnectUartBtn.onclick = async () => {
     await UART.disconnect();
   };
+
+  // Set callback for UART baudrate selection change
+  UI.elements.baudrateSelect.addEventListener("change", (event) => {
+    AppState.baudrate = parseInt(event.target.value, 10);
+  });
 
   // Set callback functions for UART to update UI
   UART.onStatusChange(async (isConnected) => {

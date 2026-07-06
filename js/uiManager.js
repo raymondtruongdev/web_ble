@@ -36,6 +36,7 @@ class UIManager {
       statusUartText: document.getElementById("statusUartText"),
       connectUartBtn: document.getElementById("connectUartBtn"),
       disconnectUartBtn: document.getElementById("disconnectUartBtn"),
+      baudrateSelect: document.getElementById("baudrateSelect"),
 
       // File transfer elements
       remoteSendDir: document.getElementById("remoteSendDir"),
@@ -145,10 +146,14 @@ class UIManager {
       this.elements.statusUartIcon.className = "status-dot bg-green-500";
       this.elements.statusUartText.classList.replace("text-gray-300", "text-green-400");
       this.elements.statusUartText.textContent = "ONLINE";
+      this.elements.baudrateSelect.disabled = true;
+      this.elements.baudrateSelect.classList.add("opacity-50");
     } else {
       this.elements.statusUartIcon.className = "status-dot bg-gray-500";
       this.elements.statusUartText.classList.replace("text-green-400", "text-gray-300");
       this.elements.statusUartText.textContent = "OFFLINE";
+      this.elements.baudrateSelect.disabled = false;
+      this.elements.baudrateSelect.classList.remove("opacity-50", "pointer-events-none");
     }
   }
 

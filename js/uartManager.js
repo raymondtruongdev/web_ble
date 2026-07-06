@@ -45,12 +45,12 @@ class UARTManager {
     this.onStreamingStatus = () => {};
   }
 
-  async connect() {
+  async connect(baudRate = 460800) {
     try {
       this.port = await navigator.serial.requestPort();
       // baudRate: 1000000, 921600 , 460800 (max value for MACOS)
       await this.port.open({
-        baudRate: 921600,
+        baudRate: baudRate,
         dataBits: 8,
         stopBits: 1,
         parity: "none",
@@ -431,7 +431,7 @@ class UARTManager {
 const UART = new UARTManager();
 // Export public API for UART module
 export default {
-  connect: () => UART.connect(),
+  connect: (baudRate) => UART.connect(baudRate),
   disconnect: () => UART.disconnect(),
   sendCommand: (cmd) => UART.sendCommand(cmd),
   sendFrame: (cmd, payload) => UART.sendFrame(cmd, payload),

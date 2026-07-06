@@ -7,6 +7,7 @@ const state = {
   chartStatus: CONSTANTS.CHART_STATUS.NONE,
   loggingStatus: CONSTANTS.LOGGING_FILE_STATUS.NONE,
   loggingMode: null, // "direct_mode", "buffered_mode", or null
+  baudrate: 921600, // Default baudrate: 115200, 460800, 921600
 };
 
 export const AppState = {
@@ -47,6 +48,13 @@ export const AppState = {
 
   set loggingMode(value) {
     state.loggingMode = value;
+  },
+  get baudrate() {
+    return state.baudrate;
+  },
+
+  set baudrate(value) {
+    state.baudrate = value;
   },
 
   setLoggingPanelVisible(isValue) {
