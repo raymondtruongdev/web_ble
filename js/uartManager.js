@@ -50,7 +50,7 @@ class UARTManager {
       this.port = await navigator.serial.requestPort();
       // baudRate: 1000000, 921600 , 460800 (max value for MACOS)
       await this.port.open({
-        baudRate: 1000000,
+        baudRate: 921600,
         dataBits: 8,
         stopBits: 1,
         parity: "none",
