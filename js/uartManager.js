@@ -200,8 +200,8 @@ class UARTManager {
     frame[offset++] = (crc >> 8) & 0xff;
     frame[offset++] = stopFrame;
 
-    console.log("TX Command:", `0x${messageType.toString(16).padStart(2, "0")}`);
-    console.log("TX Payload length:", payload.length);
+    // console.log("TX Command:", `0x${messageType.toString(16).padStart(2, "0")}`);
+    // console.log("TX Payload length:", payload.length);
     // console.log(
     //   "TX Frame (hex):",
     //   Array.from(frame)
@@ -308,7 +308,7 @@ class UARTManager {
       //   .join(" "),
       // );
       if (command == 0x92) {
-        console.log("========== DATA[0x92] package ID:", this.no_package, info.data_len);
+        // console.log("========== DATA[0x92] package ID:", this.no_package, info.data_len);
         this.no_package++;
       }
 

@@ -128,7 +128,7 @@ class ParserStreaming {
       this.configs[existingIdx] = config;
     } else {
       this.configs.push(config);
-      console.log("[ALL CONFIGS]", this.configs);
+      // console.log("[ALL CONFIGS]", this.configs);
     }
   }
 
@@ -172,7 +172,7 @@ class ParserStreaming {
         const streamType = data[0];
         const config = this.configs.find((c) => c.type === streamType);
         if (!config) {
-          console.warn(`[STREAM] No config for stream type ${streamType}`);
+          // console.warn(`[STREAM] No config for stream type ${streamType}`);
           return;
         }
         const result = await this.parseStreamingFrame(data, config);
