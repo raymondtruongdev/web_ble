@@ -238,7 +238,7 @@ class ChartManager {
           `[CHART] Missing samples [ Δ = ${missingSampleCount}, ${channelName}, freq = ${samplingRate} Hz]. Estimated: ${estimatedSampleCount}, Actual: ${sampleCountInBatch}`,
         );
       }
-        if (estimatedSampleCount < sampleCountInBatch * 0.5) {
+      if (estimatedSampleCount < sampleCountInBatch * 0.5) {
         const overtSampleCount = -estimatedSampleCount - sampleCountInBatch;
         console.warn(
           `[CHART] Wrong msOfMinuteFW (Δ = ${diffMsOfMinuteFW} ms) [${channelName}]. Previous: ${this.lastMsOfMinuteFW[channelName]}, Current: ${msOfMinuteFW}`,
@@ -1352,7 +1352,8 @@ class ChartManager {
         sortedPoints.forEach((p, i) => {
           const channelIdx = sortedChannels.indexOf(p.channel);
           const config = palette[channelIdx % palette.length];
-          const label = this.customLabels[channelIdx] || `Sensor ${String.fromCharCode(65 + (channelIdx % 26))}`;
+          const label =
+            this.customLabels[channelIdx] || p.channel || `Sensor ${String.fromCharCode(65 + (channelIdx % 26))}`;
 
           // HIỂN THỊ GIÁ TRỊ THỰC TẾ CỦA ĐIỂM (p.value) và localIndex thực tế (p.localIndex)
           const rawIdx = p.localIndex !== undefined ? Math.round(p.localIndex) : Math.round(p.baseTime);
@@ -1360,15 +1361,20 @@ class ChartManager {
           this.ctx.fillStyle = config.color;
           this.ctx.font = `bold ${10 * dpr}px Inter`;
 
-          // Show only local index in tooltip for simplicity
-          let displayText = `${label}   ${p.value.toFixed(2)}   (idx: ${rawIdx})`;
+          let valueText = `${p.value.toFixed(0)}`;
+          let indexText = `(idx: ${rawIdx})`;
           const SHOW_GLOBAL_LOCAL_INDEX = false;
           if (SHOW_GLOBAL_LOCAL_INDEX) {
             // Show local and global index in tooltip for clarity
-            displayText = `${label}   ${p.value.toFixed(2)}   (idx: ${rawIdx}, global: ${Math.round(p.baseTime)})`;
+            indexText = `(idx: ${rawIdx}, global: ${Math.round(p.baseTime)})`;
           }
-
-          this.ctx.fillText(displayText, tx + 10 * dpr, ty + (26 + i * lineH) * dpr);
+          const xLabel = tx + 20 * dpr;
+          const xValue = tx + 60 * dpr;
+          const xInfo = tx + 100 * dpr;
+          const y = ty + (26 + i * lineH) * dpr;
+          this.ctx.fillText(label, xLabel, y);
+          this.ctx.fillText(valueText, xValue, y);
+          this.ctx.fillText(indexText, xInfo, y);
         });
       }
     }
